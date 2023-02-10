@@ -1,36 +1,74 @@
 module NBE where
 
 open import Agda.Builtin.String using (String)
-open import Denotation using (Ty; nat; _arrow_)
+open import Denotation using (Ty; nat; _⇒_)
 
 -- NbE algorithm (system T with neutral terms)
 
 -- TODO: quantify over a context Γ
-data Neᵀ : ∀ (T : Ty) → Set
-data Nfᵀ : ∀ (T : Ty) → Set
+data Neᵀ : ∀ (T : Ty) → Set -- Neutral terms
+data Nfᵀ : ∀ (T : Ty) → Set -- Normal terms
 
 data Neᵀ where
-  app : ∀ {S T : Ty} → (u : Neᵀ (S arrow T)) → (v : Nfᵀ S) → Neᵀ T
-  var : ∀ {T} → String → Neᵀ T
+  -- application on an unknown function
+  _·_ : ∀ {S T : Ty}
+      → (𝓊 : Neᵀ (S ⇒ T))
+      → (v : Nfᵀ S)
+        -----------------
+      → Neᵀ T
+
+  -- a variable
+  var : ∀ {T}
+      → String
+        ------
+      → Neᵀ T
+
+  -- blocked recursion
+  rec : ∀ {T : Ty}
+      → (z↓ : Nfᵀ T)
+      → (s↓ : Nfᵀ (nat ⇒ T ⇒ T))
+      → (𝓊 : Neᵀ nat)
+        ------------------------
+      → Neᵀ T
 
 data Nfᵀ where
-  z : Nfᵀ nat
+  zero : Nfᵀ nat
+
   suc : Nfᵀ nat → Nfᵀ nat
-  func : ∀ {S T : Ty} → (f : String → Nfᵀ T) → Nfᵀ (S arrow T)
-  unknown : ∀ {T : Ty} → Neᵀ T → Nfᵀ T
+
+  -- abstraction
+  ƛ : ∀ {S T : Ty}
+    → (f : String → Nfᵀ T)
+      --------------------
+    → Nfᵀ (S ⇒ T)
+
+  -- neutral term
+  neutral : ∀ {T : Ty}
+    → (𝓊 : Neᵀ T)
+      -----------
+    → Nfᵀ T
 
 ⟦_⟧ : Ty → Set
-⟦ nat ⟧ = Nfᵀ nat
-⟦ S arrow T ⟧ = ⟦ S ⟧ → ⟦ T ⟧
+⟦ nat ⟧   = Nfᵀ nat
+⟦ S ⇒ T ⟧ = ⟦ S ⟧ → ⟦ T ⟧
 
-↑ᵀ : {T : Ty} → Neᵀ T → ⟦ T ⟧
-↓ᵀ : {T : Ty} → ⟦ T ⟧ → Nfᵀ T
+↑ᵀ : {T : Ty} → Neᵀ T → ⟦ T ⟧ -- Reflection
+↓ᵀ : {T : Ty} → ⟦ T ⟧ → Nfᵀ T -- Reification
 
-↑ᵀ {nat} u = unknown u
-↑ᵀ {S arrow T} u a = ↑ᵀ (app u v) where v = ↓ᵀ a
+↑ᵀ {nat} 𝓊     = neutral 𝓊
+↑ᵀ {S ⇒ T} 𝓊 a = ↑ᵀ (𝓊 · v) where v = ↓ᵀ a
 
-↓ᵀ {nat} v = v
-↓ᵀ {S arrow T} f = func lambda where
+↓ᵀ {nat} v   = v
+↓ᵀ {S ⇒ T} f = ƛ lambda where
   lambda : String → Nfᵀ T
   -- TODO: freshness of x
   lambda x =  ↓ᵀ (f a) where a = ↑ᵀ (var x)
+
+-- TODO: the original habilitation has the type of the first
+-- argument to rec as "N" (nat), this seems to be a typo
+ml-rec : ∀ {T : Ty} → ⟦ T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T ⟧
+ml-rec z s zero            = z
+ml-rec z s (suc v)         = s v (ml-rec z s v)
+ml-rec {T} z s (neutral 𝓊) = ↑ᵀ (rec z↓ s↓ 𝓊) where
+  z↓ = ↓ᵀ {T} z
+  s↓ = ↓ᵀ {nat ⇒ T ⇒ T} s

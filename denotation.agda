@@ -9,7 +9,9 @@ open import Data.Product using (_×_; ∃; ∃-syntax) renaming (_,_ to ⟨_,_�
 
 data Ty : Set where
   nat : Ty
-  _arrow_ : ∀ (S T : Ty) → Ty
+  _⇒_ : ∀ (S T : Ty) → Ty
+
+infixr 10 _⇒_
 
 data Γ : Set where
   gamma : ∀ (l : List (String × Ty)) → Γ
@@ -38,7 +40,7 @@ open ⟦_⟧
 
 ⟦Ty⟧ : ⟦ Ty ⟧
 denoted ⟦Ty⟧ nat = N
-denoted ⟦Ty⟧ (S arrow T) = S→T (denoted ⟦Ty⟧ S) (denoted ⟦Ty⟧ T)
+denoted ⟦Ty⟧ (S ⇒ T) = S→T (denoted ⟦Ty⟧ S) (denoted ⟦Ty⟧ T)
 
 ⟦Γ⟧ : ⟦ Γ ⟧
 denoted ⟦Γ⟧ (gamma []) = N₁
