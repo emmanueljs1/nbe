@@ -1,7 +1,7 @@
 module NBE where
 
 open import Agda.Builtin.String using (String)
-open import Denotation using (Ty; nat; _⇒_)
+open import SystemT using (Ty; nat; _⇒_; Γ; Denotation; ⟦_⟧)
 
 -- NbE algorithm (system T with neutral terms)
 
@@ -48,9 +48,10 @@ data Nfᵀ where
       -----------
     → Nfᵀ T
 
-⟦_⟧ : Ty → Set
-⟦ nat ⟧   = Nfᵀ nat
-⟦ S ⇒ T ⟧ = ⟦ S ⟧ → ⟦ T ⟧
+instance
+  ⟦Ty⟧ : Denotation Ty
+  Denotation.⟦ ⟦Ty⟧ ⟧ nat = Nfᵀ nat
+  Denotation.⟦ ⟦Ty⟧ ⟧ (S ⇒ T) = ⟦ S ⟧ → ⟦ T ⟧
 
 ↑ᵀ : {T : Ty} → Neᵀ T → ⟦ T ⟧ -- Reflection
 ↓ᵀ : {T : Ty} → ⟦ T ⟧ → Nfᵀ T -- Reification
