@@ -1,5 +1,6 @@
 module NBE where
 
+open import Agda.Builtin.String using (String)
 open import Denotation using (Ty; nat; _arrow_)
 
 -- NbE algorithm (system T with neutral terms)
@@ -10,24 +11,26 @@ data Nfᵀ : ∀ (T : Ty) → Set
 
 data Neᵀ where
   app : ∀ {S T : Ty} → (u : Neᵀ (S arrow T)) → (v : Nfᵀ S) → Neᵀ T
+  var : ∀ {T} → String → Neᵀ T
 
 data Nfᵀ where
   z : Nfᵀ nat
   suc : Nfᵀ nat → Nfᵀ nat
-  func : ∀ {S T : Ty} → (v : Nfᵀ T) → Nfᵀ (S arrow T)
+  func : ∀ {S T : Ty} → (f : String → Nfᵀ T) → Nfᵀ (S arrow T)
   unknown : ∀ {T : Ty} → Neᵀ T → Nfᵀ T
 
+⟦_⟧ : Ty → Set
+⟦ nat ⟧ = Nfᵀ nat
+⟦ S arrow T ⟧ = ⟦ S ⟧ → ⟦ T ⟧
 
-record ↑ᵀ {T : Ty} : Set where
-  field
-    reflect : Neᵀ T → Nfᵀ T
+↑ᵀ : {T : Ty} → Neᵀ T → ⟦ T ⟧
+↓ᵀ : {T : Ty} → ⟦ T ⟧ → Nfᵀ T
 
-↑ᴺ : ↑ᵀ {nat}
-↑ᴺ = record { reflect = λ u → unknown u }
+↑ᵀ {nat} u = unknown u
+↑ᵀ {S arrow T} u a = ↑ᵀ (app u v) where v = ↓ᵀ a
 
-{-
-record ↓ᴳ {T : Set} : Set₁ where
-  field
-    reify : ⟦ T ⟧ → Nfᵀ T
--}
-
+↓ᵀ {nat} v = v
+↓ᵀ {S arrow T} f = func lambda where
+  lambda : String → Nfᵀ T
+  -- TODO: freshness of x
+  lambda x =  ↓ᵀ (f a) where a = ↑ᵀ (var x)
