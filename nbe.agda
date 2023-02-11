@@ -11,7 +11,7 @@ data Nfᵀ : ∀ (T : Ty) → Set -- Normal terms
 
 data Neᵀ where
   -- application on an unknown function
-  _·_ : ∀ {S T : Ty}
+  app : ∀ {S T : Ty}
       → (𝓊 : Neᵀ (S ⇒ T))
       → (v : Nfᵀ S)
         -----------------
@@ -37,10 +37,10 @@ data Nfᵀ where
   suc : Nfᵀ nat → Nfᵀ nat
 
   -- abstraction
-  ƛ : ∀ {S T : Ty}
-    → (f : String → Nfᵀ T)
-      --------------------
-    → Nfᵀ (S ⇒ T)
+  abs : ∀ {S T : Ty}
+      → (f : String → Nfᵀ T)
+        --------------------
+      → Nfᵀ (S ⇒ T)
 
   -- neutral term
   neutral : ∀ {T : Ty}
@@ -57,10 +57,10 @@ instance
 ↓ᵀ : {T : Ty} → ⟦ T ⟧ → Nfᵀ T -- Reification
 
 ↑ᵀ {nat} 𝓊     = neutral 𝓊
-↑ᵀ {S ⇒ T} 𝓊 a = ↑ᵀ (𝓊 · v) where v = ↓ᵀ a
+↑ᵀ {S ⇒ T} 𝓊 a = ↑ᵀ (app 𝓊 v) where v = ↓ᵀ a
 
 ↓ᵀ {nat} v   = v
-↓ᵀ {S ⇒ T} f = ƛ lambda where
+↓ᵀ {S ⇒ T} f = abs lambda where
   lambda : String → Nfᵀ T
   -- TODO: freshness of x
   lambda x =  ↓ᵀ (f a) where a = ↑ᵀ (var x)
