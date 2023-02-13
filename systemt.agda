@@ -21,9 +21,9 @@ data Γ : Set where
 infix 11 _,_
 
 data _∋_ : Γ → Ty → Set where
-  `Z : ∀ {Γ : Γ} {T : Ty}
-       ---------
-     → Γ , T ∋ T
+  `Z_ : ∀ {Γ : Γ} {T : Ty}
+        ---------
+      → Γ , T ∋ T
 
   `S_ : ∀ {Γ : Γ} {S T : Ty}
       → Γ ∋ T
