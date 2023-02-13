@@ -5,7 +5,7 @@ open import SystemT using (Ty; nat; _⇒_; Γ; Denotation; ⟦_⟧)
 
 -- NbE algorithm (system T with neutral terms)
 
--- TODO: quantify over a context Γ
+-- TODO: quantify over a context Γ (section 2.5)
 data Neᵀ : ∀ (T : Ty) → Set -- Neutral terms
 data Nfᵀ : ∀ (T : Ty) → Set -- Normal terms
 
