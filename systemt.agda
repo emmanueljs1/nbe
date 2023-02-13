@@ -2,9 +2,9 @@ module SystemT where
 
 open import Agda.Builtin.Unit using (⊤)
 open import Agda.Builtin.String using (String)
+open import Data.Empty using (⊥)
 open import Data.Nat using (ℕ)
 open import Data.Product using (_×_)
-open import Relation.Binary.PropositionalEquality using (_≢_)
 
 -- Basic system T
 
@@ -83,7 +83,7 @@ open Denotation {{...}} public
     denote (S ⇒ T) = (denote S) → (denote T)
 
 instance
-    ⟦Γ⟧ : ∀ {{_ : Denotation Ty}} → Denotation Γ
+    ⟦Γ⟧ : {{_ : Denotation Ty}} → Denotation Γ
     Denotation.⟦ ⟦Γ⟧ ⟧ ∅ = ⊤
     Denotation.⟦ ⟦Γ⟧ ⟧ (Γ , T) = ⟦ Γ ⟧ × ⟦ T ⟧
     -- TODO: instances for denotations of values

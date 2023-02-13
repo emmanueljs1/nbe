@@ -1,68 +1,90 @@
 module NBE where
 
 open import Agda.Builtin.String using (String)
-open import SystemT hiding (⟦Ty⟧)
+open import Data.Sum using (_⊎_; inj₁; inj₂)
+open import SystemT using (Ty; Γ; Denotation; nat; _⇒_; _∋_; _,_; ⟦_⟧)
 
 -- NbE algorithm (system T with neutral terms)
 
-data Neᵀ (Γ : Γ) : ∀ {T : Ty} → Γ ⊢ T → Set -- Neutral terms
-data Nfᵀ (Γ : Γ) : ∀ {T : Ty} → Γ ⊢ T → Set -- Normal terms
+data Neᵀ {T : Ty} (Γ : Γ) : Set -- Neutral terms
+data Nfᵀ (Γ : Γ) : {T : Ty} → Set -- Normal terms
 
-data Neᵀ Γ where
+data Neᵀ {T} Γ where
   -- application on an unknown function
-  app : ∀ {S T : Ty} {𝓊 : Γ ⊢ S ⇒ T} {v : Γ ⊢ S}
-      → Neᵀ Γ 𝓊
-      → Nfᵀ Γ v
+  app : ∀ {S : Ty}
+      → Neᵀ {S ⇒ T} Γ
+      → Nfᵀ Γ {S}
         -------------
-      → Neᵀ Γ (𝓊 · v)
+      → Neᵀ {T} Γ
 
   -- a variable
-  var : ∀ {T : Ty}
-      → (x : Γ ∋ T)
+  var : (x : Γ ∋ T)
         -----------
-      → Neᵀ Γ (` x)
+      → Neᵀ {T} Γ
 
   -- blocked recursion
-  rec : ∀ {T : Ty} {z : Γ ⊢ T} {s : Γ ⊢ nat ⇒ T ⇒ T} {𝓊 : Γ ⊢ nat}
-      → Nfᵀ Γ z
-      → Nfᵀ Γ s
-      → Neᵀ Γ 𝓊
+  rec : Nfᵀ Γ {T}
+      → Nfᵀ Γ {nat ⇒ T ⇒ T}
+      → Neᵀ {nat} Γ
         -----------------
-      → Neᵀ Γ (rec z s 𝓊)
+      → Neᵀ {T} Γ
 
-syntax Neᵀ Γ {T} t = Γ ⊢ t ⇉ T
+--syntax Neᵀ Γ {T} t = Γ ⊢ t ⇉ T
 
 data Nfᵀ Γ where
-  nzero : Nfᵀ Γ zero
+  nzero : Nfᵀ Γ {nat}
 
-  nsuc : ∀ {v : Γ ⊢ nat}
-       → Nfᵀ Γ v
-       → Nfᵀ Γ (suc v)
+  nsuc : Nfᵀ Γ {nat}
+       → Nfᵀ Γ {nat}
 
   -- abstraction
-  abs : ∀ {S T : Ty} {f : Γ ⊢ S ⇒ T}
-        -------
-      → Nfᵀ Γ f
+  abs : ∀ {S T : Ty}
+      → Nfᵀ (Γ , S) {T}
+        -------------
+      → Nfᵀ Γ {S ⇒ T}
 
   -- neutral term
-  neutral : ∀ {T : Ty} {𝓊 : Γ ⊢ T}
-          → Neᵀ Γ 𝓊
+  neutral : ∀ {T : Ty}
+          → Neᵀ {T} Γ
             -------
-          → Nfᵀ Γ 𝓊
+          → Nfᵀ Γ {T}
 
-syntax Nfᵀ Γ {T} t = Γ ⊢ t ⇇ T
+data Nf (T : Ty) : Set where
+  nf : ∀ (Γ : Γ) → Nfᵀ Γ {T} → Nf T
+
+data Ne (T : Ty) : Set where
+  ne : ∀ (Γ : Γ) → Neᵀ {T} Γ → Ne T
+  ⊥  : Ne T
+
+data ℕ : Set where
+  ne   : Ne nat → ℕ
+  zero : ℕ
+  suc  : ℕ → ℕ
+
+instance
+    ⟦Ty⟧ : Denotation Ty
+    Denotation.⟦ ⟦Ty⟧ ⟧ nat = ℕ
+    Denotation.⟦ ⟦Ty⟧ ⟧ (S ⇒ T) = ⟦ S ⟧ → ⟦ T ⟧
+
+↑ᵀ : {T : Ty} → Ne T → ⟦ T ⟧
+↑ᵀ {nat} 𝓊̂ = ne 𝓊̂
+↑ᵀ {S ⇒ T} (ne Γ₁ x) v = {!!}
+↑ᵀ {S ⇒ T} ⊥ v = {!!}
+
+↓ᵀ : {T : Ty} → ⟦ T ⟧ → Nf T
+↓ᵀ = {!!}
 
 -- Liftable terms must be reintroduced for the below algorithm (formerly
 -- an implementation of the "sketch" in 2.3 can) to work
 
-{-
 
-⟦Ty⟧ : (T : Ty) → ∀ (Γ : Γ) → Set
-⟦Ty⟧ nat = ∀ (Γ : Γ) → Nfᵀ Γ (Γ ⊢ nat)
-⟦Ty⟧ (S ⇒ T) = ⟦ S ⟧ → ⟦ T ⟧
+{-
 
 ↑ᵀ : {T : Ty} → Neᵀ T → ⟦ T ⟧ -- Reflection
 ↓ᵀ : {T : Ty} → ⟦ T ⟧ → Nfᵀ T -- Reification
+
+↑ᵀ = ?
+↓ᵀ = ?
 
 ↑ᵀ {nat} 𝓊     = neutral 𝓊
 ↑ᵀ {S ⇒ T} 𝓊 a = ↑ᵀ (app 𝓊 v) where v = ↓ᵀ a
