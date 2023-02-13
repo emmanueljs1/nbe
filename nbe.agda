@@ -1,57 +1,65 @@
 module NBE where
 
 open import Agda.Builtin.String using (String)
-open import SystemT using (Ty; nat; _⇒_; Γ; Denotation; ⟦_⟧)
+open import SystemT hiding (⟦Ty⟧)
 
 -- NbE algorithm (system T with neutral terms)
 
--- TODO: quantify over a context Γ (section 2.5)
-data Neᵀ : ∀ (T : Ty) → Set -- Neutral terms
-data Nfᵀ : ∀ (T : Ty) → Set -- Normal terms
+data Neᵀ (Γ : Γ) : ∀ {T : Ty} → Γ ⊢ T → Set -- Neutral terms
+data Nfᵀ (Γ : Γ) : ∀ {T : Ty} → Γ ⊢ T → Set -- Normal terms
 
-data Neᵀ where
+data Neᵀ Γ where
   -- application on an unknown function
-  app : ∀ {S T : Ty}
-      → (𝓊 : Neᵀ (S ⇒ T))
-      → (v : Nfᵀ S)
-        -----------------
-      → Neᵀ T
+  app : ∀ {S T : Ty} {𝓊 : Γ ⊢ S ⇒ T} {v : Γ ⊢ S}
+      → Neᵀ Γ 𝓊
+      → Nfᵀ Γ v
+        -------------
+      → Neᵀ Γ (𝓊 · v)
 
   -- a variable
-  var : ∀ {T}
-      → String
-        ------
-      → Neᵀ T
+  var : ∀ {T : Ty}
+      → (x : Γ ∋ T)
+        -----------
+      → Neᵀ Γ (` x)
 
   -- blocked recursion
-  rec : ∀ {T : Ty}
-      → (z↓ : Nfᵀ T)
-      → (s↓ : Nfᵀ (nat ⇒ T ⇒ T))
-      → (𝓊 : Neᵀ nat)
-        ------------------------
-      → Neᵀ T
+  rec : ∀ {T : Ty} {z : Γ ⊢ T} {s : Γ ⊢ nat ⇒ T ⇒ T} {𝓊 : Γ ⊢ nat}
+      → Nfᵀ Γ z
+      → Nfᵀ Γ s
+      → Neᵀ Γ 𝓊
+        -----------------
+      → Neᵀ Γ (rec z s 𝓊)
 
-data Nfᵀ where
-  zero : Nfᵀ nat
+syntax Neᵀ Γ {T} t = Γ ⊢ t ⇉ T
 
-  suc : Nfᵀ nat → Nfᵀ nat
+data Nfᵀ Γ where
+  nzero : Nfᵀ Γ zero
+
+  nsuc : ∀ {v : Γ ⊢ nat}
+       → Nfᵀ Γ v
+       → Nfᵀ Γ (suc v)
 
   -- abstraction
-  abs : ∀ {S T : Ty}
-      → (f : String → Nfᵀ T)
-        --------------------
-      → Nfᵀ (S ⇒ T)
+  abs : ∀ {S T : Ty} {f : Γ ⊢ S ⇒ T}
+        -------
+      → Nfᵀ Γ f
 
   -- neutral term
-  neutral : ∀ {T : Ty}
-    → (𝓊 : Neᵀ T)
-      -----------
-    → Nfᵀ T
+  neutral : ∀ {T : Ty} {𝓊 : Γ ⊢ T}
+          → Neᵀ Γ 𝓊
+            -------
+          → Nfᵀ Γ 𝓊
 
-instance
-  ⟦Ty⟧ : Denotation Ty
-  Denotation.⟦ ⟦Ty⟧ ⟧ nat = Nfᵀ nat
-  Denotation.⟦ ⟦Ty⟧ ⟧ (S ⇒ T) = ⟦ S ⟧ → ⟦ T ⟧
+syntax Nfᵀ Γ {T} t = Γ ⊢ t ⇇ T
+
+-- Liftable terms must be reintroduced for the below algorithm (formerly
+-- an implementation of the "sketch" in 2.3 can) to work
+
+{-
+
+⟦Ty⟧ : (T : Ty) → ∀ (Γ : Γ) → Set
+⟦Ty⟧ nat = ∀ (Γ : Γ) → Nfᵀ Γ (Γ ⊢ nat)
+⟦Ty⟧ (S ⇒ T) = ⟦ S ⟧ → ⟦ T ⟧
 
 ↑ᵀ : {T : Ty} → Neᵀ T → ⟦ T ⟧ -- Reflection
 ↓ᵀ : {T : Ty} → ⟦ T ⟧ → Nfᵀ T -- Reification
@@ -73,3 +81,5 @@ ml-rec z s (suc v)         = s v (ml-rec z s v)
 ml-rec {T} z s (neutral 𝓊) = ↑ᵀ (rec z↓ s↓ 𝓊) where
   z↓ = ↓ᵀ {T} z
   s↓ = ↓ᵀ {nat ⇒ T ⇒ T} s
+
+-}

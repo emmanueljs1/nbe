@@ -16,51 +16,48 @@ infixr 12 _⇒_
 
 data Γ : Set where
   ∅ : Γ
-  _,_꞉_ : Γ → String → Ty → Γ
+  _,_ : Γ → Ty → Γ
 
-infix 11 _,_꞉_
+infix 11 _,_
 
-data ⟨_꞉_⟩∈_ : String → Ty → Γ → Set where
-  there : ∀ {x y : String} {S T : Ty} {Γ : Γ}
-        → x ≢ y
-        → ⟨ x ꞉ S ⟩∈ Γ
-          --------------------
-        → ⟨ x ꞉ S ⟩∈ Γ , y ꞉ T
+data _∋_ : Γ → Ty → Set where
+  `Z : ∀ {Γ : Γ} {T : Ty}
+       ---------
+     → Γ , T ∋ T
 
-  here : ∀ {x : String} {S : Ty} {Γ : Γ}
-         --------------------
-       → ⟨ x ꞉ S ⟩∈ Γ , x ꞉ S
+  `S_ : ∀ {Γ : Γ} {S T : Ty}
+      → Γ ∋ T
+        ---------
+      → Γ , S ∋ T
 
-infix 10 ⟨_꞉_⟩∈_
+infix 10 _∋_
 
-data Cstᵀ : Ty → Set where
-  zero : Cstᵀ nat
+data _⊢_ (Γ : Γ) : Ty → Set where
+  zero : Γ ⊢ nat
 
-  suc : Cstᵀ (nat ⇒ nat)
+  suc : Γ ⊢ nat
+        -------------
+      → Γ ⊢ nat ⇒ nat
 
   -- TODO: add metalanguage primitve recursion
-  rec  : ∀ (T : Ty) → Cstᵀ (T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T)
+  rec  : ∀ {T : Ty}
+       → Γ ⊢ T
+       → Γ ⊢ nat ⇒ T ⇒ T
+       → Γ ⊢ nat
+         ---------------------------------
+       → Γ ⊢ (T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T)
 
-data _⊢_ : Γ → Ty → Set where
-  const : ∀ {T : Ty} {Γ : Γ}
-        → Cstᵀ T
-          --------
-        → Γ ⊢ T
+  `_ : ∀ {S : Ty}
+     → Γ ∋ S
+       -----
+     → Γ ⊢ S
 
-  -- todo: add debrujin term?
-  var : ∀ {S : Ty} {Γ : Γ} {x : String}
-      → ⟨ x ꞉ S ⟩∈ Γ
-        ------------
-      → Γ , x ꞉ S ⊢ S
-
-  -- TODO: use debrujin indices
-  ƛ : ∀ {S T : Ty} {Γ : Γ}
-    → (x : String)
-    → Γ , x ꞉ S ⊢ T
-      -------------
+  ƛ : ∀ {S T : Ty}
+    → Γ , S ⊢ T
+      ---------
     → Γ ⊢ S ⇒ T
 
-  _·_ : ∀ {S T : Ty} {Γ : Γ}
+  _·_ : ∀ {S T : Ty}
       → Γ ⊢ S ⇒ T
       → Γ ⊢ S
         ---------
@@ -88,6 +85,6 @@ open Denotation {{...}} public
 instance
     ⟦Γ⟧ : ∀ {{_ : Denotation Ty}} → Denotation Γ
     Denotation.⟦ ⟦Γ⟧ ⟧ ∅ = ⊤
-    Denotation.⟦ ⟦Γ⟧ ⟧ (Γ , x ꞉ T) = ⟦ Γ ⟧ × ⟦ T ⟧
+    Denotation.⟦ ⟦Γ⟧ ⟧ (Γ , T) = ⟦ Γ ⟧ × ⟦ T ⟧
     -- TODO: instances for denotations of values
     -- TODO: denotation of a judgement
