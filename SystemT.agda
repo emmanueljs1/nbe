@@ -116,18 +116,28 @@ record Denotation (D : Set) : Set₁ where
 
 open Denotation {{...}} public
 
-⟦Type⟧ : Denotation Type
-⟦Type⟧ =
-  record
-    { ⟦_⟧ = denote }
-  where
-    denote : Type → Set
-    denote nat = ℕ
-    denote (S ⇒ T) = (denote S) → (denote T)
-
 instance
+    -- The denotation of a context Γ, generalized over
+    -- any denotation to be used with the more NbE
+    -- specific denotation of types used later
     ⟦Γ⟧ : ∀ {{_ : Denotation Type}} → Denotation Γ
     Denotation.⟦ ⟦Γ⟧ ⟧ ∅ = ⊤
     Denotation.⟦ ⟦Γ⟧ ⟧ (Γ , T) = ⟦ Γ ⟧ × ⟦ T ⟧
-    -- TODO: instances for denotations of values
-    -- TODO: denotation of a judgement
+
+-- For the basic representation of System T, we can
+-- interpret the type nat as ℕ, and function types
+-- as functions from one denoted type to another.
+-- This instance is left private as it is not the actual
+-- denotation used in NbE.
+private
+  instance
+    ⟦Type⟧ : Denotation Type
+    Denotation.⟦ ⟦Type⟧ ⟧ nat = ℕ
+    Denotation.⟦ ⟦Type⟧ ⟧ (S ⇒ T) = ⟦ S ⟧ → ⟦ T ⟧
+
+-- TODO: interpretation of typing judgements for
+-- basic system T
+{-
+⟦Γ⊢T⟧ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ Γ ⟧  → ⟦ T ⟧
+⟦Γ⊢T⟧ = {!!}
+-}

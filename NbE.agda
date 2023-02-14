@@ -5,7 +5,8 @@ open import Agda.Builtin.Unit using (⊤; tt)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Product renaming (_,_ to ⟨_,_⟩)
 open import Relation.Nullary using (yes; no)
-open import SystemT hiding (⟦Type⟧)
+
+open import SystemT
 
 {- Section 2.3 -- System T with neutral and normal terms -}
 
@@ -69,6 +70,10 @@ data ℕ̂ : Set where
   suc : ℕ̂ → ℕ̂
   ne : Ne↑ nat → ℕ̂
 
+-- Since the interpretation of System T used in NbE is using
+-- liftable neutral and normal terms, we instantiate the
+-- denotation of types to use our new interpretation of type
+-- nat with embedded liftable neutrals
 instance
   ⟦Type⟧ : Denotation Type
   Denotation.⟦ ⟦Type⟧ ⟧ nat = ℕ̂
@@ -156,3 +161,29 @@ mk-lifted-var {S} Γ = ne↑ var↑ where
   ... | inj₁ 𝓊
          with ↓ᵀ z | ↓ᵀ s
   ... | nf↑ z↑     | nf↑ s↑ = inj₁ (rec (z↑ Γ) (s↑ Γ) 𝓊)
+
+-- And the corresponding updated denotations of the
+-- lookup and typing judgements.
+
+-- These are not directly shown in section 2.5, but they
+-- are very similar to their counterparts in section 2.1,
+-- and it is probably possible to generalize them to
+-- share their definitions somewhat with the denotations
+-- of the basic version of System T
+
+∋⟦_⟧ : ∀ {Γ : Γ} {T : Type} → Γ ∋ T → ⟦ Γ ⟧ → ⟦ T ⟧
+∋⟦_⟧ {Γ , T} `Z ⟨ _ , a ⟩ = a
+∋⟦_⟧ {Γ , T} (`S x) ⟨ ρ , _ ⟩ = ∋⟦ x ⟧ ρ
+
+⊢⟦_⟧ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ Γ ⟧ → ⟦ T ⟧
+⊢⟦ zero ⟧ _ = zero
+⊢⟦ suc n ⟧ _ = suc
+⊢⟦ rec _ _ _ ⟧ _ = ⟦rec⟧
+⊢⟦ ` x ⟧ = ∋⟦ x ⟧
+⊢⟦ (ƛ t) ⟧ ρ a = ⊢⟦ t ⟧ ⟨ ρ , a ⟩
+⊢⟦ r · s ⟧ ρ = ⊢⟦ r ⟧ ρ (⊢⟦ s ⟧ ρ)
+
+-- Finally, the algorithm for normalization by evaluation
+nf : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Nf T Γ
+nf {Γ} t with ↓ᵀ (⊢⟦ t ⟧ (↑Γ Γ))
+... | nf↑ t↑ = t↑ Γ
