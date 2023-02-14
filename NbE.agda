@@ -3,6 +3,7 @@ module NbE where
 open import Agda.Builtin.String using (String)
 open import Agda.Builtin.Unit using (⊤; tt)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
+open import Data.Product renaming (_,_ to ⟨_,_⟩)
 open import Relation.Nullary using (yes; no)
 open import SystemT hiding (⟦Type⟧)
 
@@ -132,13 +133,26 @@ mk-lifted-var {S} Γ = ne↑ var↑ where
   f↑ Γ with ↓ᵀ (f a) where a = ↑ᵀ (mk-lifted-var Γ)
   ... | nf↑ f·a↑ = ƛ (f·a↑ (Γ , S))
 
-{-
--- TODO: the original habilitation has the type of the first
+-- Reflection of a context gamma
+↑Γ : ∀ (Γ : Γ) → ⟦ Γ ⟧
+↑Γ ∅ = tt
+↑Γ (Γ , T) = ⟨ ↑Γ Γ  , ↑ᵀ {T} (mk-lifted-var Γ) ⟩
+
+-- Denotation of primitive recursion in language,
+-- updated from basic denotation of primitive recursion
+-- to reflect a "liftable" recursion over a liftable
+-- neutral term in the case that the recursion is over
+-- an embedded liftable neutral
+
+-- Note: the original habilitation has the type of the first
 -- argument to rec as "N" (nat), this seems to be a typo
-ml-rec : ∀ {T : Type} → ⟦ T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T ⟧
-ml-rec z s zero            = z
-ml-rec z s (suc v)         = s v (ml-rec z s v)
-ml-rec {T} z s (neutral 𝓊) = ↑ᵀ (rec z↓ s↓ 𝓊) where
-  z↓ = ↓ᵀ {T} z
-  s↓ = ↓ᵀ {nat ⇒ T ⇒ T} s
--}
+⟦rec⟧ : ∀ {T : Type} → ⟦ T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T ⟧
+⟦rec⟧ z s zero = z
+⟦rec⟧ z s (suc n) = s n (⟦rec⟧ z s n)
+⟦rec⟧ {T} z s (ne (ne↑ u↑)) = ↑ᵀ (ne↑ rec↑) where
+  rec↑ : ∀ (Γ : Γ) → Ne T Γ ⊎ ⊤
+  rec↑ Γ with u↑ Γ
+  ... | inj₂ tt = inj₂ tt
+  ... | inj₁ 𝓊
+         with ↓ᵀ z | ↓ᵀ s
+  ... | nf↑ z↑     | nf↑ s↑ = inj₁ (rec (z↑ Γ) (s↑ Γ) 𝓊)
