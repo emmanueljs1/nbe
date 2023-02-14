@@ -1,4 +1,4 @@
-module NBE where
+module NbE where
 
 open import Agda.Builtin.String using (String)
 open import Agda.Builtin.Unit using (⊤; tt)
@@ -91,11 +91,11 @@ instance
 --        application of the reified object to the original
 --        neutral term
 ↑ᵀ {S ⇒ T} (ne↑ 𝓊↑) a with ↓ᵀ a
-...  | nf↑ v↑ = ↑ᵀ (ne↑ uv) where
-  uv : ∀ (Γ : Γ) → Ne T Γ ⊎ ⊤
-  uv Γ with 𝓊↑ Γ | v↑ Γ
-  ... | inj₁ 𝓊   | v = inj₁ (𝓊 · v)
-  ... | inj₂ tt  | _ = inj₂ tt
+...  | nf↑ v↑ = ↑ᵀ (ne↑ 𝓊·v↑) where
+  𝓊·v↑ : ∀ (Γ : Γ) → Ne T Γ ⊎ ⊤
+  𝓊·v↑ Γ with 𝓊↑ Γ | v↑ Γ
+  ... | inj₁ 𝓊     | v = inj₁ (𝓊 · v)
+  ... | inj₂ tt    | _ = inj₂ tt
 
 -- Create a new lifted variable of type S in the context Γ,
 -- which can only be applied to extensions of Γ , S
