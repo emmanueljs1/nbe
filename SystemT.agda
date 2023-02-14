@@ -136,7 +136,7 @@ data Nf where
   -- neutral term
   neutral : ∀ {T : Type} {Γ : Γ}
           → Ne T Γ
-            -----------
+            ------
           → Nf T Γ
 
 {- Section 2.5 -- liftable terms, updated NbE algorithm -}
@@ -192,34 +192,36 @@ instance
 
 -- Rules for determining when one context is the
 -- extension of another.
-data Γ-extension : Γ → Γ → Set where
-  ∅-extension : ∀ {Γ : Γ}
-                ----------------
-              → Γ-extension Γ ∅
+data _Γ-≤_ : Γ → Γ → Set where
+  ∅-≤ : ∀ {Γ : Γ}
+        ---------
+       → Γ Γ-≤ ∅
 
-  ,-extension : ∀ {Γ Γ′ : Γ} {T : Type}
-              → Γ-extension Γ′ Γ
-                ----------------------
-              → Γ-extension (Γ′ , T) Γ
+  ,-≤ : ∀ {Γ Γ′ : Γ} {T : Type}
+      → Γ′ Γ-≤ Γ
+        ------------
+      → Γ′ , T Γ-≤ Γ
 
-_Γ-extension?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ-extension Γ′ Γ)
-∅ Γ-extension? ∅ = yes ∅-extension
-∅ Γ-extension? (_ , _) = no λ()
-(_ , _) Γ-extension? ∅ = yes ∅-extension
-(Γ′ , _) Γ-extension? Γ@(_ , _) with Γ′ Γ-extension? Γ
-... | yes pf  = yes (,-extension pf)
-... | no ¬pf  = no λ{ (,-extension pf) → ¬pf pf }
+infix 9 _Γ-≤_
+
+_Γ-≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ Γ-≤ Γ)
+∅ Γ-≤? ∅ = yes ∅-≤
+∅ Γ-≤? (_ , _) = no λ()
+(_ , _) Γ-≤? ∅ = yes ∅-≤
+(Γ′ , _) Γ-≤? Γ@(_ , _) with Γ′ Γ-≤? Γ
+... | yes pf  = yes (,-≤ pf)
+... | no ¬pf  = no λ{ (,-≤ pf) → ¬pf pf }
 
 -- Given one context is an extension of another, and a
 -- lookup judgement in the original context, there
 -- is a corresponding lookup judgement in the extended context.
-lookup-extension : ∀ {Γ′ Γ : Γ} {T : Type}
-                 → Γ-extension Γ′ Γ
+lookup-Γ-≤ : ∀ {Γ′ Γ : Γ} {T : Type}
+                 → Γ′ Γ-≤ Γ
                  → Γ ∋ T
-                   ----------------
+                   --------
                  → Γ′ ∋ T
-lookup-extension (,-extension pf) i
-  with lookup-extension pf i
+lookup-Γ-≤ (,-≤ pf) i
+  with lookup-Γ-≤ pf i
 ... | j = `S j
 
 -- Create a new lifted variable of type S in the context Γ,
@@ -227,8 +229,8 @@ lookup-extension (,-extension pf) i
 mk-lifted-var : ∀ {S : Type} (Γ₁ : Γ) → Ne↑ S
 mk-lifted-var {S} Γ₁ = ne↑ var↑ where
   var↑ : ∀ (Γ₂ : Γ) → Ne S Γ₂ ⊎ ⊤
-  var↑ Γ₂ with Γ₂ Γ-extension? (Γ₁ , S)
-  ... | yes pf  = inj₁ (` (lookup-extension pf `Z))
+  var↑ Γ₂ with Γ₂ Γ-≤? (Γ₁ , S)
+  ... | yes pf  = inj₁ (` (lookup-Γ-≤ pf `Z))
   ... | no _    = inj₂ tt
 
 -- ↓ᴺ - Reification of semantic objects of type ⟦N⟧, which
@@ -303,3 +305,14 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 nf : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Nf T Γ
 nf {Γ} t with ↓ᵀ (⊢⟦ t ⟧ (↑Γ Γ))
 ... | nf↑ t↑ = t↑ Γ
+
+{- Section 2.6 -- Soundness -}
+
+-- We want to prove the soundness of normalization,
+-- i.e. Γ ⊢ t = nf(t) : T (there is a definitional
+-- equality between t and nf(t) as determined by
+-- βη-equivalence extended with rules characterizing
+-- the computational behavior of primitive recursion,
+-- as explained in section 2.2)
+
+-- TODO: soundness
