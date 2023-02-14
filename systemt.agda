@@ -40,8 +40,8 @@ _Γ-extension?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ-extension Γ′ Γ)
 ∅ Γ-extension? (_ , _) = no λ()
 (_ , _) Γ-extension? ∅ = yes ∅-extension
 (Γ′ , _) Γ-extension? Γ@(_ , _) with Γ′ Γ-extension? Γ
-...  | yes pf  = yes (,-extension pf)
-...  | no ¬pf  = no λ{ (,-extension pf) → ¬pf pf }
+... | yes pf  = yes (,-extension pf)
+... | no ¬pf  = no λ{ (,-extension pf) → ¬pf pf }
 
 -- Lookup judgement for contexts
 -- (corresponds to de Brujin indices)
