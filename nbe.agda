@@ -1,78 +1,107 @@
 module NBE where
 
 open import Agda.Builtin.String using (String)
+open import Agda.Builtin.Unit using (⊤)
+open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import SystemT hiding (⟦Ty⟧)
 
 -- NbE algorithm (system T with neutral terms)
 
-data Neᵀ (Γ : Γ) : ∀ {T : Ty} → Γ ⊢ T → Set -- Neutral terms
-data Nfᵀ (Γ : Γ) : ∀ {T : Ty} → Γ ⊢ T → Set -- Normal terms
+data Neᵀ (Γ : Γ) (T : Ty) : Set -- Neutral terms
+data Nfᵀ (Γ : Γ) : Ty → Set     -- Normal terms
 
-data Neᵀ Γ where
+data Neᵀ Γ T where
   -- application on an unknown function
-  app : ∀ {S T : Ty} {𝓊 : Γ ⊢ S ⇒ T} {v : Γ ⊢ S}
-      → Neᵀ Γ 𝓊
-      → Nfᵀ Γ v
+  _·_ : ∀ {S : Ty}
+      → Neᵀ Γ (S ⇒ T)
+      → Nfᵀ Γ S
         -------------
-      → Neᵀ Γ (𝓊 · v)
+      → Neᵀ Γ T
 
   -- a variable
-  var : ∀ {T : Ty}
-      → (x : Γ ∋ T)
-        -----------
-      → Neᵀ Γ (` x)
+  `_ : (x : Γ ∋ T)
+       -----------
+     → Neᵀ Γ T
 
   -- blocked recursion
-  rec : ∀ {T : Ty} {z : Γ ⊢ T} {s : Γ ⊢ nat ⇒ T ⇒ T} {𝓊 : Γ ⊢ nat}
-      → Nfᵀ Γ z
-      → Nfᵀ Γ s
-      → Neᵀ Γ 𝓊
+  rec : Nfᵀ Γ T
+      → Nfᵀ Γ (nat ⇒ T ⇒ T)
+      → Neᵀ Γ nat
         -----------------
-      → Neᵀ Γ (rec z s 𝓊)
-
-syntax Neᵀ Γ {T} t = Γ ⊢ t ⇉ T
+      → Neᵀ Γ T
 
 data Nfᵀ Γ where
-  nzero : Nfᵀ Γ zero
+  zero : Nfᵀ Γ nat
 
-  nsuc : ∀ {v : Γ ⊢ nat}
-       → Nfᵀ Γ v
-       → Nfᵀ Γ (suc v)
+  suc : Nfᵀ Γ nat
+        -------------
+      → Nfᵀ Γ nat
 
   -- abstraction
-  abs : ∀ {S T : Ty} {f : Γ ⊢ S ⇒ T}
-        -------
-      → Nfᵀ Γ f
+  ƛ : ∀ {S T : Ty}
+    → Nfᵀ (Γ , S) T
+      -------------
+    → Nfᵀ Γ (S ⇒ T)
 
   -- neutral term
-  neutral : ∀ {T : Ty} {𝓊 : Γ ⊢ T}
-          → Neᵀ Γ 𝓊
+  neutral : ∀ {T : Ty}
+          → Neᵀ Γ T
             -------
-          → Nfᵀ Γ 𝓊
+          → Nfᵀ Γ T
 
-syntax Nfᵀ Γ {T} t = Γ ⊢ t ⇇ T
+-- Liftable neutral term
+data Ne (T : Ty) : Set where
+  ne : (∀ (Γ : Γ) → Neᵀ Γ T ⊎ ⊤) → Ne T
 
--- Liftable terms must be reintroduced for the below algorithm (formerly
--- an implementation of the "sketch" in 2.3 can) to work
+-- Liftable normal term
+data Nf (T : Ty) : Set where
+  nf : (∀ (Γ : Γ) → Nfᵀ Γ T) → Nf T
+
+data ℕ̂ : Set where
+  zero : ℕ̂
+  suc : ℕ̂ → ℕ̂
+  ne : Ne nat → ℕ̂
+
+instance
+  ⟦Ty⟧ : Denotation Ty
+  Denotation.⟦ ⟦Ty⟧ ⟧ nat = ℕ̂
+  Denotation.⟦ ⟦Ty⟧ ⟧ (S ⇒ T) = ⟦ S ⟧ → ⟦ T ⟧
+
+↑ᵀ : {T : Ty} → Ne T → ⟦ T ⟧
+↓ᵀ : {T : Ty} → ⟦ T ⟧ → Nf T
+
+↑ᵀ {nat} 𝓊̂@(ne _) = ne 𝓊̂
+↑ᵀ {S ⇒ T} (ne u↑) a with ↓ᵀ a
+...  | nf v↑ = ↑ᵀ (ne uv) where
+  uv : ∀ (Γ : Γ) → Neᵀ Γ T ⊎ ⊤
+  uv Γ with u↑ Γ | v↑ Γ
+  ... | inj₁ 𝓊   | v = inj₁ (𝓊 · v)
+  ... | inj₂ tt  | _ = inj₂ tt
+
+↓ℕ̂ : ℕ̂ → Nf nat
+↓ℕ̂ zero = nf (λ _ → zero)
+↓ℕ̂ (suc n) with ↓ℕ̂ n
+...           | nf n↑ = nf (λ Γ → suc (n↑ Γ))
+↓ℕ̂ (ne (ne u↑)) = nf ûΓ where
+  ûΓ : ∀ (Γ : Γ) → Nfᵀ Γ nat
+  ûΓ Γ with u↑ Γ
+  ... | inj₁ 𝓊 = neutral 𝓊
+  ... | inj₂ tt = zero
+
+liftvar : ∀ {S : Ty} → Γ → Ne S
+liftvar {S} Γ = ne var↑ where
+  var↑ : ∀ (Γ′ : SystemT.Γ) → Neᵀ Γ′ S ⊎ ⊤
+  var↑ Γ′ = {!!}
+
+↓ᵀ {nat} = ↓ℕ̂
+↓ᵀ {S ⇒ T} f = nf f↑ where
+  f↑ : ∀ (Γ : Γ) → Nfᵀ Γ (S ⇒ T)
+  f↑ Γ with ↑ᵀ (liftvar Γ)
+  ...  | a
+       with ↓ᵀ (f a)
+  ...  | nf f·a↑ = ƛ (f·a↑ (Γ , S))
 
 {-
-
-⟦Ty⟧ : (T : Ty) → ∀ (Γ : Γ) → Set
-⟦Ty⟧ nat = ∀ (Γ : Γ) → Nfᵀ Γ (Γ ⊢ nat)
-⟦Ty⟧ (S ⇒ T) = ⟦ S ⟧ → ⟦ T ⟧
-
-↑ᵀ : {T : Ty} → Neᵀ T → ⟦ T ⟧ -- Reflection
-↓ᵀ : {T : Ty} → ⟦ T ⟧ → Nfᵀ T -- Reification
-
-↑ᵀ {nat} 𝓊     = neutral 𝓊
-↑ᵀ {S ⇒ T} 𝓊 a = ↑ᵀ (app 𝓊 v) where v = ↓ᵀ a
-
-↓ᵀ {nat} v   = v
-↓ᵀ {S ⇒ T} f = abs lambda where
-  lambda : String → Nfᵀ T
-  -- TODO: freshness of x
-  lambda x =  ↓ᵀ (f a) where a = ↑ᵀ (var x)
-
 -- TODO: the original habilitation has the type of the first
 -- argument to rec as "N" (nat), this seems to be a typo
 ml-rec : ∀ {T : Ty} → ⟦ T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T ⟧
@@ -81,5 +110,4 @@ ml-rec z s (suc v)         = s v (ml-rec z s v)
 ml-rec {T} z s (neutral 𝓊) = ↑ᵀ (rec z↓ s↓ 𝓊) where
   z↓ = ↓ᵀ {T} z
   s↓ = ↓ᵀ {nat ⇒ T ⇒ T} s
-
 -}
