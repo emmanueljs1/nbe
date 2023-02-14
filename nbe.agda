@@ -81,14 +81,19 @@ instance
 -- normal terms of type T
 ↓ᵀ : {T : Type} → ⟦ T ⟧ → Nf↑ T -- Reification
 
--- ↑ N
+-- ↑ᴺ - Reflection of neutral terms of type nat into ℕ̂,
+--      here we just embed the liftable neutral
 ↑ᵀ {nat} 𝓊̂ = ne 𝓊̂
 
--- ↑ S → T
-↑ᵀ {S ⇒ T} (ne↑ 𝓊̂) a with ↓ᵀ a
+-- ↑ˢ⃗ᵗ - Reflection of neutral terms of type S → T,
+--        into ⟦S⟧ → ⟦T⟧. We reify a semantic object in ⟦S⟧
+--        and then reflect the neutral term resulting from the
+--        application of the reified object to the original
+--        neutral term
+↑ᵀ {S ⇒ T} (ne↑ 𝓊↑) a with ↓ᵀ a
 ...  | nf↑ v↑ = ↑ᵀ (ne↑ uv) where
   uv : ∀ (Γ : Γ) → Ne T Γ ⊎ ⊤
-  uv Γ with 𝓊̂ Γ  | v↑ Γ
+  uv Γ with 𝓊↑ Γ | v↑ Γ
   ... | inj₁ 𝓊   | v = inj₁ (𝓊 · v)
   ... | inj₂ tt  | _ = inj₂ tt
 
@@ -98,26 +103,34 @@ mk-lifted-var : ∀ {S : Type} (Γ : Γ) → Ne↑ S
 mk-lifted-var {S} Γ = ne↑ var↑ where
   var↑ : ∀ (Γ′ : SystemT.Γ) → Ne S Γ′ ⊎ ⊤
   var↑ Γ′ with Γ′ Γ-extension? (Γ , S)
-  ...  | yes pf  = inj₁ (` (lookup-extension pf `Z))
-  ...  | no _    = inj₂ tt
+  ... | yes pf  = inj₁ (` (lookup-extension pf `Z))
+  ... | no _    = inj₂ tt
 
--- ↓ N
+-- ↓ᴺ - Reification of semantic objects of type ⟦N⟧, which
+--      are our naturals with embedded liftable neutrals (ℕ̂).
+--      For the interesting case of embedded liftable neutrals,
+--      zero is used if the neutral cannot be lifted to the
+--      context Γ
 ↓ᵀ {nat} = ↓ℕ̂ where
   ↓ℕ̂ : ⟦ nat ⟧ → Nf↑ nat
   ↓ℕ̂ zero = nf↑ (λ _ → zero)
   ↓ℕ̂ (suc n) with ↓ℕ̂ n
-  ...           | nf↑ n↑ = nf↑ (λ Γ → suc (n↑ Γ))
-  ↓ℕ̂ (ne (ne↑ u↑)) = nf↑ ûΓ where
-    ûΓ : ∀ (Γ : Γ) → Nf nat Γ
-    ûΓ Γ with u↑ Γ
+  ... | nf↑ n↑ = nf↑ (λ Γ → suc (n↑ Γ))
+  ↓ℕ̂ (ne (ne↑ 𝓊↑)) = nf↑ 𝓊̂ where
+    𝓊̂ : ∀ (Γ : Γ) → Nf nat Γ
+    𝓊̂ Γ with 𝓊↑ Γ
     ... | inj₁ 𝓊  = neutral 𝓊
     ... | inj₂ tt = zero
 
--- ↓ S → T
+-- ↓ˢ⃗ᵗ - Reification of semantic objects of type ⟦S → T⟧,
+--        which are functions of type (⟦S⟧ → ⟦T⟧). The
+--        resulting normal term is an abstraction over
+--        the reification of the function applied to the
+--        reflection of the bound variable
 ↓ᵀ {S ⇒ T} f = nf↑ f↑ where
   f↑ : ∀ (Γ : Γ) → Nf (S ⇒ T) Γ
   f↑ Γ with ↓ᵀ (f a) where a = ↑ᵀ (mk-lifted-var Γ)
-  ...  | nf↑ f·a↑ = ƛ (f·a↑ (Γ , S))
+  ... | nf↑ f·a↑ = ƛ (f·a↑ (Γ , S))
 
 {-
 -- TODO: the original habilitation has the type of the first
