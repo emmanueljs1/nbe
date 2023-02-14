@@ -5,7 +5,7 @@ open import Agda.Builtin.Unit using (⊤)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import SystemT hiding (⟦Ty⟧)
 
--- NbE algorithm (system T with neutral terms)
+{- Section 2.3 -- System T with neutral and normal terms -}
 
 data Neᵀ (Γ : Γ) (T : Ty) : Set -- Neutral terms
 data Nfᵀ (Γ : Γ) : Ty → Set     -- Normal terms
@@ -27,14 +27,14 @@ data Neᵀ Γ T where
   rec : Nfᵀ Γ T
       → Nfᵀ Γ (nat ⇒ T ⇒ T)
       → Neᵀ Γ nat
-        -----------------
+        ------------------
       → Neᵀ Γ T
 
 data Nfᵀ Γ where
   zero : Nfᵀ Γ nat
 
   suc : Nfᵀ Γ nat
-        -------------
+        ---------
       → Nfᵀ Γ nat
 
   -- abstraction
@@ -49,6 +49,8 @@ data Nfᵀ Γ where
             -------
           → Nfᵀ Γ T
 
+{- Section 2.5 -- liftable terms, updated NbE algorithm -}
+
 -- Liftable neutral term
 data Ne (T : Ty) : Set where
   ne : (∀ (Γ : Γ) → Neᵀ Γ T ⊎ ⊤) → Ne T
@@ -57,6 +59,7 @@ data Ne (T : Ty) : Set where
 data Nf (T : Ty) : Set where
   nf : (∀ (Γ : Γ) → Nfᵀ Γ T) → Nf T
 
+-- Denotation of type nat with embedded liftable neutrals
 data ℕ̂ : Set where
   zero : ℕ̂
   suc : ℕ̂ → ℕ̂
@@ -67,8 +70,8 @@ instance
   Denotation.⟦ ⟦Ty⟧ ⟧ nat = ℕ̂
   Denotation.⟦ ⟦Ty⟧ ⟧ (S ⇒ T) = ⟦ S ⟧ → ⟦ T ⟧
 
-↑ᵀ : {T : Ty} → Ne T → ⟦ T ⟧
-↓ᵀ : {T : Ty} → ⟦ T ⟧ → Nf T
+↑ᵀ : {T : Ty} → Ne T → ⟦ T ⟧ -- Reflection
+↓ᵀ : {T : Ty} → ⟦ T ⟧ → Nf T -- Reification
 
 ↑ᵀ {nat} 𝓊̂@(ne _) = ne 𝓊̂
 ↑ᵀ {S ⇒ T} (ne u↑) a with ↓ᵀ a
@@ -78,6 +81,7 @@ instance
   ... | inj₁ 𝓊   | v = inj₁ (𝓊 · v)
   ... | inj₂ tt  | _ = inj₂ tt
 
+-- Reification of a nat
 ↓ℕ̂ : ℕ̂ → Nf nat
 ↓ℕ̂ zero = nf (λ _ → zero)
 ↓ℕ̂ (suc n) with ↓ℕ̂ n
@@ -88,6 +92,7 @@ instance
   ... | inj₁ 𝓊 = neutral 𝓊
   ... | inj₂ tt = zero
 
+-- lift a var in context gamma (i.e. "pick fresh")
 liftvar : ∀ {S : Ty} → Γ → Ne S
 liftvar {S} Γ = ne var↑ where
   var↑ : ∀ (Γ′ : SystemT.Γ) → Neᵀ Γ′ S ⊎ ⊤
