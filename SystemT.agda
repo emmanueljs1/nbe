@@ -93,9 +93,18 @@ instance
 
 {- Section 2.3 -- System T with neutral and normal terms -}
 
+-- We will consider an interpretation of System T that evaulates an expression
+-- with unknowns (e.g. variables) to another, possibly simplified, expression
+-- with unknowns. Normalized terms with unknowns will be referred to as neutral
+-- terms, and normalized terms in general will be referred to as normal terms.
+--
+-- As is done in the habilitation thesis, 𝓋 will be used for normal terms,
+-- and 𝓊 will be used for neutral terms
+
 data Ne (T : Type) (Γ : Γ) : Γ ⊢ T → Set     -- Neutral terms
 data Nf : (T : Type) → (Γ : Γ) → Γ ⊢ T → Set -- Normal terms
 
+-- Neutral terms are blocked terms in their normal form
 data Ne T Γ where
   -- application on an unknown function
   ne-app : ∀ {S : Type} {𝓊 : Γ ⊢ S ⇒ T} {𝓋 : Γ ⊢ S}
@@ -117,6 +126,7 @@ data Ne T Γ where
            --------------------------
          → Ne T Γ (rec · 𝓋z · 𝓋s · 𝓊)
 
+-- Normal terms are terms in their normal form
 data Nf where
   -- zero is a normal term
   nf-zero : ∀ {Γ : Γ} → Nf nat Γ zero
@@ -141,10 +151,40 @@ data Nf where
 
 {- Section 2.2 -- normalization, definitional equality -}
 
+-- We construct definitional equality such that the definitional equality
+-- of two terms implies the equality of their interpretation. We will use
+-- this to prove the soundness of NbE (i.e. ⟦ nf (t) ⟧ = ⟦ t ⟧)
+
 -- TODO: define
 data _defeq_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
 
 {- Section 2.5 -- liftable terms, updated NbE algorithm -}
+
+-- In the sketch of the NbE algorithm provided in section 2.3,
+-- we use a context Γ of variables currently in scope to pick a "fresh"
+-- variable -- i.e. append a variable to the context, as we are using De Brujin indices
+--
+-- However, after this variable is reflected, it may later be reified in a different
+-- context than it was created.
+--
+-- This is of course an issue with our intrinsically typed representation, but even
+-- with an extrinsically typed representation it is something that has to be explicitly
+-- handled (i.e. to show that the resulting normal form from the algorithm is well typed in
+-- its final context Γ).
+--
+-- To address this, we use liftable terms. These are terms that are generalized over
+-- contexts, and can be applied to any context Γ. The fact remains that this could
+-- result in a term that is not well-typed, and it will be the case that liftable neutral
+-- terms can only be applied to extensions of the context under which they were created.
+-- Because of this, liftable neutrals may result in the return of a placeholder value
+-- (tt).
+--
+-- In any case, we define these liftable terms so that the NbE algorithm can use them,
+-- existentially quantifying the lifted term itself, as it will be different
+-- depending on the applied context Γ (as terms are an intrinsically typed
+-- representation)
+--
+-- We write t↑ for the lifted version of a term t
 
 -- Liftable neutral term
 data Ne↑ (T : Type) : Set where
@@ -196,7 +236,8 @@ instance
   ... | inj₂ tt           | _ = inj₂ tt
 
 -- Rules for determining when one context is the
--- extension of another.
+-- extension of another. This is used for creating a lifted variable,
+-- though it will be useful later on as well
 data _Γ-≤_ : Γ → Γ → Set where
   ∅-≤ : ∀ {Γ : Γ}
         ---------
@@ -331,11 +372,13 @@ nf t with nbe t
 -- As we are using an intrinsically typed representation of terms, the first
 -- property is given to us automatically.
 
--- For preservation of meaning and idempotency, we have the following:
+-- For preservation of meaning, we will use the fact that definitional equality
+-- of two terms implies that they have the same denotation (as noted in
+-- 2.2) in the following section
 
--- TODO: prove?
+-- For idempotency, we have the following
+-- TODO: prove??
 postulate
-  preserve-meaning : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T} → ⊢⟦ nf t ⟧ ≡ ⊢⟦ t ⟧
   idempotent : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T} → nf (nf t) ≡ nf t
 
 {- Section 2.6 -- Soundness -}
@@ -352,6 +395,7 @@ postulate
 
 -- First, we define a function for mapping a well-typed term in a
 -- context Γ to a well-typed term in an extension of Γ, the context Γ′
+
 -- TODO: look at exts/subst in DeBrujin section of PLFA
 ext : ∀ {Γ Γ′ : Γ} {T : Type} → Γ′ Γ-≤ Γ → Γ ⊢ T → Γ′ ⊢ T
 ext = {!!}
