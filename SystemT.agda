@@ -40,16 +40,11 @@ infix 10 _∋_
 data _⊢_ (Γ : Γ) : Type → Set where
   zero : Γ ⊢ nat
 
-  suc : Γ ⊢ nat
-        -------------
-      → Γ ⊢ nat ⇒ nat
+  suc : Γ ⊢ nat ⇒ nat
 
   -- TODO: add metalanguage primitve recursion
   --       for basic System T
   rec  : ∀ {T : Type}
-       → Γ ⊢ T
-       → Γ ⊢ nat ⇒ T ⇒ T
-       → Γ ⊢ nat
          ---------------------------------
        → Γ ⊢ (T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T)
 
@@ -138,6 +133,11 @@ data Nf where
           → Ne T Γ
             ------
           → Nf T Γ
+
+{- Section 2.2 -- normalization, definitional equality -}
+
+-- TODO: define
+data _defeq_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
 
 {- Section 2.5 -- liftable terms, updated NbE algorithm -}
 
@@ -238,16 +238,17 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 --      For the interesting case of embedded liftable neutrals,
 --      zero is used if the neutral cannot be lifted to the
 --      context Γ
-↓ᵀ {nat} = ↓ℕ̂ where
-  ↓ℕ̂ : ⟦ nat ⟧ → Nf↑ nat
-  ↓ℕ̂ zero = nf↑ (λ _ → zero)
-  ↓ℕ̂ (suc n) with ↓ℕ̂ n
-  ... | nf↑ n↑ = nf↑ (λ Γ → suc (n↑ Γ))
-  ↓ℕ̂ (ne (ne↑ 𝓊↑)) = nf↑ 𝓊̂ where
-    𝓊̂ : ∀ (Γ : Γ) → Nf nat Γ
-    𝓊̂ Γ with 𝓊↑ Γ
-    ... | inj₁ 𝓊  = neutral 𝓊
-    ... | inj₂ tt = zero
+↓ℕ̂ : ⟦ nat ⟧ → Nf↑ nat
+↓ℕ̂ zero = nf↑ (λ _ → zero)
+↓ℕ̂ (suc n) with ↓ℕ̂ n
+... | nf↑ n↑ = nf↑ (λ Γ → suc (n↑ Γ))
+↓ℕ̂ (ne (ne↑ 𝓊↑)) = nf↑ 𝓊̂ where
+  𝓊̂ : ∀ (Γ : Γ) → Nf nat Γ
+  𝓊̂ Γ with 𝓊↑ Γ
+  ... | inj₁ 𝓊  = neutral 𝓊
+  ... | inj₂ tt = zero
+
+↓ᵀ {nat} = ↓ℕ̂
 
 -- ↓ˢ⃗ᵗ - Reification of semantic objects of type ⟦S → T⟧,
 --        which are functions of type (⟦S⟧ → ⟦T⟧). The
@@ -295,8 +296,8 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 
 ⊢⟦_⟧ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ Γ ⟧ → ⟦ T ⟧
 ⊢⟦ zero ⟧ _ = zero
-⊢⟦ suc n ⟧ _ = suc
-⊢⟦ rec _ _ _ ⟧ _ = ⟦rec⟧
+⊢⟦ suc ⟧ _ = suc
+⊢⟦ rec ⟧ _ = ⟦rec⟧
 ⊢⟦ ` x ⟧ = ∋⟦ x ⟧
 ⊢⟦ (ƛ t) ⟧ ρ a = ⊢⟦ t ⟧ ⟨ ρ , a ⟩
 ⊢⟦ r · s ⟧ ρ = ⊢⟦ r ⟧ ρ (⊢⟦ s ⟧ ρ)
@@ -314,5 +315,41 @@ nf {Γ} t with ↓ᵀ (⊢⟦ t ⟧ (↑Γ Γ))
 -- βη-equivalence extended with rules characterizing
 -- the computational behavior of primitive recursion,
 -- as explained in section 2.2)
+--
+-- For this, a logical relation Ⓡ is defined such that
+-- it implies Γ ⊢ t = nf(t) : T
 
--- TODO: soundness
+-- First, we map normal terms to their corresponding typing
+-- judgement
+tm-nf : ∀ {T : Type} {Γ : Γ} → Nf T Γ → Γ ⊢ T
+tm-ne : ∀ {T : Type} {Γ : Γ} → Ne T Γ → Γ ⊢ T
+
+tm-nf zero = zero
+tm-nf (suc n) = suc · (tm-nf n)
+tm-nf (ƛ t) = ƛ (tm-nf t)
+tm-nf (neutral 𝓊) = tm-ne 𝓊
+
+tm-ne (𝓊 · 𝓋) = (tm-ne 𝓊) · (tm-nf 𝓋)
+tm-ne (` x) = ` x
+tm-ne (rec 𝓋z 𝓋s 𝓊) = ((rec · (tm-nf 𝓋z)) · tm-nf 𝓋s) · tm-ne 𝓊
+
+-- We also define a function for extending a typing judgement
+-- TODO: is it necessary to prove something else? maybe that
+--       you can go back to the former typing judgement...
+ext : ∀ {Γ Γ′ : Γ} {T : Type} → Γ′ Γ-≤ Γ → Γ ⊢ T → Γ′ ⊢ T
+ext = {!!}
+
+-- The Kripe logical relation
+_Ⓡ_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
+
+_Ⓡ_ {Γ₁} {nat} t 𝕟̂ with ↓ℕ̂ 𝕟̂
+... | nf↑ v↑ =
+  ∀ {Γ₂ : Γ}
+  → (pf : Γ₂ Γ-≤ Γ₁)
+  → (ext pf t) defeq (tm-nf (v↑ Γ₂))
+
+_Ⓡ_ {Γ₁} {S ⇒ T} r f =
+  ∀ {Γ₂ : Γ} {s : Γ₂ ⊢ S} {a : ⟦ S ⟧}
+  → (pf : Γ₂ Γ-≤ Γ₁)
+  → s Ⓡ a
+  → ((ext pf r) · s) Ⓡ (f a)
