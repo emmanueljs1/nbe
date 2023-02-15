@@ -2,8 +2,9 @@ module SystemT where
 
 open import Agda.Builtin.Unit using (⊤; tt)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
-open import Data.Product using (_×_; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
+open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
 open import Relation.Nullary using (Dec; yes; no)
+open import Relation.Binary.PropositionalEquality using (_≡_)
 
 {- Section 2.1 -- Basic system T -}
 
@@ -42,8 +43,6 @@ data _⊢_ (Γ : Γ) : Type → Set where
 
   suc : Γ ⊢ nat ⇒ nat
 
-  -- TODO: add metalanguage primitve recursion
-  --       for basic System T
   rec  : ∀ {T : Type}
          ---------------------------------
        → Γ ⊢ (T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T)
@@ -316,9 +315,28 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 ⊢⟦ r · s ⟧ ρ = ⊢⟦ r ⟧ ρ (⊢⟦ s ⟧ ρ)
 
 -- Finally, the algorithm for normalization by evaluation
-nf : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ∃[ t ] Nf T Γ t
-nf {Γ} t with ↓ᵀ (⊢⟦ t ⟧ (↑Γ Γ))
+nbe : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ∃[ t ] Nf T Γ t
+nbe {Γ} t with ↓ᵀ (⊢⟦ t ⟧ (↑Γ Γ))
 ... | nf↑ t↑ = t↑ Γ
+
+nf : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T
+nf t with nbe t
+... | ⟨ t′ , _ ⟩ = t′
+
+-- There are a few properties we want from this algorithm:
+--   - Γ ⊢ nf(t) : T (well-typedness)
+--   - ⟦ nf(t) ⟧ = ⟦ t ⟧ (preservation of meaning)
+--   - nf(nf(t)) = nf(t) (idempotency)
+
+-- As we are using an intrinsically typed representation of terms, the first
+-- property is given to us automatically.
+
+-- For preservation of meaning and idempotency, we have the following:
+
+-- TODO: prove?
+postulate
+  preserve-meaning : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T} → ⊢⟦ nf t ⟧ ≡ ⊢⟦ t ⟧
+  idempotent : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T} → nf (nf t) ≡ nf t
 
 {- Section 2.6 -- Soundness -}
 
@@ -332,15 +350,13 @@ nf {Γ} t with ↓ᵀ (⊢⟦ t ⟧ (↑Γ Γ))
 -- For this, a logical relation Ⓡ is defined such that
 -- it implies Γ ⊢ t = nf(t) : T
 
--- We also define a function for extending a typing judgement
--- TODO: is it necessary to prove something else? maybe that
---       you can go back to the former typing judgement...
+-- First, we define a function for mapping a well-typed term in a
+-- context Γ to a well-typed term in an extension of Γ, the context Γ′
+-- TODO: look at exts/subst in DeBrujin section of PLFA
 ext : ∀ {Γ Γ′ : Γ} {T : Type} → Γ′ Γ-≤ Γ → Γ ⊢ T → Γ′ ⊢ T
 ext = {!!}
 
 -- The Kripe logical relation
-
-{-
 
 _Ⓡ_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
 
@@ -348,12 +364,10 @@ _Ⓡ_ {Γ₁} {nat} t 𝕟̂ with ↓ℕ̂ 𝕟̂
 ... | nf↑ v↑ =
   ∀ {Γ₂ : Γ}
   → (pf : Γ₂ Γ-≤ Γ₁)
-  → (ext pf t) defeq (tm-nf (v↑ Γ₂))
+  → (ext pf t) defeq (proj₁ (v↑ Γ₂))
 
 _Ⓡ_ {Γ₁} {S ⇒ T} r f =
   ∀ {Γ₂ : Γ} {s : Γ₂ ⊢ S} {a : ⟦ S ⟧}
   → (pf : Γ₂ Γ-≤ Γ₁)
   → s Ⓡ a
   → ((ext pf r) · s) Ⓡ (f a)
-
--}
