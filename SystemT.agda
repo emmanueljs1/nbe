@@ -396,9 +396,26 @@ postulate
 -- First, we define a function for mapping a well-typed term in a
 -- context Γ to a well-typed term in an extension of Γ, the context Γ′
 
--- TODO: look at exts/subst in DeBrujin section of PLFA
-ext : ∀ {Γ Γ′ : Γ} {T : Type} → Γ′ Γ-≤ Γ → Γ ⊢ T → Γ′ ⊢ T
-ext = {!!}
+ext : ∀ {Γ Δ}
+  → (∀ {A} →       Γ ∋ A →     Δ ∋ A)
+    ---------------------------------
+  → (∀ {A B} → Γ , B ∋ A → Δ , B ∋ A)
+ext ρ `Z      =  `Z
+ext ρ (`S x)  =  `S (ρ x)
+
+rename : ∀ {Γ Δ}
+  → (∀ {A} → Γ ∋ A → Δ ∋ A)
+    -----------------------
+  → (∀ {A} → Γ ⊢ A → Δ ⊢ A)
+rename ρ zero = zero
+rename ρ suc = suc
+rename ρ rec = rec
+rename ρ (` x) = ` ρ x
+rename ρ (ƛ t) = ƛ rename (ext ρ) t
+rename ρ (r · s) = rename ρ r · rename ρ s
+
+Γ-ext : ∀ {Γ Γ′ : Γ} {T : Type} → Γ′ Γ-≤ Γ → Γ ⊢ T → Γ′ ⊢ T
+Γ-ext pf = rename (lookup-Γ-≤ pf)
 
 -- The Kripe logical relation
 
@@ -408,10 +425,10 @@ _Ⓡ_ {Γ₁} {nat} t 𝕟̂ with ↓ℕ̂ 𝕟̂
 ... | nf↑ v↑ =
   ∀ {Γ₂ : Γ}
   → (pf : Γ₂ Γ-≤ Γ₁)
-  → (ext pf t) defeq (proj₁ (v↑ Γ₂))
+  → (Γ-ext pf t) defeq (proj₁ (v↑ Γ₂))
 
 _Ⓡ_ {Γ₁} {S ⇒ T} r f =
   ∀ {Γ₂ : Γ} {s : Γ₂ ⊢ S} {a : ⟦ S ⟧}
   → (pf : Γ₂ Γ-≤ Γ₁)
   → s Ⓡ a
-  → ((ext pf r) · s) Ⓡ (f a)
+  → ((Γ-ext pf r) · s) Ⓡ (f a)
