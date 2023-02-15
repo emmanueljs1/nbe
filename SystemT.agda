@@ -99,44 +99,46 @@ data Nf : (T : Type) → (Γ : Γ) → Γ ⊢ T → Set -- Normal terms
 
 data Ne T Γ where
   -- application on an unknown function
-  _·_ : ∀ {S : Type} {𝓊 : Γ ⊢ S ⇒ T} {𝓋 : Γ ⊢ S}
-      → Ne (S ⇒ T) Γ 𝓊
-      → Nf S Γ 𝓋
-        --------------
-      → Ne T Γ (𝓊 · 𝓋)
+  ne-app : ∀ {S : Type} {𝓊 : Γ ⊢ S ⇒ T} {𝓋 : Γ ⊢ S}
+         → Ne (S ⇒ T) Γ 𝓊
+         → Nf S Γ 𝓋
+           --------------
+         → Ne T Γ (𝓊 · 𝓋)
 
-  -- a variable
-  `_ : (x : Γ ∋ T)
-        ------------
-      → Ne T Γ (` x)
+  -- a variable is always blocked
+  ne-var : (x : Γ ∋ T)
+           ------------
+         → Ne T Γ (` x)
 
-  -- blocked recursion
-  rec : {𝓋z : Γ ⊢ T} {𝓋s : Γ ⊢ nat ⇒ T ⇒ T} {𝓊 : Γ ⊢ nat}
-      → Nf T Γ 𝓋z
-      → Nf (nat ⇒ T ⇒ T) Γ 𝓋s
-      → Ne nat Γ 𝓊
-        --------------------------
-      → Ne T Γ (rec · 𝓋z · 𝓋s · 𝓊)
+  -- recursion blocked on an unknown natural
+  ne-rec : {𝓋z : Γ ⊢ T} {𝓋s : Γ ⊢ nat ⇒ T ⇒ T} {𝓊 : Γ ⊢ nat}
+         → Nf T Γ 𝓋z
+         → Nf (nat ⇒ T ⇒ T) Γ 𝓋s
+         → Ne nat Γ 𝓊
+           --------------------------
+         → Ne T Γ (rec · 𝓋z · 𝓋s · 𝓊)
 
 data Nf where
-  zero : ∀ {Γ : Γ} → Nf nat Γ zero
+  -- zero is a normal term
+  nf-zero : ∀ {Γ : Γ} → Nf nat Γ zero
 
-  suc : ∀ {Γ : Γ} {𝓋 : Γ ⊢ nat}
-      → Nf nat Γ 𝓋
-        ------------------
-      → Nf nat Γ (suc · 𝓋)
+  -- suc applied to a normal term is a normal term
+  nf-suc : ∀ {Γ : Γ} {𝓋 : Γ ⊢ nat}
+         → Nf nat Γ 𝓋
+           ------------------
+         → Nf nat Γ (suc · 𝓋)
 
-  -- abstraction
-  ƛ_ : ∀ {S T : Type} {Γ : Γ} {𝓋 : Γ , S ⊢ T}
-     → Nf T (Γ , S) 𝓋
-       ------------------
-     → Nf (S ⇒ T) Γ (ƛ 𝓋)
+  -- abstraction over a normal term is a normal term
+  nf-abs : ∀ {S T : Type} {Γ : Γ} {𝓋 : Γ , S ⊢ T}
+         → Nf T (Γ , S) 𝓋
+           ------------------
+         → Nf (S ⇒ T) Γ (ƛ 𝓋)
 
-  -- neutral term
-  neutral : ∀ {T : Type} {Γ : Γ} {𝓊 : Γ ⊢ T}
-          → Ne T Γ 𝓊
-            --------
-          → Nf T Γ 𝓊
+  -- a neutral term is a normal term
+  nf-neutral : ∀ {T : Type} {Γ : Γ} {𝓊 : Γ ⊢ T}
+             → Ne T Γ 𝓊
+               --------
+             → Nf T Γ 𝓊
 
 {- Section 2.2 -- normalization, definitional equality -}
 
@@ -190,9 +192,9 @@ instance
 ↑ᵀ {S ⇒ T} (ne↑ 𝓊↑) a with ↓ᵀ a
 ...  | nf↑ v↑ = ↑ᵀ (ne↑ 𝓊·v↑) where
   𝓊·v↑ : ∀ (Γ : Γ) → (∃[ t ] Ne T Γ t) ⊎ ⊤
-  𝓊·v↑ Γ with 𝓊↑ Γ     | v↑ Γ
-  ... | inj₁ ⟨ r , 𝓊 ⟩ | ⟨ s , 𝓋 ⟩ = inj₁ ⟨ r · s , 𝓊 · 𝓋 ⟩
-  ... | inj₂ tt    | _ = inj₂ tt
+  𝓊·v↑ Γ with 𝓊↑ Γ        | v↑ Γ
+  ... | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩ | ⟨ 𝓋 , pf-𝓋 ⟩ = inj₁ ⟨ 𝓊 · 𝓋 , ne-app pf-𝓊 pf-𝓋 ⟩
+  ... | inj₂ tt           | _ = inj₂ tt
 
 -- Rules for determining when one context is the
 -- extension of another.
@@ -234,7 +236,7 @@ mk-lifted-var : ∀ {S : Type} (Γ₁ : Γ) → Ne↑ S
 mk-lifted-var {S} Γ₁ = ne↑ var↑ where
   var↑ : ∀ (Γ₂ : Γ) → (∃[ t ] Ne S Γ₂ t) ⊎ ⊤
   var↑ Γ₂ with Γ₂ Γ-≤? (Γ₁ , S)
-  ... | yes pf  = inj₁ ⟨ ` x , ` x ⟩ where x = lookup-Γ-≤ pf `Z
+  ... | yes pf  = inj₁ ⟨ ` x , ne-var x ⟩ where x = lookup-Γ-≤ pf `Z
   ... | no _    = inj₂ tt
 
 -- ↓ᴺ - Reification of semantic objects of type ⟦N⟧, which
@@ -243,17 +245,17 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 --      zero is used if the neutral cannot be lifted to the
 --      context Γ
 ↓ℕ̂ : ⟦ nat ⟧ → Nf↑ nat
-↓ℕ̂ zero = nf↑ (λ _ → ⟨ zero , zero ⟩)
+↓ℕ̂ zero = nf↑ (λ _ → ⟨ zero , nf-zero ⟩)
 ↓ℕ̂ (suc n) with ↓ℕ̂ n
 ... | nf↑ n↑ = nf↑ suc↑ where
   suc↑ : (Γ : Γ) → ∃[ t ] Nf nat Γ t
   suc↑ Γ with n↑ Γ
-  ... | ⟨ n , 𝓋 ⟩ = ⟨ suc · n , suc 𝓋 ⟩
+  ... | ⟨ 𝓋 , pf ⟩ = ⟨ suc · 𝓋 , nf-suc pf ⟩
 ↓ℕ̂ (ne (ne↑ 𝓊↑)) = nf↑ 𝓊̂ where
   𝓊̂ : ∀ (Γ : Γ) → ∃[ t ] Nf nat Γ t
   𝓊̂ Γ with 𝓊↑ Γ
-  ... | inj₁ ⟨ u , 𝓊 ⟩  = ⟨ u , neutral 𝓊 ⟩ -- neutral ?
-  ... | inj₂ tt         = ⟨ zero , zero ⟩
+  ... | inj₁ ⟨ 𝓊 , pf ⟩ = ⟨ 𝓊 , nf-neutral pf ⟩
+  ... | inj₂ tt         = ⟨ zero , nf-zero ⟩
 
 ↓ᵀ {nat} = ↓ℕ̂
 
@@ -267,7 +269,7 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
   f↑ Γ with ↓ᵀ (f a) where a = ↑ᵀ (mk-lifted-var Γ)
   ... | nf↑ f·a↑
       with f·a↑ (Γ , S)
-  ... | ⟨ t , 𝓋 ⟩ = ⟨ ƛ t , ƛ 𝓋 ⟩
+  ... | ⟨ 𝓋 , pf ⟩ = ⟨ ƛ 𝓋 , nf-abs pf ⟩
 
 -- Reflection of a context gamma
 ↑Γ : ∀ (Γ : Γ) → ⟦ Γ ⟧
@@ -289,11 +291,11 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
   rec↑ : ∀ (Γ : Γ) → ∃[ t ] Ne T Γ t ⊎ ⊤
   rec↑ Γ with u↑ Γ
   ... | inj₂ tt = inj₂ tt
-  ... | inj₁ ⟨ n , 𝓊 ⟩
+  ... | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩
          with ↓ᵀ z | ↓ᵀ s
   ... | nf↑ z↑     | nf↑ s↑
-        with z↑ Γ  | s↑ Γ
-  ... | ⟨ z , 𝓋z ⟩ | ⟨ s , 𝓋s ⟩ = inj₁ ⟨ rec · z · s · n , rec 𝓋z 𝓋s 𝓊 ⟩
+        with z↑ Γ      | s↑ Γ
+  ... | ⟨ 𝓋z , pf-𝓋z ⟩ | ⟨ 𝓋s , pf-𝓋s ⟩ = inj₁ ⟨ rec · 𝓋z · 𝓋s · 𝓊 , ne-rec pf-𝓋z pf-𝓋s pf-𝓊 ⟩
 
 -- And the corresponding denotations of the
 -- lookup and typing judgements.
