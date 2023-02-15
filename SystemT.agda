@@ -2,7 +2,7 @@ module SystemT where
 
 open import Agda.Builtin.Unit using (⊤; tt)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
-open import Data.Product using (_×_) renaming (_,_ to ⟨_,_⟩)
+open import Data.Product using (_×_; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
 open import Relation.Nullary using (Dec; yes; no)
 
 {- Section 2.1 -- Basic system T -}
@@ -19,7 +19,7 @@ data Γ : Set where
   ∅ : Γ
   _,_ : Γ → Type → Γ
 
-infix 5 _,_
+infixl 5 _,_
 
 -- Lookup judgement for contexts
 -- (corresponds to de Brujin indices)
@@ -94,48 +94,49 @@ instance
 
 {- Section 2.3 -- System T with neutral and normal terms -}
 
-data Ne (T : Type) (Γ : Γ) : Set -- Neutral terms
-data Nf : Type → Γ → Set         -- Normal terms
+data Ne (T : Type) (Γ : Γ) : Γ ⊢ T → Set     -- Neutral terms
+data Nf : (T : Type) → (Γ : Γ) → Γ ⊢ T → Set -- Normal terms
 
 data Ne T Γ where
   -- application on an unknown function
-  _·_ : ∀ {S : Type}
-      → Ne (S ⇒ T) Γ
-      → Nf S Γ
-        ------------
-      → Ne T Γ
+  _·_ : ∀ {S : Type} {𝓊 : Γ ⊢ S ⇒ T} {𝓋 : Γ ⊢ S}
+      → Ne (S ⇒ T) Γ 𝓊
+      → Nf S Γ 𝓋
+        --------------
+      → Ne T Γ (𝓊 · 𝓋)
 
   -- a variable
   `_ : (x : Γ ∋ T)
-       -----------
-     → Ne T Γ
+        ------------
+      → Ne T Γ (` x)
 
   -- blocked recursion
-  rec : Nf T Γ
-      → Nf (nat ⇒ T ⇒ T) Γ
-      → Ne nat Γ
-        ------------------
-      → Ne T Γ
+  rec : {𝓋z : Γ ⊢ T} {𝓋s : Γ ⊢ nat ⇒ T ⇒ T} {𝓊 : Γ ⊢ nat}
+      → Nf T Γ 𝓋z
+      → Nf (nat ⇒ T ⇒ T) Γ 𝓋s
+      → Ne nat Γ 𝓊
+        --------------------------
+      → Ne T Γ (rec · 𝓋z · 𝓋s · 𝓊)
 
 data Nf where
-  zero : ∀ {Γ : Γ} → Nf nat Γ
+  zero : ∀ {Γ : Γ} → Nf nat Γ zero
 
-  suc : ∀ {Γ : Γ}
-      → Nf nat Γ
-        --------
-      → Nf nat Γ
+  suc : ∀ {Γ : Γ} {𝓋 : Γ ⊢ nat}
+      → Nf nat Γ 𝓋
+        ------------------
+      → Nf nat Γ (suc · 𝓋)
 
   -- abstraction
-  ƛ_ : ∀ {S T : Type} {Γ : Γ}
-     → Nf T (Γ , S)
-       ------------
-     → Nf (S ⇒ T) Γ
+  ƛ_ : ∀ {S T : Type} {Γ : Γ} {𝓋 : Γ , S ⊢ T}
+     → Nf T (Γ , S) 𝓋
+       ------------------
+     → Nf (S ⇒ T) Γ (ƛ 𝓋)
 
   -- neutral term
-  neutral : ∀ {T : Type} {Γ : Γ}
-          → Ne T Γ
-            ------
-          → Nf T Γ
+  neutral : ∀ {T : Type} {Γ : Γ} {𝓊 : Γ ⊢ T}
+          → Ne T Γ 𝓊
+            --------
+          → Nf T Γ 𝓊
 
 {- Section 2.2 -- normalization, definitional equality -}
 
@@ -146,11 +147,11 @@ data _defeq_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
 
 -- Liftable neutral term
 data Ne↑ (T : Type) : Set where
-  ne↑ : (∀ (Γ : Γ) → Ne T Γ ⊎ ⊤) → Ne↑ T
+  ne↑ : (∀ (Γ : Γ) → ((∃[ t ] Ne T Γ t) ⊎ ⊤)) → Ne↑ T
 
 -- Liftable normal term
 data Nf↑ (T : Type) : Set where
-  nf↑ : (∀ (Γ : Γ) → Nf T Γ) → Nf↑ T
+  nf↑ : (∀ (Γ : Γ) → ∃[ t ] Nf T Γ t) → Nf↑ T
 
 -- Interpretation of type nat: naturals with embedded
 -- liftable neutrals
@@ -188,9 +189,9 @@ instance
 --        neutral term
 ↑ᵀ {S ⇒ T} (ne↑ 𝓊↑) a with ↓ᵀ a
 ...  | nf↑ v↑ = ↑ᵀ (ne↑ 𝓊·v↑) where
-  𝓊·v↑ : ∀ (Γ : Γ) → Ne T Γ ⊎ ⊤
-  𝓊·v↑ Γ with 𝓊↑ Γ | v↑ Γ
-  ... | inj₁ 𝓊     | v = inj₁ (𝓊 · v)
+  𝓊·v↑ : ∀ (Γ : Γ) → (∃[ t ] Ne T Γ t) ⊎ ⊤
+  𝓊·v↑ Γ with 𝓊↑ Γ     | v↑ Γ
+  ... | inj₁ ⟨ r , 𝓊 ⟩ | ⟨ s , 𝓋 ⟩ = inj₁ ⟨ r · s , 𝓊 · 𝓋 ⟩
   ... | inj₂ tt    | _ = inj₂ tt
 
 -- Rules for determining when one context is the
@@ -219,10 +220,10 @@ _Γ-≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ Γ-≤ Γ)
 -- lookup judgement in the original context, there
 -- is a corresponding lookup judgement in the extended context.
 lookup-Γ-≤ : ∀ {Γ′ Γ : Γ} {T : Type}
-                 → Γ′ Γ-≤ Γ
-                 → Γ ∋ T
-                   --------
-                 → Γ′ ∋ T
+           → Γ′ Γ-≤ Γ
+           → Γ ∋ T
+             --------
+           → Γ′ ∋ T
 lookup-Γ-≤ (,-≤ pf) i
   with lookup-Γ-≤ pf i
 ... | j = `S j
@@ -231,9 +232,9 @@ lookup-Γ-≤ (,-≤ pf) i
 -- which can only be applied to extensions of Γ , S
 mk-lifted-var : ∀ {S : Type} (Γ₁ : Γ) → Ne↑ S
 mk-lifted-var {S} Γ₁ = ne↑ var↑ where
-  var↑ : ∀ (Γ₂ : Γ) → Ne S Γ₂ ⊎ ⊤
+  var↑ : ∀ (Γ₂ : Γ) → (∃[ t ] Ne S Γ₂ t) ⊎ ⊤
   var↑ Γ₂ with Γ₂ Γ-≤? (Γ₁ , S)
-  ... | yes pf  = inj₁ (` lookup-Γ-≤ pf `Z)
+  ... | yes pf  = inj₁ ⟨ ` x , ` x ⟩ where x = lookup-Γ-≤ pf `Z
   ... | no _    = inj₂ tt
 
 -- ↓ᴺ - Reification of semantic objects of type ⟦N⟧, which
@@ -242,14 +243,17 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 --      zero is used if the neutral cannot be lifted to the
 --      context Γ
 ↓ℕ̂ : ⟦ nat ⟧ → Nf↑ nat
-↓ℕ̂ zero = nf↑ (λ _ → zero)
+↓ℕ̂ zero = nf↑ (λ _ → ⟨ zero , zero ⟩)
 ↓ℕ̂ (suc n) with ↓ℕ̂ n
-... | nf↑ n↑ = nf↑ (λ Γ → suc (n↑ Γ))
+... | nf↑ n↑ = nf↑ suc↑ where
+  suc↑ : (Γ : Γ) → ∃[ t ] Nf nat Γ t
+  suc↑ Γ with n↑ Γ
+  ... | ⟨ n , 𝓋 ⟩ = ⟨ suc · n , suc 𝓋 ⟩
 ↓ℕ̂ (ne (ne↑ 𝓊↑)) = nf↑ 𝓊̂ where
-  𝓊̂ : ∀ (Γ : Γ) → Nf nat Γ
+  𝓊̂ : ∀ (Γ : Γ) → ∃[ t ] Nf nat Γ t
   𝓊̂ Γ with 𝓊↑ Γ
-  ... | inj₁ 𝓊  = neutral 𝓊
-  ... | inj₂ tt = zero
+  ... | inj₁ ⟨ u , 𝓊 ⟩  = ⟨ u , neutral 𝓊 ⟩ -- neutral ?
+  ... | inj₂ tt         = ⟨ zero , zero ⟩
 
 ↓ᵀ {nat} = ↓ℕ̂
 
@@ -259,9 +263,11 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 --        the reification of the function applied to the
 --        reflection of the bound variable
 ↓ᵀ {S ⇒ T} f = nf↑ f↑ where
-  f↑ : ∀ (Γ : Γ) → Nf (S ⇒ T) Γ
+  f↑ : ∀ (Γ : Γ) → ∃[ t ] Nf (S ⇒ T) Γ t
   f↑ Γ with ↓ᵀ (f a) where a = ↑ᵀ (mk-lifted-var Γ)
-  ... | nf↑ f·a↑ = ƛ f·a↑ (Γ , S)
+  ... | nf↑ f·a↑
+      with f·a↑ (Γ , S)
+  ... | ⟨ t , 𝓋 ⟩ = ⟨ ƛ t , ƛ 𝓋 ⟩
 
 -- Reflection of a context gamma
 ↑Γ : ∀ (Γ : Γ) → ⟦ Γ ⟧
@@ -280,12 +286,14 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 ⟦rec⟧ z s zero = z
 ⟦rec⟧ z s (suc n) = s n (⟦rec⟧ z s n)
 ⟦rec⟧ {T} z s (ne (ne↑ u↑)) = ↑ᵀ (ne↑ rec↑) where
-  rec↑ : ∀ (Γ : Γ) → Ne T Γ ⊎ ⊤
+  rec↑ : ∀ (Γ : Γ) → ∃[ t ] Ne T Γ t ⊎ ⊤
   rec↑ Γ with u↑ Γ
   ... | inj₂ tt = inj₂ tt
-  ... | inj₁ 𝓊
+  ... | inj₁ ⟨ n , 𝓊 ⟩
          with ↓ᵀ z | ↓ᵀ s
-  ... | nf↑ z↑     | nf↑ s↑ = inj₁ (rec (z↑ Γ) (s↑ Γ) 𝓊)
+  ... | nf↑ z↑     | nf↑ s↑
+        with z↑ Γ  | s↑ Γ
+  ... | ⟨ z , 𝓋z ⟩ | ⟨ s , 𝓋s ⟩ = inj₁ ⟨ rec · z · s · n , rec 𝓋z 𝓋s 𝓊 ⟩
 
 -- And the corresponding denotations of the
 -- lookup and typing judgements.
@@ -306,7 +314,7 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 ⊢⟦ r · s ⟧ ρ = ⊢⟦ r ⟧ ρ (⊢⟦ s ⟧ ρ)
 
 -- Finally, the algorithm for normalization by evaluation
-nf : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Nf T Γ
+nf : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ∃[ t ] Nf T Γ t
 nf {Γ} t with ↓ᵀ (⊢⟦ t ⟧ (↑Γ Γ))
 ... | nf↑ t↑ = t↑ Γ
 
@@ -322,20 +330,6 @@ nf {Γ} t with ↓ᵀ (⊢⟦ t ⟧ (↑Γ Γ))
 -- For this, a logical relation Ⓡ is defined such that
 -- it implies Γ ⊢ t = nf(t) : T
 
--- First, we map normal terms to their corresponding typing
--- judgement
-tm-nf : ∀ {T : Type} {Γ : Γ} → Nf T Γ → Γ ⊢ T
-tm-ne : ∀ {T : Type} {Γ : Γ} → Ne T Γ → Γ ⊢ T
-
-tm-nf zero = zero
-tm-nf (suc n) = suc · tm-nf n
-tm-nf (ƛ t) = ƛ tm-nf t
-tm-nf (neutral 𝓊) = tm-ne 𝓊
-
-tm-ne (𝓊 · 𝓋) = tm-ne 𝓊 · tm-nf 𝓋
-tm-ne (` x) = ` x
-tm-ne (rec 𝓋z 𝓋s 𝓊) = rec · tm-nf 𝓋z · tm-nf 𝓋s · tm-ne 𝓊
-
 -- We also define a function for extending a typing judgement
 -- TODO: is it necessary to prove something else? maybe that
 --       you can go back to the former typing judgement...
@@ -343,6 +337,9 @@ ext : ∀ {Γ Γ′ : Γ} {T : Type} → Γ′ Γ-≤ Γ → Γ ⊢ T → Γ′ 
 ext = {!!}
 
 -- The Kripe logical relation
+
+{-
+
 _Ⓡ_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
 
 _Ⓡ_ {Γ₁} {nat} t 𝕟̂ with ↓ℕ̂ 𝕟̂
@@ -356,3 +353,5 @@ _Ⓡ_ {Γ₁} {S ⇒ T} r f =
   → (pf : Γ₂ Γ-≤ Γ₁)
   → s Ⓡ a
   → ((ext pf r) · s) Ⓡ (f a)
+
+-}
