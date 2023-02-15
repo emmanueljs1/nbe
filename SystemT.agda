@@ -12,14 +12,14 @@ data Type : Set where
   nat : Type
   _⇒_ : ∀ (S T : Type) → Type
 
-infixr 12 _⇒_
+infixr 7 _⇒_
 
 -- Typing contexts
 data Γ : Set where
   ∅ : Γ
   _,_ : Γ → Type → Γ
 
-infix 11 _,_
+infix 5 _,_
 
 -- Lookup judgement for contexts
 -- (corresponds to de Brujin indices)
@@ -33,7 +33,7 @@ data _∋_ : Γ → Type → Set where
         ---------
       → Γ , S ∋ T
 
-infix 10 _∋_
+infix 4 _∋_
 
 -- Typing judgement in a context
 -- (these correspond to intrinsically typed terms)
@@ -53,10 +53,10 @@ data _⊢_ (Γ : Γ) : Type → Set where
        -----
      → Γ ⊢ S
 
-  ƛ : ∀ {S T : Type}
-    → Γ , S ⊢ T
-      ---------
-    → Γ ⊢ S ⇒ T
+  ƛ_ : ∀ {S T : Type}
+     → Γ , S ⊢ T
+       ---------
+     → Γ ⊢ S ⇒ T
 
   _·_ : ∀ {S T : Type}
       → Γ ⊢ S ⇒ T
@@ -64,7 +64,10 @@ data _⊢_ (Γ : Γ) : Type → Set where
         ---------
       → Γ ⊢ T
 
-infix 9 _⊢_
+infix 4 _⊢_
+infix 5 ƛ_
+infixl 7 _·_
+infix 9 `_
 
 -- We use the following record to represent interpretations
 -- of types and contexts in System T. This will help
@@ -123,10 +126,10 @@ data Nf where
       → Nf nat Γ
 
   -- abstraction
-  ƛ : ∀ {S T : Type} {Γ : Γ}
-    → Nf T (Γ , S)
-      ------------
-    → Nf (S ⇒ T) Γ
+  ƛ_ : ∀ {S T : Type} {Γ : Γ}
+     → Nf T (Γ , S)
+       ------------
+     → Nf (S ⇒ T) Γ
 
   -- neutral term
   neutral : ∀ {T : Type} {Γ : Γ}
@@ -202,7 +205,7 @@ data _Γ-≤_ : Γ → Γ → Set where
         ------------
       → Γ′ , T Γ-≤ Γ
 
-infix 9 _Γ-≤_
+infix 4 _Γ-≤_
 
 _Γ-≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ Γ-≤ Γ)
 ∅ Γ-≤? ∅ = yes ∅-≤
@@ -230,7 +233,7 @@ mk-lifted-var : ∀ {S : Type} (Γ₁ : Γ) → Ne↑ S
 mk-lifted-var {S} Γ₁ = ne↑ var↑ where
   var↑ : ∀ (Γ₂ : Γ) → Ne S Γ₂ ⊎ ⊤
   var↑ Γ₂ with Γ₂ Γ-≤? (Γ₁ , S)
-  ... | yes pf  = inj₁ (` (lookup-Γ-≤ pf `Z))
+  ... | yes pf  = inj₁ (` lookup-Γ-≤ pf `Z)
   ... | no _    = inj₂ tt
 
 -- ↓ᴺ - Reification of semantic objects of type ⟦N⟧, which
@@ -258,7 +261,7 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 ↓ᵀ {S ⇒ T} f = nf↑ f↑ where
   f↑ : ∀ (Γ : Γ) → Nf (S ⇒ T) Γ
   f↑ Γ with ↓ᵀ (f a) where a = ↑ᵀ (mk-lifted-var Γ)
-  ... | nf↑ f·a↑ = ƛ (f·a↑ (Γ , S))
+  ... | nf↑ f·a↑ = ƛ f·a↑ (Γ , S)
 
 -- Reflection of a context gamma
 ↑Γ : ∀ (Γ : Γ) → ⟦ Γ ⟧
@@ -299,7 +302,7 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 ⊢⟦ suc ⟧ _ = suc
 ⊢⟦ rec ⟧ _ = ⟦rec⟧
 ⊢⟦ ` x ⟧ = ∋⟦ x ⟧
-⊢⟦ (ƛ t) ⟧ ρ a = ⊢⟦ t ⟧ ⟨ ρ , a ⟩
+⊢⟦ ƛ t ⟧ ρ a = ⊢⟦ t ⟧ ⟨ ρ , a ⟩
 ⊢⟦ r · s ⟧ ρ = ⊢⟦ r ⟧ ρ (⊢⟦ s ⟧ ρ)
 
 -- Finally, the algorithm for normalization by evaluation
@@ -325,13 +328,13 @@ tm-nf : ∀ {T : Type} {Γ : Γ} → Nf T Γ → Γ ⊢ T
 tm-ne : ∀ {T : Type} {Γ : Γ} → Ne T Γ → Γ ⊢ T
 
 tm-nf zero = zero
-tm-nf (suc n) = suc · (tm-nf n)
-tm-nf (ƛ t) = ƛ (tm-nf t)
+tm-nf (suc n) = suc · tm-nf n
+tm-nf (ƛ t) = ƛ tm-nf t
 tm-nf (neutral 𝓊) = tm-ne 𝓊
 
-tm-ne (𝓊 · 𝓋) = (tm-ne 𝓊) · (tm-nf 𝓋)
+tm-ne (𝓊 · 𝓋) = tm-ne 𝓊 · tm-nf 𝓋
 tm-ne (` x) = ` x
-tm-ne (rec 𝓋z 𝓋s 𝓊) = ((rec · (tm-nf 𝓋z)) · tm-nf 𝓋s) · tm-ne 𝓊
+tm-ne (rec 𝓋z 𝓋s 𝓊) = rec · tm-nf 𝓋z · tm-nf 𝓋s · tm-ne 𝓊
 
 -- We also define a function for extending a typing judgement
 -- TODO: is it necessary to prove something else? maybe that
