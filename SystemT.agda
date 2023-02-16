@@ -103,58 +103,6 @@ infix 5 ƛ_
 infixl 7 _·_
 infix 9 `_
 
--- Renaming well typed terms, enabling us to rebase from one
--- context to another
-
-ext : ∀ {Γ Δ}
-  → (∀ {A} →       Γ ∋ A →     Δ ∋ A)
-    ---------------------------------
-  → (∀ {A B} → Γ , B ∋ A → Δ , B ∋ A)
-ext ρ `Z      =  `Z
-ext ρ (`S x)  =  `S (ρ x)
-
-rename : ∀ {Γ Δ}
-  → (∀ {A} → Γ ∋ A → Δ ∋ A)
-    -----------------------
-  → (∀ {A} → Γ ⊢ A → Δ ⊢ A)
-rename ρ zero = zero
-rename ρ suc = suc
-rename ρ rec = rec
-rename ρ (` x) = ` ρ x
-rename ρ (ƛ t) = ƛ rename (ext ρ) t
-rename ρ (r · s) = rename ρ r · rename ρ s
-
-exts : ∀ {Γ Δ}
-  → (∀ {A} →       Γ ∋ A →     Δ ⊢ A)
-    ---------------------------------
-  → (∀ {A B} → Γ , B ∋ A → Δ , B ⊢ A)
-exts σ `Z      =  ` `Z
-exts σ (`S x)  =  rename `S_ (σ x)
-
-subst : ∀ {Γ Δ}
-  → (∀ {A} → Γ ∋ A → Δ ⊢ A)
-    -----------------------
-  → (∀ {A} → Γ ⊢ A → Δ ⊢ A)
-subst σ (` x)          =  σ x
-subst σ (ƛ t)          =  ƛ (subst (exts σ) t)
-subst σ (r · s)        =  (subst σ r) · (subst σ s)
-subst σ zero           =  zero
-subst σ suc            =  suc
-subst σ rec            =  rec
-
--- Substitute the first free variable in a term
--- Γ , B ⊢ A with a term Γ ⊢ B
-_[_/`Z] : ∀ {Γ A B}
-  → Γ , B ⊢ A
-  → Γ ⊢ B
-    ---------
-  → Γ ⊢ A
-_[_/`Z] {Γ} {A} {B} N M =  subst {Γ , B} {Γ} σ {A} N
-  where
-  σ : ∀ {A} → Γ , B ∋ A → Γ ⊢ A
-  σ `Z      =  M
-  σ (`S x)  =  ` x
-
 -- We use the following record to represent interpretations
 -- of types and contexts in System T, indicated by ⟦_⟧.
 -- This will help with the many definitions in the NbE
@@ -239,9 +187,84 @@ data Nf where
 
 {- Section 2.2 -- normalization, definitional equality -}
 
--- We construct definitional equality such that the definitional equality
--- of two terms implies the equality of their interpretation. We will use
--- this to prove the soundness of NbE (i.e. ⟦nf(t)⟧ = ⟦t⟧)
+-- We expect the following soundness properties for a
+-- normalization algorithm nf(t) that produces a normal form
+-- for a typed term Γ ⊢ t : T
+--
+--   - Γ ⊢ nf(t) : T (well-typedness of normal form)
+--   - ⟦ nf(t) ⟧ = ⟦ t ⟧ (preservation of meaning)
+--   - nf(nf(t)) = nf(t) (idempotency)
+--
+-- For preservation of meaning, our interpretation of
+-- functional terms is functions, whose equality is
+-- undecidable. However, in STLC, we have that two terms
+-- are βη-equivalent iff their interpretations are equal.
+-- So, we wish to define an extension of βη-equivalence
+-- for System T s.t. it implies equal interpretations
+-- (thus making the proposition ⟦ nf(t) ⟧ = ⟦ t ⟧ decidable)
+
+-- Before we define this extension, we define the functions
+-- needed to establish βη-equivalence -- renaming and
+-- substitution
+
+ext : ∀ {Γ Δ}
+  → (∀ {A} →       Γ ∋ A →     Δ ∋ A)
+    ---------------------------------
+  → (∀ {A B} → Γ , B ∋ A → Δ , B ∋ A)
+ext ρ `Z      =  `Z
+ext ρ (`S x)  =  `S (ρ x)
+
+-- Rename a well typed terms, enabling us to rebase from one
+-- context to another (to establish η-equivalence)
+rename : ∀ {Γ Δ}
+  → (∀ {A} → Γ ∋ A → Δ ∋ A)
+    -----------------------
+  → (∀ {A} → Γ ⊢ A → Δ ⊢ A)
+rename ρ zero = zero
+rename ρ suc = suc
+rename ρ rec = rec
+rename ρ (` x) = ` ρ x
+rename ρ (ƛ t) = ƛ rename (ext ρ) t
+rename ρ (r · s) = rename ρ r · rename ρ s
+
+exts : ∀ {Γ Δ}
+  → (∀ {A} →       Γ ∋ A →     Δ ⊢ A)
+    ---------------------------------
+  → (∀ {A B} → Γ , B ∋ A → Δ , B ⊢ A)
+exts σ `Z      =  ` `Z
+exts σ (`S x)  =  rename `S_ (σ x)
+
+subst : ∀ {Γ Δ}
+  → (∀ {A} → Γ ∋ A → Δ ⊢ A)
+    -----------------------
+  → (∀ {A} → Γ ⊢ A → Δ ⊢ A)
+subst σ (` x)          =  σ x
+subst σ (ƛ t)          =  ƛ (subst (exts σ) t)
+subst σ (r · s)        =  (subst σ r) · (subst σ s)
+subst σ zero           =  zero
+subst σ suc            =  suc
+subst σ rec            =  rec
+
+-- Substitute the first free variable in a term
+-- Γ , B ⊢ A with a term Γ ⊢ B (to establish β equivalence)
+_[_/`Z] : ∀ {Γ A B}
+  → Γ , B ⊢ A
+  → Γ ⊢ B
+    ---------
+  → Γ ⊢ A
+_[_/`Z] {Γ} {A} {B} N M =  subst {Γ , B} {Γ} σ {A} N
+  where
+  σ : ∀ {A} → Γ , B ∋ A → Γ ⊢ A
+  σ `Z      =  M
+  σ (`S x)  =  ` x
+
+-- With these defined, we introduce a new relation between two
+-- terms: definitional equality. The relation is defined such
+-- that the definitional equality of two terms implies the
+-- equality of their interpretation (t def-≡ t′ iff ⟦t⟧ = ⟦t′⟧)
+--
+-- We will use this to prove the soundness of
+-- NbE (i.e. ⟦nf(t)⟧ = ⟦t⟧)
 
 data _def-≡_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
 
