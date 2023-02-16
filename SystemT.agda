@@ -1,6 +1,7 @@
 module SystemT where
 
-open import Agda.Builtin.Unit using (⊤; tt)
+open import Data.Empty using (⊥)
+open import Data.Unit using (⊤; tt)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
 open import Relation.Nullary using (Dec; yes; no)
@@ -156,7 +157,7 @@ data Nf where
 -- this to prove the soundness of NbE (i.e. ⟦ nf (t) ⟧ = ⟦ t ⟧)
 
 -- TODO: define
-data _defeq_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
+data _def-≡_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
 
 {- Section 2.5 -- liftable terms, updated NbE algorithm -}
 
@@ -393,8 +394,11 @@ postulate
 -- For this, a logical relation Ⓡ is defined such that
 -- it implies Γ ⊢ t = nf(t) : T
 
--- First, we define a function for mapping a well-typed term in a
--- context Γ to a well-typed term in an extension of Γ, the context Γ′
+-- First, we define a few convenience functions.
+
+-- The first is for mapping a well-typed term in a
+-- context Γ to a well-typed term in an extension of Γ, the
+-- context Γ′
 
 ext : ∀ {Γ Δ}
   → (∀ {A} →       Γ ∋ A →     Δ ∋ A)
@@ -414,43 +418,46 @@ rename ρ (` x) = ` ρ x
 rename ρ (ƛ t) = ƛ rename (ext ρ) t
 rename ρ (r · s) = rename ρ r · rename ρ s
 
-Γ-ext : ∀ {Γ Γ′ : Γ} {T : Type} → Γ′ Γ-≤ Γ → Γ ⊢ T → Γ′ ⊢ T
-Γ-ext pf = rename (lookup-Γ-≤ pf)
+_⊢′_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ Γ-≤ Γ → Γ ⊢ T → Γ′ ⊢ T
+pf ⊢′ t = rename (lookup-Γ-≤ pf) t
 
--- The Kripe logical relation
+infix 4 _⊢′_
 
---_Ⓡ_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
+-- We also define the following function that "lifts"
+-- definitional equality over liftable neutrals
 
--- TODO: need to use decidable here to only consider cases when application to Γ is not ⊤
---       in the following propositions
-_∘_ : {T : Type} → ⟦ T ⟧ → (Γ : Γ) → Dec (Γ ⊢ T)
-_∘_ = {!!}
+_def-≡↑_ : {Γ : Γ} {T : Type} → Γ ⊢ T → Ne↑ T → Set
+_def-≡↑_ {Γ} t (ne↑ 𝓊↑) with 𝓊↑ Γ
+... | inj₁ ⟨ 𝓊 , _ ⟩ = t def-≡ 𝓊
+... | inj₂ _ = ⊥
 
-{-
-_∘_ {nat} zero _ = zero
-_∘_ {nat} (suc 𝓊̂) Γ = suc · (𝓊̂ ∘ Γ)
-_∘_ {nat} (ne (ne↑ 𝓊↑)) Γ = {!!}
-_∘_ {T ⇒ T₁} 𝓊̂ Γ = {!!}
---_∘_ {T ⇒ T₁} 𝓊̂ Γ = {!!}
---_∘_ {nat} 𝓋̂ Γ with ↓ℕ̂ 𝓋̂
---... | nf↑ 𝓋↑ = proj₁ (𝓋↑ Γ)
+infix 3 _def-≡↑_
 
---with ↓ℕ̂ 𝓋̂
---... | nf↑ 𝓋↑ = proj₁ (𝓋↑ Γ)
--}
+-- The Kripe logical relation between a typed term Γ ⊢ T and a
+-- value in ⟦T⟧
 
-{-
-_Ⓡ_ {Γ₁} {nat} t 𝓋̂  = ∀ {Γ₂ : Γ} → (pf : Γ₂ Γ-≤ Γ₁) → (Γ-ext pf t) defeq (𝓋̂ ∘ Γ₂)
+_Ⓡ_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
+
+_Ⓡ_ {_} {nat} t zero = t def-≡ zero
+_Ⓡ_ {Γ} {nat} t (suc 𝓋̂) = ∃[ n ] n Ⓡ 𝓋̂ × t def-≡ (suc · n)
+_Ⓡ_ {Γ₁} {nat} t (ne 𝓊̂) =
+  ∀ {Γ₂ : Γ}
+  → (Γ′ : Γ₂ Γ-≤ Γ₁)
+    ----------------
+  → Γ′ ⊢′ t def-≡↑ 𝓊̂
 
 _Ⓡ_ {Γ₁} {S ⇒ T} r f =
   ∀ {Γ₂ : Γ} {s : Γ₂ ⊢ S} {a : ⟦ S ⟧}
-  → (pf : Γ₂ Γ-≤ Γ₁)
+  → (Γ′ : Γ₂ Γ-≤ Γ₁)
   → s Ⓡ a
-  → ((Γ-ext pf r) · s) Ⓡ (f a)
+    --------------------
+  → (Γ′ ⊢′ r) · s Ⓡ f a
 
-defeq→Ⓡ : ∀ {Γ Γ′ : Γ} {na : Type} {𝓊 : Γ′ ⊢ T} {𝓊̂ : ⟦ T ⟧}
+infix 4 _Ⓡ_
+
+defeq→Ⓡ : ∀ {Γ Γ′ : Γ} {T : Type} {𝓊 : Γ′ ⊢ T} {𝓊̂ : Ne↑ T}
         → Γ′ Γ-≤ Γ
-        → 𝓊 defeq (𝓊̂ ∘ Γ′)
+        → 𝓊 def-≡↑ 𝓊̂
+          ----------
         → 𝓊 Ⓡ (↑ᵀ 𝓊̂)
-defeq→Ⓡ = ?
--}
+defeq→Ⓡ = {!!}
