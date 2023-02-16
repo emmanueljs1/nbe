@@ -37,6 +37,28 @@ data _∋_ : Γ → Type → Set where
 
 infix 4 _∋_
 
+-- Rules for determining when one context is the
+-- extension of another, this is not introduced in this section, but will be useful throughout
+data _Γ-≤_ : Γ → Γ → Set where
+  ∅-≤ : ∀ {Γ : Γ}
+        ---------
+       → Γ Γ-≤ ∅
+
+  ,-≤ : ∀ {Γ Γ′ : Γ} {T : Type}
+      → Γ′ Γ-≤ Γ
+        ------------
+      → Γ′ , T Γ-≤ Γ
+
+infix 4 _Γ-≤_
+
+_Γ-≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ Γ-≤ Γ)
+∅ Γ-≤? ∅ = yes ∅-≤
+∅ Γ-≤? (_ , _) = no λ()
+(_ , _) Γ-≤? ∅ = yes ∅-≤
+(Γ′ , _) Γ-≤? Γ@(_ , _) with Γ′ Γ-≤? Γ
+... | yes pf  = yes (,-≤ pf)
+... | no ¬pf  = no λ{ (,-≤ pf) → ¬pf pf }
+
 -- Typing judgement in a context
 -- (these correspond to intrinsically typed terms)
 data _⊢_ (Γ : Γ) : Type → Set where
@@ -69,9 +91,31 @@ infix 5 ƛ_
 infixl 7 _·_
 infix 9 `_
 
+-- Renaming well typed terms, enabling us to rebase from one
+-- context to another
+
+ext : ∀ {Γ Δ}
+  → (∀ {A} →       Γ ∋ A →     Δ ∋ A)
+    ---------------------------------
+  → (∀ {A B} → Γ , B ∋ A → Δ , B ∋ A)
+ext ρ `Z      =  `Z
+ext ρ (`S x)  =  `S (ρ x)
+
+rename : ∀ {Γ Δ}
+  → (∀ {A} → Γ ∋ A → Δ ∋ A)
+    -----------------------
+  → (∀ {A} → Γ ⊢ A → Δ ⊢ A)
+rename ρ zero = zero
+rename ρ suc = suc
+rename ρ rec = rec
+rename ρ (` x) = ` ρ x
+rename ρ (ƛ t) = ƛ rename (ext ρ) t
+rename ρ (r · s) = rename ρ r · rename ρ s
+
 -- We use the following record to represent interpretations
--- of types and contexts in System T. This will help
--- with the many definitions in the NbE algorithm.
+-- of types and contexts in System T, indicated by ⟦_⟧.
+-- This will help with the many definitions in the NbE
+-- algorithm.
 --
 -- The original interpretations of types (and of lookup and
 -- typing judgements, which are defined independently as
@@ -154,10 +198,72 @@ data Nf where
 
 -- We construct definitional equality such that the definitional equality
 -- of two terms implies the equality of their interpretation. We will use
--- this to prove the soundness of NbE (i.e. ⟦ nf (t) ⟧ = ⟦ t ⟧)
+-- this to prove the soundness of NbE (i.e. ⟦nf(t)⟧ = ⟦t⟧)
 
--- TODO: define
 data _def-≡_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
+
+  -- Computation rules
+
+  ≡-β-rec-z : ∀ {Γ : Γ} {T : Type}
+            → (z : Γ ⊢ T)
+            → (s : Γ ⊢ nat ⇒ T ⇒ T)
+              --------------------------
+            → rec · z · s · zero def-≡ z
+
+  ≡-β-rec-s : ∀ {Γ : Γ} {T : Type}
+    → (z : Γ ⊢ T)
+    → (s : Γ ⊢ nat ⇒ T ⇒ T)
+    → (n : Γ ⊢ nat)
+      -------------------------------------------------------
+    → rec · z · s · (suc · n) def-≡ s · n · (rec · z · s · n)
+
+  -- TODO: ≡-β-app
+
+  -- Function extensionality, i.e. Γ ⊢ t = Γ ⊢ λx. t x : S ⇒ T
+
+  ≡-η : ∀ {Γ : Γ} {S T : Type}
+      → (t : Γ ⊢ S ⇒ T)
+        -------------------------------
+      → t def-≡ ƛ (rename `S_ t) · ` `Z
+
+  -- Compatibility rules
+  --
+  -- Note that we do not need a rule for constants and variables as
+  -- we are using an intrinsically typed representation, so ≡-refl
+  -- catches all of these cases
+
+  ≡-abs-compatible : ∀ {Γ : Γ} {S T : Type} {t t′ : Γ , S ⊢ T}
+                   → t def-≡ t′
+                     -------------
+                   → ƛ t def-≡ ƛ t′
+
+  ≡-app-compatible : ∀ {Γ : Γ} {S T : Type}
+                       {r r′ : Γ ⊢ S ⇒ T} {s s′ : Γ ⊢ S}
+                   → r def-≡ r′
+                   → s def-≡ s′
+                     ------------------
+                   → r · s def-≡ r′ · s′
+
+  -- Equivalence rules
+
+  ≡-refl : ∀ {Γ : Γ} {T : Type}
+         → (t : Γ ⊢ T)
+           -----------
+         → t def-≡ t
+
+  ≡-sym : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
+        → t def-≡ t′
+          ----------
+        → t′ def-≡ t
+
+  ≡-trans : ∀ {Γ : Γ} {T : Type} {t₁ t₂ t₃ : Γ ⊢ T}
+          → t₁ def-≡ t₂
+          → t₂ def-≡ t₃
+            -----------
+          → t₁ def-≡ t₃
+
+
+infix 3 _def-≡_
 
 {- Section 2.5 -- liftable terms, updated NbE algorithm -}
 
@@ -236,28 +342,6 @@ instance
   ... | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩ | ⟨ 𝓋 , pf-𝓋 ⟩ = inj₁ ⟨ 𝓊 · 𝓋 , ne-app pf-𝓊 pf-𝓋 ⟩
   ... | inj₂ tt           | _ = inj₂ tt
 
--- Rules for determining when one context is the
--- extension of another. This is used for creating a lifted variable,
--- though it will be useful later on as well
-data _Γ-≤_ : Γ → Γ → Set where
-  ∅-≤ : ∀ {Γ : Γ}
-        ---------
-       → Γ Γ-≤ ∅
-
-  ,-≤ : ∀ {Γ Γ′ : Γ} {T : Type}
-      → Γ′ Γ-≤ Γ
-        ------------
-      → Γ′ , T Γ-≤ Γ
-
-infix 4 _Γ-≤_
-
-_Γ-≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ Γ-≤ Γ)
-∅ Γ-≤? ∅ = yes ∅-≤
-∅ Γ-≤? (_ , _) = no λ()
-(_ , _) Γ-≤? ∅ = yes ∅-≤
-(Γ′ , _) Γ-≤? Γ@(_ , _) with Γ′ Γ-≤? Γ
-... | yes pf  = yes (,-≤ pf)
-... | no ¬pf  = no λ{ (,-≤ pf) → ¬pf pf }
 
 -- Given one context is an extension of another, and a
 -- lookup judgement in the original context, there
@@ -394,38 +478,18 @@ postulate
 -- For this, a logical relation Ⓡ is defined such that
 -- it implies Γ ⊢ t = nf(t) : T
 
--- First, we define a few convenience functions.
+-- We start by defining a few functions for
+-- the convenience of defining the relation
 
--- The first is for mapping a well-typed term in a
--- context Γ to a well-typed term in an extension of Γ, the
--- context Γ′
+-- The first extends a well typed term in context Γ to its corresponding
+-- well typed term in Γ′, an extension of Γ
+_ext-⊢_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ Γ-≤ Γ → Γ ⊢ T → Γ′ ⊢ T
+pf ext-⊢ t = rename (lookup-Γ-≤ pf) t
 
-ext : ∀ {Γ Δ}
-  → (∀ {A} →       Γ ∋ A →     Δ ∋ A)
-    ---------------------------------
-  → (∀ {A B} → Γ , B ∋ A → Δ , B ∋ A)
-ext ρ `Z      =  `Z
-ext ρ (`S x)  =  `S (ρ x)
+infix 4 _ext-⊢_
 
-rename : ∀ {Γ Δ}
-  → (∀ {A} → Γ ∋ A → Δ ∋ A)
-    -----------------------
-  → (∀ {A} → Γ ⊢ A → Δ ⊢ A)
-rename ρ zero = zero
-rename ρ suc = suc
-rename ρ rec = rec
-rename ρ (` x) = ` ρ x
-rename ρ (ƛ t) = ƛ rename (ext ρ) t
-rename ρ (r · s) = rename ρ r · rename ρ s
-
-_⊢′_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ Γ-≤ Γ → Γ ⊢ T → Γ′ ⊢ T
-pf ⊢′ t = rename (lookup-Γ-≤ pf) t
-
-infix 4 _⊢′_
-
--- We also define the following function that "lifts"
+-- The next function we define "lifts"
 -- definitional equality over liftable neutrals
-
 _def-≡↑_ : {Γ : Γ} {T : Type} → Γ ⊢ T → Ne↑ T → Set
 _def-≡↑_ {Γ} t (ne↑ 𝓊↑) with 𝓊↑ Γ
 ... | inj₁ ⟨ 𝓊 , _ ⟩ = t def-≡ 𝓊
@@ -444,14 +508,14 @@ _Ⓡ_ {Γ₁} {nat} t (ne 𝓊̂) =
   ∀ {Γ₂ : Γ}
   → (Γ′ : Γ₂ Γ-≤ Γ₁)
     ----------------
-  → Γ′ ⊢′ t def-≡↑ 𝓊̂
+  → Γ′ ext-⊢ t def-≡↑ 𝓊̂
 
 _Ⓡ_ {Γ₁} {S ⇒ T} r f =
   ∀ {Γ₂ : Γ} {s : Γ₂ ⊢ S} {a : ⟦ S ⟧}
   → (Γ′ : Γ₂ Γ-≤ Γ₁)
   → s Ⓡ a
     --------------------
-  → (Γ′ ⊢′ r) · s Ⓡ f a
+  → (Γ′ ext-⊢ r) · s Ⓡ f a
 
 infix 4 _Ⓡ_
 
