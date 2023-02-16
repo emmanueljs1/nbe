@@ -124,6 +124,37 @@ rename ρ (` x) = ` ρ x
 rename ρ (ƛ t) = ƛ rename (ext ρ) t
 rename ρ (r · s) = rename ρ r · rename ρ s
 
+exts : ∀ {Γ Δ}
+  → (∀ {A} →       Γ ∋ A →     Δ ⊢ A)
+    ---------------------------------
+  → (∀ {A B} → Γ , B ∋ A → Δ , B ⊢ A)
+exts σ `Z      =  ` `Z
+exts σ (`S x)  =  rename `S_ (σ x)
+
+subst : ∀ {Γ Δ}
+  → (∀ {A} → Γ ∋ A → Δ ⊢ A)
+    -----------------------
+  → (∀ {A} → Γ ⊢ A → Δ ⊢ A)
+subst σ (` x)          =  σ x
+subst σ (ƛ t)          =  ƛ (subst (exts σ) t)
+subst σ (r · s)        =  (subst σ r) · (subst σ s)
+subst σ zero           =  zero
+subst σ suc            =  suc
+subst σ rec            =  rec
+
+-- Substitute the first free variable in a term
+-- Γ , B ⊢ A with a term Γ ⊢ B
+_[_/`Z] : ∀ {Γ A B}
+  → Γ , B ⊢ A
+  → Γ ⊢ B
+    ---------
+  → Γ ⊢ A
+_[_/`Z] {Γ} {A} {B} N M =  subst {Γ , B} {Γ} σ {A} N
+  where
+  σ : ∀ {A} → Γ , B ∋ A → Γ ⊢ A
+  σ `Z      =  M
+  σ (`S x)  =  ` x
+
 -- We use the following record to represent interpretations
 -- of types and contexts in System T, indicated by ⟦_⟧.
 -- This will help with the many definitions in the NbE
@@ -229,7 +260,11 @@ data _def-≡_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set wher
       -------------------------------------------------------
     → rec · z · s · (suc · n) def-≡ s · n · (rec · z · s · n)
 
-  -- TODO: ≡-β-app
+  ≡-β-ƛ : ∀ {Γ : Γ} {S T : Type}
+        → (t : Γ , S ⊢ T)
+        → (s : Γ ⊢ S)
+          --------------------------
+        → (ƛ t) · s def-≡ t [ s /`Z]
 
   -- Function extensionality, i.e. Γ ⊢ t = Γ ⊢ λx. t x : S ⇒ T
 
