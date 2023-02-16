@@ -59,6 +59,18 @@ _Γ-≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ Γ-≤ Γ)
 ... | yes pf  = yes (,-≤ pf)
 ... | no ¬pf  = no λ{ (,-≤ pf) → ¬pf pf }
 
+
+-- TODO: the inductive definition for Γ-≤ is wrong, the below (ideally)
+-- trivial propositions are not obviously provable
+
+Γ≤Γ : ∀ {Γ : Γ} → Γ Γ-≤ Γ
+Γ≤Γ {∅} = ∅-≤
+Γ≤Γ {Γ , T} = {!!}
+
+Γ,S≤Γ : ∀ {Γ : Γ} {S : Type} → Γ , S Γ-≤ Γ
+Γ,S≤Γ {∅} {S} = ,-≤ ∅-≤
+Γ,S≤Γ {Γ , T} {S} = ,-≤ {!!}
+
 -- Typing judgement in a context
 -- (these correspond to intrinsically typed terms)
 data _⊢_ (Γ : Γ) : Type → Set where
