@@ -7,7 +7,15 @@ open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_)
 
-{- Section 2.1 -- Basic system T -}
+{- Section 2.1 -- System T -}
+
+-- We start off by defining the language that we will
+-- use to showcase normalization by evaluation, System T.
+--
+-- It has natural numbers, higher-order functions, and
+-- primitive recursion. We will define it with intrinsic
+-- typing, and use a de Brujin index representation
+-- for variables
 
 -- Types in the language
 data Type : Set where
@@ -38,7 +46,8 @@ data _∋_ : Γ → Type → Set where
 infix 4 _∋_
 
 -- Rules for determining when one context is the
--- extension of another, this is not introduced in this section, but will be useful throughout
+-- extension of another, this is not introduced in this section,
+-- but will be useful throughout
 data _Γ-≤_ : Γ → Γ → Set where
   ∅-≤ : ∀ {Γ : Γ}
         ---------
@@ -103,89 +112,57 @@ infix 5 ƛ_
 infixl 7 _·_
 infix 9 `_
 
--- We use the following record to represent denotations
--- of types and contexts in System T, indicated by ⟦_⟧.
+-- The normalization of terms in System T will involve dealing
+-- with the interpretations of the types, terms, and contexts
+-- of System T into our meta language
+--
+-- We use the following record to represent interpretations
+-- of types, terms, and contexts in System T, indicated by ⟦_⟧.
 -- This will help with the many definitions in the NbE
 -- algorithm.
---
--- The original denotations of types (and of lookup and
--- typing judgements, which are defined independently as
--- functions) are left out, as they need to be updated to
--- work with the final NbE algorithm.
-record Denotation (D : Set) : Set₁ where
+record Interpretation (D : Set) : Set₁ where
   field
     ⟦_⟧ : D → Set
 
-open Denotation {{...}} public
+open Interpretation {{...}} public
+
+-- Most of the original interpretations of of this section are left
+-- out, as the version needs to be updated to work with the final
+-- NbE algorithm. They are, informally:
+--
+-- ⟦ nat ⟧ = ℕ
+-- ⟦ S ⇒ T ⟧ = ⟦S⟧ → ⟦T⟧
+--
+-- ⟦ ∅ ⟧ = ⊤
+-- ⟦ Γ , S ⟧ = ⟦ Γ ⟧ × ⟦ S ⟧
+--
+-- The metavariable ρ is used to represent elements of ⟦Γ⟧
+-- For clarity we will not use an intrinsically typed de Brujin
+-- representation in the following examples
+--
+-- The interpretation of a variable expects the interpretation
+-- of a context, and is essentially a lookup
+-- ⟦ Γ ∋ x:T ⟧ (ρ ∈ ⟦Γ⟧) ∈ ⟦ T ⟧
+-- ⟦ Γ , T ∋ x:T ⟧ (ρ , a) = a
+-- ⟦ Γ , y:S ∋ x:T ⟧ (ρ , _) = ⟦ Γ ∋ x:T ⟧ ρ
+--
+-- The interpretation of a typed term expects the interpretation
+-- of a context as well. It is more involed, so we only include
+-- the rule for variables and abstractions
+-- ⟦ Γ ⊢ t : T ⟧ (ρ ∈ ⟦Γ⟧) = ⟦ T ⟧
+-- ⟦ Γ ⊢ x : T ⟧ ρ = ⟦ Γ ∋ x:T ⟧ ρ
+-- ⟦ Γ ⊢ λx . t : S ⇒ T ⟧ ρ  a  = ⟦ Γ , x:S ⊢ t : T ⟧ (ρ , a)
 
 instance
-    -- The denotation of a context Γ, generalized over
-    -- any denotation to be used with the more NbE
-    -- specific denotation of types introduced in
-    -- later sections
-    ⟦Γ⟧ : {{_ : Denotation Type}} → Denotation Γ
-    Denotation.⟦ ⟦Γ⟧ ⟧ ∅ = ⊤
-    Denotation.⟦ ⟦Γ⟧ ⟧ (Γ , T) = ⟦ Γ ⟧ × ⟦ T ⟧
+    -- We only include the concrete interpretation of a
+    -- context Γ, generalized over any interpretation of
+    -- types, to be used with the actual interpretation
+    -- defined later
+    ⟦Γ⟧ : {{_ : Interpretation Type}} → Interpretation Γ
+    Interpretation.⟦ ⟦Γ⟧ ⟧ ∅ = ⊤
+    Interpretation.⟦ ⟦Γ⟧ ⟧ (Γ , T) = ⟦ Γ ⟧ × ⟦ T ⟧
 
-{- Section 2.3 -- System T with neutral and normal terms -}
-
--- We will consider an denotations of System T that evaulates an expression
--- with unknowns (e.g. variables) to another, possibly simplified, expression
--- with unknowns. Normalized terms with unknowns will be referred to as neutral
--- terms, and normalized terms in general will be referred to as normal terms.
---
--- As is done in the habilitation thesis, 𝓋 will be used for normal terms,
--- and 𝓊 will be used for neutral terms
-
-data Ne (T : Type) (Γ : Γ) : Γ ⊢ T → Set     -- Neutral terms
-data Nf : (T : Type) → (Γ : Γ) → Γ ⊢ T → Set -- Normal terms
-
--- Neutral terms are blocked terms in their normal form
-data Ne T Γ where
-  -- application on an unknown function
-  ne-app : ∀ {S : Type} {𝓊 : Γ ⊢ S ⇒ T} {𝓋 : Γ ⊢ S}
-         → Ne (S ⇒ T) Γ 𝓊
-         → Nf S Γ 𝓋
-           --------------
-         → Ne T Γ (𝓊 · 𝓋)
-
-  -- a variable is always blocked
-  ne-var : (x : Γ ∋ T)
-           ------------
-         → Ne T Γ (` x)
-
-  -- recursion blocked on an unknown natural
-  ne-rec : {𝓋z : Γ ⊢ T} {𝓋s : Γ ⊢ nat ⇒ T ⇒ T} {𝓊 : Γ ⊢ nat}
-         → Nf T Γ 𝓋z
-         → Nf (nat ⇒ T ⇒ T) Γ 𝓋s
-         → Ne nat Γ 𝓊
-           --------------------------
-         → Ne T Γ (rec · 𝓋z · 𝓋s · 𝓊)
-
--- Normal terms are terms in their normal form
-data Nf where
-  -- zero is a normal term
-  nf-zero : ∀ {Γ : Γ} → Nf nat Γ zero
-
-  -- suc applied to a normal term is a normal term
-  nf-suc : ∀ {Γ : Γ} {𝓋 : Γ ⊢ nat}
-         → Nf nat Γ 𝓋
-           ------------------
-         → Nf nat Γ (suc · 𝓋)
-
-  -- abstraction over a normal term is a normal term
-  nf-abs : ∀ {S T : Type} {Γ : Γ} {𝓋 : Γ , S ⊢ T}
-         → Nf T (Γ , S) 𝓋
-           ------------------
-         → Nf (S ⇒ T) Γ (ƛ 𝓋)
-
-  -- a neutral term is a normal term
-  nf-neutral : ∀ {T : Type} {Γ : Γ} {𝓊 : Γ ⊢ T}
-             → Ne T Γ 𝓊
-               --------
-             → Nf T Γ 𝓊
-
-{- Section 2.2 -- normalization, definitional equality -}
+{- Section 2.2 -- soundness of normalization -}
 
 -- We expect the following soundness properties for a
 -- normalization algorithm nf(t) that produces a normal form
@@ -195,12 +172,12 @@ data Nf where
 --   - ⟦ nf(t) ⟧ = ⟦ t ⟧ (preservation of meaning)
 --   - nf(nf(t)) = nf(t) (idempotency)
 --
--- For preservation of meaning, our denotations of
--- functional terms is functions, whose equality is
+-- For preservation of meaning, our interpretations of
+-- functional terms are functions, whose equality is
 -- undecidable. However, in STLC, we have that two terms
--- are βη-equivalent iff their denotationss are equal.
+-- are βη-equivalent iff their interpretationss are equal.
 -- So, we wish to define an extension of βη-equivalence
--- for System T s.t. it implies equal denotationss
+-- for System T s.t. it implies equal interpretationss
 -- (thus making the proposition ⟦ nf(t) ⟧ = ⟦ t ⟧ decidable)
 
 -- Before we define this extension, we define the functions
@@ -259,9 +236,11 @@ _[_/`Z] {Γ} {A} {B} N M =  subst {Γ , B} {Γ} σ {A} N
   σ (`S x)  =  ` x
 
 -- With these defined, we introduce a new relation between two
--- terms: definitional equality. The relation is defined such
+-- terms: definitional equality. The relation is written such
 -- that the definitional equality of two terms implies the
--- equality of their denotations (t def-≡ t′ iff ⟦t⟧ = ⟦t′⟧)
+-- equality of their interpretations (t def-≡ t′ iff ⟦t⟧ = ⟦t′⟧),
+-- it is the extension of Βη equivalence for System T
+-- suggested earlier
 --
 -- We will use this to prove the soundness of
 -- NbE (i.e. ⟦nf(t)⟧ = ⟦t⟧)
@@ -335,31 +314,112 @@ data _def-≡_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set wher
 
 infix 3 _def-≡_
 
+{- Section 2.3 -- NbE sketch, neutral and normal terms -}
+
+-- Normalization of terms in System T will be viewed as the evaulation of an
+-- expression with unknowns (e.g. variables) to another, possibly simplified,
+-- expression with unknowns. Normalized terms with unknowns will be referred to
+-- as neutral terms, and normalized terms in general will be referred to as
+-- normal terms.
+--
+-- The normal form of a typed term t in context Γ will be obtained by using
+-- two functions: reflection and reification. Reflection takes a neutral
+-- term into an interpration of that term, and reification takes an
+-- interpretation of a term into a normal form. The following steps make
+-- up a sketch of the algorithm:
+--
+--   1) reflect the variables of the context Γ
+--      (all of which are neutral terms)
+--   2) interpret the value of the term using the environment
+--      of reflected variables
+--   3) "reify" the interpreted value of the term (i.e. returning
+--      it to a term in normal form
+--
+-- In this algorithm, the interpretation of a term will change subtly,
+-- so that the interpretation of the base type nat is now normal
+-- terms of a type nat. In other words, the interpretation of a
+-- term of type nat may be one of 3 normal terms: zero, suc
+-- applied to a normal term of type nat, and a neutral
+-- term of type nat
+
+-- We first give definitions for neutral and normal terms,
+-- but do not yet give a formalization of the actual algorithm
+-- itself
+
+data Ne (T : Type) (Γ : Γ) : Γ ⊢ T → Set     -- Neutral terms
+data Nf : (T : Type) → (Γ : Γ) → Γ ⊢ T → Set -- Normal terms
+
+-- Neutral terms are blocked terms in their normal form
+data Ne T Γ where
+  -- application on an unknown function
+  ne-app : ∀ {S : Type} {𝓊 : Γ ⊢ S ⇒ T} {𝓋 : Γ ⊢ S}
+         → Ne (S ⇒ T) Γ 𝓊
+         → Nf S Γ 𝓋
+           --------------
+         → Ne T Γ (𝓊 · 𝓋)
+
+  -- a variable is always blocked
+  ne-var : (x : Γ ∋ T)
+           ------------
+         → Ne T Γ (` x)
+
+  -- recursion blocked on an unknown natural
+  ne-rec : {𝓋z : Γ ⊢ T} {𝓋s : Γ ⊢ nat ⇒ T ⇒ T} {𝓊 : Γ ⊢ nat}
+         → Nf T Γ 𝓋z
+         → Nf (nat ⇒ T ⇒ T) Γ 𝓋s
+         → Ne nat Γ 𝓊
+           --------------------------
+         → Ne T Γ (rec · 𝓋z · 𝓋s · 𝓊)
+
+-- Normal terms are terms in their normal form
+data Nf where
+  -- zero is a normal term
+  nf-zero : ∀ {Γ : Γ} → Nf nat Γ zero
+
+  -- suc applied to a normal term is a normal term
+  nf-suc : ∀ {Γ : Γ} {𝓋 : Γ ⊢ nat}
+         → Nf nat Γ 𝓋
+           ------------------
+         → Nf nat Γ (suc · 𝓋)
+
+  -- abstraction over a normal term is a normal term
+  nf-abs : ∀ {S T : Type} {Γ : Γ} {𝓋 : Γ , S ⊢ T}
+         → Nf T (Γ , S) 𝓋
+           ------------------
+         → Nf (S ⇒ T) Γ (ƛ 𝓋)
+
+  -- a neutral term is a normal term
+  nf-neutral : ∀ {T : Type} {Γ : Γ} {𝓊 : Γ ⊢ T}
+             → Ne T Γ 𝓊
+               --------
+             → Nf T Γ 𝓊
+
 {- Section 2.5 -- liftable terms, updated NbE algorithm -}
 
 -- In the sketch of the NbE algorithm provided in section 2.3,
 -- we use a context Γ of variables currently in scope to pick a "fresh"
--- variable -- i.e. append a variable to the context, as we are using De Brujin indices
+-- variable (i.e. append a variable to the context, as we are using
+-- De Brujin indices)
 --
--- However, after this variable is reflected, it may later be reified in a different
+-- After this variable is reflected, it may later be reified in a different
 -- context than it was created.
 --
--- This is of course an issue with our intrinsically typed representation, but even
--- with an extrinsically typed representation it is something that has to be explicitly
--- handled (i.e. to show that the resulting normal form from the algorithm is well typed in
--- its final context Γ).
+-- This is an issue with our intrinsically typed representation, as the
+-- context Γ is part of the term itself, so it is incompatible with a
+-- different context.
 --
--- To address this, we use liftable terms. These are terms that are generalized over
--- contexts, and can be applied to any context Γ. The fact remains that this could
--- result in a term that is not well-typed, and it will be the case that liftable neutral
--- terms can only be applied to extensions of the context under which they were created.
--- Because of this, liftable neutrals may result in the return of a placeholder value
--- (tt).
+-- Even with an extrinsically typed representation it is something that has to
+-- be handled explicitly at some point (i.e. to show that the resulting normal
+-- form from the algorithm is well typed in its final context).
 --
--- In any case, we define these liftable terms so that the NbE algorithm can use them,
--- existentially quantifying the lifted term itself, as it will be different
--- depending on the applied context Γ (as terms are an intrinsically typed
--- representation)
+-- To address this, we use liftable terms. These are terms that are
+-- generalized over contexts, and can be applied to any context Γ.
+--
+-- An effect of this is that it could be that the resulting term is not
+-- well-typed. It will be the case that liftable neutral terms can only
+-- be applied to extensions of the context under which they were created.
+-- Because of this, liftable neutrals need return a placeholder value (tt)
+-- for some contexts.
 --
 -- We write t↑ for the lifted version of a term t
 
@@ -371,22 +431,25 @@ data Ne↑ (T : Type) : Set where
 data Nf↑ (T : Type) : Set where
   nf↑ : (∀ (Γ : Γ) → ∃[ t ] Nf T Γ t) → Nf↑ T
 
--- Denotation of type nat: naturals with embedded
--- liftable neutrals
+-- Since normalization by evaluation will need to be
+-- over lifted terms, the concrete interpretation of
+-- the base type nat will in the end be naturals
+-- with embedded liftable neutrals
 data ℕ̂ : Set where
   zero : ℕ̂
   suc : ℕ̂ → ℕ̂
   ne : Ne↑ nat → ℕ̂
 
--- Since the denotations of System T used in NbE are using
--- liftable neutral and normal terms, we instantiate the
--- denotation of types to use the denotations of type
--- nat with embedded liftable neutrals (instead of the
--- original ℕ in Section 2.1)
 instance
-  ⟦Type⟧ : Denotation Type
-  Denotation.⟦ ⟦Type⟧ ⟧ nat = ℕ̂
-  Denotation.⟦ ⟦Type⟧ ⟧ (S ⇒ T) = ⟦ S ⟧ → ⟦ T ⟧
+  ⟦Type⟧ : Interpretation Type
+  Interpretation.⟦ ⟦Type⟧ ⟧ nat = ℕ̂
+  Interpretation.⟦ ⟦Type⟧ ⟧ (S ⇒ T) = ⟦ S ⟧ → ⟦ T ⟧
+
+-- With this, we begin the most important part
+-- of normalization by evaluation, the reflection
+-- and reification functions. These are mutually
+-- recursive, and will be defined inductively
+-- on the type T
 
 -- Reflection of neutral terms of type T into
 -- semantic objects in ⟦T⟧
@@ -394,13 +457,13 @@ instance
 
 -- Reification of semantic objects in ⟦T⟧ into
 -- normal terms of type T
-↓ᵀ : {T : Type} → ⟦ T ⟧ → Nf↑ T -- Reification
+↓ᵀ : {T : Type} → ⟦ T ⟧ → Nf↑ T
 
 -- ↑ᴺ - Reflection of neutral terms of type nat into ℕ̂,
 --      here we just embed the liftable neutral
 ↑ᵀ {nat} 𝓊̂ = ne 𝓊̂
 
--- ↑ˢ⃗ᵗ - Reflection of neutral terms of type S → T,
+-- ↑ˢ⃗ᵗ - Reflection of neutral terms of type S ⇒ T,
 --        into ⟦S⟧ → ⟦T⟧. We reify a semantic object in ⟦S⟧
 --        and then reflect the neutral term resulting from the
 --        application of the reified object to the original
@@ -411,7 +474,6 @@ instance
   𝓊·v↑ Γ with 𝓊↑ Γ        | v↑ Γ
   ... | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩ | ⟨ 𝓋 , pf-𝓋 ⟩ = inj₁ ⟨ 𝓊 · 𝓋 , ne-app pf-𝓊 pf-𝓋 ⟩
   ... | inj₂ tt           | _ = inj₂ tt
-
 
 -- Given one context is an extension of another, and a
 -- lookup judgement in the original context, there
@@ -466,17 +528,17 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
       with f·a↑ (Γ , S)
   ... | ⟨ 𝓋 , pf ⟩ = ⟨ ƛ 𝓋 , nf-abs pf ⟩
 
--- Reflection of a context gamma
+-- Reflection of a context gamma, this will be the reflected
+-- environment over which a typed term in the context Γ
+-- will be interpreted
 ↑Γ : ∀ (Γ : Γ) → ⟦ Γ ⟧
 ↑Γ ∅ = tt
 ↑Γ (Γ , T) = ⟨ ↑Γ Γ  , ↑ᵀ {T} (mk-lifted-var Γ) ⟩
 
--- Denotation of primitive recursion in language,
--- updated in section 2.5 from the basic denotation
--- to handle the new case of recursion being over
--- an embedded liftable neutral by reflecting a
--- "liftable" recursion over a liftable neutral term
-
+-- We also need to use reflection and reification to
+-- define the interpretation of primitive recursion in
+-- System T, which must work with liftable neutrals
+--
 -- Note: the original habilitation has the type of the first
 -- argument to rec as "N" (nat), this seems to be a typo
 ⟦rec⟧ : ∀ {T : Type} → ⟦ T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T ⟧
@@ -492,8 +554,10 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
         with z↑ Γ      | s↑ Γ
   ... | ⟨ 𝓋z , pf-𝓋z ⟩ | ⟨ 𝓋s , pf-𝓋s ⟩ = inj₁ ⟨ rec · 𝓋z · 𝓋s · 𝓊 , ne-rec pf-𝓋z pf-𝓋s pf-𝓊 ⟩
 
--- And the corresponding denotations of the
--- lookup and typing judgements.
+-- Now that we have a concrete interpretation of types,
+-- and an interpretation for primitive recursion,
+-- we can define the corresponding interpretations of
+-- the lookup and typing judgements
 --
 -- These are not directly shown in section 2.5, but they
 -- are very similar to their counterparts in section 2.1
@@ -521,21 +585,20 @@ nf t with nbe t
 
 -- As for the properties we want from this algorithm:
 --   - Γ ⊢ nf(t) : T (well-typedness)
---     We are using an intrinsically typed
---     representation of terms, so this property is
---     given to us automatically
+--       We are using an intrinsically typed
+--       representation of terms, so this property is
+--       given to us automatically
 --
 --   - ⟦ nf(t) ⟧ = ⟦ t ⟧ (preservation of meaning)
---     We will prove this in the following section
---     using definitional equality
+--       We will prove this in the following section
+--       using definitional equality
 --
 --   - nf(nf(t)) = nf(t) (idempotency)
---     We have the following proposition
-
--- TODO: prove?
+--       We have the following proposition:
 postulate
+  -- TODO: prove?
   idempotent : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
-             → nf (nf t) def-≡ nf t
+             → nf (nf t) ≡ nf t
 
 {- Section 2.6 -- Soundness -}
 
