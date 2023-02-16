@@ -519,31 +519,29 @@ nf : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T
 nf t with nbe t
 ... | ⟨ t′ , _ ⟩ = t′
 
--- There are a few properties we want from this algorithm:
+-- As for the properties we want from this algorithm:
 --   - Γ ⊢ nf(t) : T (well-typedness)
+--     We are using an intrinsically typed
+--     representation of terms, so this property is
+--     given to us automatically
+--
 --   - ⟦ nf(t) ⟧ = ⟦ t ⟧ (preservation of meaning)
+--     We will prove this in the following section
+--     using definitional equality
+--
 --   - nf(nf(t)) = nf(t) (idempotency)
+--     We have the following proposition
 
--- As we are using an intrinsically typed representation of terms, the first
--- property is given to us automatically.
-
--- For preservation of meaning, we will use the fact that definitional equality
--- of two terms implies that they have the same denotation (as noted in
--- 2.2) in the following section
-
--- For idempotency, we have the following
--- TODO: prove??
+-- TODO: prove?
 postulate
-  idempotent : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T} → nf (nf t) ≡ nf t
+  idempotent : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
+             → nf (nf t) def-≡ nf t
 
 {- Section 2.6 -- Soundness -}
 
--- We want to prove the soundness of normalization,
--- i.e. Γ ⊢ t = nf(t) : T (there is a definitional
--- equality between t and nf(t) as determined by
--- βη-equivalence extended with rules characterizing
--- the computational behavior of primitive recursion,
--- as explained in section 2.2)
+-- We prove the soundness of normalization by proving
+-- the definitional equality of a term and its normal form
+-- i.e. Γ ⊢ t = nf(t) : T
 --
 -- For this, a logical relation Ⓡ is defined such that
 -- it implies Γ ⊢ t = nf(t) : T
