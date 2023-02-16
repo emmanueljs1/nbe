@@ -103,12 +103,12 @@ infix 5 ƛ_
 infixl 7 _·_
 infix 9 `_
 
--- We use the following record to represent interpretations
+-- We use the following record to represent denotations
 -- of types and contexts in System T, indicated by ⟦_⟧.
 -- This will help with the many definitions in the NbE
 -- algorithm.
 --
--- The original interpretations of types (and of lookup and
+-- The original denotations of types (and of lookup and
 -- typing judgements, which are defined independently as
 -- functions) are left out, as they need to be updated to
 -- work with the final NbE algorithm.
@@ -129,7 +129,7 @@ instance
 
 {- Section 2.3 -- System T with neutral and normal terms -}
 
--- We will consider an interpretation of System T that evaulates an expression
+-- We will consider an denotations of System T that evaulates an expression
 -- with unknowns (e.g. variables) to another, possibly simplified, expression
 -- with unknowns. Normalized terms with unknowns will be referred to as neutral
 -- terms, and normalized terms in general will be referred to as normal terms.
@@ -195,12 +195,12 @@ data Nf where
 --   - ⟦ nf(t) ⟧ = ⟦ t ⟧ (preservation of meaning)
 --   - nf(nf(t)) = nf(t) (idempotency)
 --
--- For preservation of meaning, our interpretation of
+-- For preservation of meaning, our denotations of
 -- functional terms is functions, whose equality is
 -- undecidable. However, in STLC, we have that two terms
--- are βη-equivalent iff their interpretations are equal.
+-- are βη-equivalent iff their denotationss are equal.
 -- So, we wish to define an extension of βη-equivalence
--- for System T s.t. it implies equal interpretations
+-- for System T s.t. it implies equal denotationss
 -- (thus making the proposition ⟦ nf(t) ⟧ = ⟦ t ⟧ decidable)
 
 -- Before we define this extension, we define the functions
@@ -261,7 +261,7 @@ _[_/`Z] {Γ} {A} {B} N M =  subst {Γ , B} {Γ} σ {A} N
 -- With these defined, we introduce a new relation between two
 -- terms: definitional equality. The relation is defined such
 -- that the definitional equality of two terms implies the
--- equality of their interpretation (t def-≡ t′ iff ⟦t⟧ = ⟦t′⟧)
+-- equality of their denotations (t def-≡ t′ iff ⟦t⟧ = ⟦t′⟧)
 --
 -- We will use this to prove the soundness of
 -- NbE (i.e. ⟦nf(t)⟧ = ⟦t⟧)
@@ -371,16 +371,16 @@ data Ne↑ (T : Type) : Set where
 data Nf↑ (T : Type) : Set where
   nf↑ : (∀ (Γ : Γ) → ∃[ t ] Nf T Γ t) → Nf↑ T
 
--- Interpretation of type nat: naturals with embedded
+-- Denotation of type nat: naturals with embedded
 -- liftable neutrals
 data ℕ̂ : Set where
   zero : ℕ̂
   suc : ℕ̂ → ℕ̂
   ne : Ne↑ nat → ℕ̂
 
--- Since the interpretation of System T used in NbE is using
+-- Since the denotations of System T used in NbE are using
 -- liftable neutral and normal terms, we instantiate the
--- denotation of types to use the interpretation of type
+-- denotation of types to use the denotations of type
 -- nat with embedded liftable neutrals (instead of the
 -- original ℕ in Section 2.1)
 instance
