@@ -5,7 +5,7 @@ open import Data.Unit using (⊤; tt)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
 open import Relation.Nullary using (Dec; yes; no)
-open import Relation.Binary.PropositionalEquality using (_≡_)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 {- Section 2.1 -- System T -}
 
@@ -24,12 +24,32 @@ data Type : Set where
 
 infixr 7 _⇒_
 
+_≟Tp_ : ∀ (S T : Type) → Dec (S ≡ T)
+nat ≟Tp nat = yes refl
+nat ≟Tp (S ⇒ T) = no λ()
+(S₁ ⇒ T₁) ≟Tp nat = no λ()
+(S₁ ⇒ T₁) ≟Tp (S₂ ⇒ T₂) with S₁ ≟Tp S₂ | T₁ ≟Tp T₂
+... | no ¬pf   | no _      = no (λ where refl → ¬pf refl)
+... | no ¬pf   | yes _     = no (λ where refl → ¬pf refl )
+... | yes _    | no ¬pf    = no (λ where refl → ¬pf refl)
+... | yes refl | yes refl  = yes refl
+
 -- Typing contexts
 data Γ : Set where
   ∅ : Γ
   _,_ : Γ → Type → Γ
 
 infixl 5 _,_
+
+_≟Γ_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ ≡ Γ)
+∅ ≟Γ ∅ = yes refl
+∅ ≟Γ (_ , _) = no λ()
+(_ , _) ≟Γ ∅ = no λ()
+(Γ′ , S) ≟Γ (Γ , T) with Γ′ ≟Γ Γ | S ≟Tp T
+... | no ¬pf   | no _     = no (λ where refl → ¬pf refl)
+... | no ¬pf   | yes _    = no (λ where refl → ¬pf refl)
+... | yes _    | no ¬pf   = no (λ where refl → ¬pf refl)
+... | yes refl | yes refl = yes refl
 
 -- Lookup judgement for contexts
 -- (corresponds to de Brujin indices)
@@ -49,36 +69,34 @@ infix 4 _∋_
 -- extension of another, this is not introduced in this section,
 -- but will be useful throughout
 data _Γ-≤_ : Γ → Γ → Set where
-  ∅-≤ : ∀ {Γ : Γ}
-        ---------
-       → Γ Γ-≤ ∅
+  ≤-refl : ∀ {Γ : Γ} → Γ Γ-≤ Γ
 
-  ,-≤ : ∀ {Γ Γ′ : Γ} {T : Type}
+  ≤-, : ∀ {Γ Γ′ : Γ} {T : Type}
       → Γ′ Γ-≤ Γ
         ------------
       → Γ′ , T Γ-≤ Γ
 
 infix 4 _Γ-≤_
 
+Γ≤∅ : ∀ {Γ : Γ} → Γ Γ-≤ ∅
+Γ≤∅ {∅} = ≤-refl
+Γ≤∅ {Γ , _} with Γ≤∅ {Γ}
+... | pf = ≤-, pf
+
 _Γ-≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ Γ-≤ Γ)
-∅ Γ-≤? ∅ = yes ∅-≤
+∅ Γ-≤? ∅ = yes ≤-refl
 ∅ Γ-≤? (_ , _) = no λ()
-(_ , _) Γ-≤? ∅ = yes ∅-≤
-(Γ′ , _) Γ-≤? Γ@(_ , _) with Γ′ Γ-≤? Γ
-... | yes pf  = yes (,-≤ pf)
-... | no ¬pf  = no λ{ (,-≤ pf) → ¬pf pf }
-
-
--- TODO: the inductive definition for Γ-≤ is wrong, the below (ideally)
--- trivial propositions are not obviously provable
-
-Γ≤Γ : ∀ {Γ : Γ} → Γ Γ-≤ Γ
-Γ≤Γ {∅} = ∅-≤
-Γ≤Γ {Γ , T} = {!!}
-
-Γ,S≤Γ : ∀ {Γ : Γ} {S : Type} → Γ , S Γ-≤ Γ
-Γ,S≤Γ {∅} {S} = ,-≤ ∅-≤
-Γ,S≤Γ {Γ , T} {S} = ,-≤ {!!}
+(Γ , T) Γ-≤? ∅ = yes Γ≤∅
+(Γ′ , T) Γ-≤? Γ@(_ , _)
+  with (Γ′ , T) ≟Γ Γ
+... | yes refl = yes ≤-refl
+... | no Γ′≢Γ
+  with Γ′ Γ-≤? Γ
+... | yes pf = yes (≤-, pf)
+... | no ¬pf =
+  no λ where
+    ≤-refl → Γ′≢Γ refl
+    (≤-, pf) → ¬pf pf
 
 -- Typing judgement in a context
 -- (these correspond to intrinsically typed terms)
@@ -483,7 +501,8 @@ lookup-Γ-≤ : ∀ {Γ′ Γ : Γ} {T : Type}
            → Γ ∋ T
              --------
            → Γ′ ∋ T
-lookup-Γ-≤ (,-≤ pf) i
+lookup-Γ-≤ ≤-refl i = i
+lookup-Γ-≤ (≤-, pf) i
   with lookup-Γ-≤ pf i
 ... | j = `S j
 
