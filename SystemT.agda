@@ -746,13 +746,21 @@ pf ext-⊢ t = rename (lookup-Γ-≤ pf) t
 
 infix 4 _ext-⊢_
 
--- And we define a lemma that lets us "collapse"
--- a term extended twice
+-- We also define a few lemmas related to the operation:
+-- the first lets us "collapse" a term extended twice
 ext-⊢-collapse : ∀ {Γ₃ Γ₂ Γ₁ : Γ} {T : Type} {t : Γ₁ ⊢ T}
                  {Γ₃≤Γ₂ : Γ₃ Γ-≤ Γ₂} {Γ₂≤Γ₁ : Γ₂ Γ-≤ Γ₁}
                → (Γ₃≤Γ₁ : Γ₃ Γ-≤ Γ₁)
                → Γ₃≤Γ₂ ext-⊢ (Γ₂≤Γ₁ ext-⊢ t) def-≡ Γ₃≤Γ₁ ext-⊢ t
 ext-⊢-collapse = {!!} -- TODO: prove
+
+-- And this one allows us to extend definitional equality
+-- to extensions of the context upon which the original
+-- relation was established
+def-≡-ext-⊢ : ∀ {Γ Γ′ : Γ} {T : Type} {Γ′≤Γ : Γ′ Γ-≤ Γ}
+        {t t′ : Γ ⊢ T}
+      → t def-≡ t′ → Γ′≤Γ ext-⊢ t def-≡ Γ′≤Γ ext-⊢ t′
+def-≡-ext-⊢ = {!!} -- TODO: prove
 
 -- The next function we define "lifts"
 -- definitional equality over liftable neutrals
@@ -895,5 +903,19 @@ def-≡↑→Ⓡ {_} {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ
           Γ″≤Γ = Γ-≤-trans Γ′≤Γ Γ″≤Γ′
           collapse = ext-⊢-collapse Γ″≤Γ
 
-Ⓡ→def-≡ {T = nat} = {!!}
-Ⓡ→def-≡ {T = S ⇒ T} = {!!}
+Ⓡ→def-≡ {T = nat} {t} {zero} t≡zero Γ′≤Γ with ↓ᵀ {nat} zero
+... | _ = def-≡-ext-⊢ t≡zero
+Ⓡ→def-≡ {T = nat} {t} {suc a} ⟨ n , ⟨ nⓇa , t≡sn ⟩ ⟩ Γ′≤Γ
+  with ↓ᵀ {nat} (suc a)
+... | _ =
+  begin
+    Γ′≤Γ ext-⊢ t
+  def-≡⟨ def-≡-ext-⊢ t≡sn ⟩
+    Γ′≤Γ ext-⊢ (suc · n)
+  def-≡⟨ ≡-app-compatible ≡-refl (Ⓡ→def-≡ nⓇa Γ′≤Γ) ⟩
+    suc · ↓ᵀᵧ a
+  ∎
+Ⓡ→def-≡ {_} {Γ′} {T = nat} {t} {ne 𝓊̂} pf Γ′≤Γ
+  with 𝓊̂ Γ′          | pf Γ′≤Γ
+... | inj₁ ⟨ 𝓊 , _ ⟩ | t≡𝓊 = t≡𝓊
+Ⓡ→def-≡ {T = S ⇒ T} {a = a} pf Γ′≤Γ = {!!}
