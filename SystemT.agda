@@ -98,6 +98,16 @@ _Γ-≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ Γ-≤ Γ)
     ≤-refl → Γ′≢Γ refl
     (≤-, pf) → ¬pf pf
 
+Γ-≤-trans : ∀ {Γ₃ Γ₂ Γ₁ : Γ}
+        → Γ₂ Γ-≤ Γ₁
+        → Γ₃ Γ-≤ Γ₂
+          ---------
+        → Γ₃ Γ-≤ Γ₁
+Γ-≤-trans ≤-refl Γ₃≤Γ₂ = Γ₃≤Γ₂
+Γ-≤-trans (≤-, Γ₂≤Γ₁) ≤-refl = ≤-, Γ₂≤Γ₁
+Γ-≤-trans (≤-, Γ₂≤Γ₁) (≤-, Γ₃≤Γ₂) =
+  ≤-, (Γ-≤-trans (≤-, Γ₂≤Γ₁) Γ₃≤Γ₂)
+
 -- Typing judgement in a context
 -- (these correspond to intrinsically typed terms)
 data _⊢_ (Γ : Γ) : Type → Set where
@@ -209,10 +219,13 @@ ext : ∀ {Γ Δ}
 ext ρ `Z      =  `Z
 ext ρ (`S x)  =  `S (ρ x)
 
+Rename : Γ → Γ → Set
+Rename Γ Δ = ∀{A} → Γ ∋ A → Δ ∋ A
+
 -- Rename a well typed terms, enabling us to rebase from one
 -- context to another (to establish η-equivalence)
 rename : ∀ {Γ Δ}
-  → (∀ {A} → Γ ∋ A → Δ ∋ A)
+  → Rename Γ Δ
     -----------------------
   → (∀ {A} → Γ ⊢ A → Δ ⊢ A)
 rename ρ zero = zero
@@ -268,28 +281,28 @@ data _def-≡_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set wher
   -- Computation rules
 
   ≡-β-rec-z : ∀ {Γ : Γ} {T : Type}
-            → (z : Γ ⊢ T)
-            → (s : Γ ⊢ nat ⇒ T ⇒ T)
+              {z : Γ ⊢ T}
+              {s : Γ ⊢ nat ⇒ T ⇒ T}
               --------------------------
             → rec · z · s · zero def-≡ z
 
   ≡-β-rec-s : ∀ {Γ : Γ} {T : Type}
-    → (z : Γ ⊢ T)
-    → (s : Γ ⊢ nat ⇒ T ⇒ T)
-    → (n : Γ ⊢ nat)
+      {z : Γ ⊢ T}
+      {s : Γ ⊢ nat ⇒ T ⇒ T}
+      {n : Γ ⊢ nat}
       -------------------------------------------------------
     → rec · z · s · (suc · n) def-≡ s · n · (rec · z · s · n)
 
   ≡-β-ƛ : ∀ {Γ : Γ} {S T : Type}
-        → (t : Γ , S ⊢ T)
-        → (s : Γ ⊢ S)
+          {t : Γ , S ⊢ T}
+          {s : Γ ⊢ S}
           --------------------------
         → (ƛ t) · s def-≡ t [ s /`Z]
 
   -- Function extensionality, i.e. Γ ⊢ t = Γ ⊢ λx. t x : S ⇒ T
 
   ≡-η : ∀ {Γ : Γ} {S T : Type}
-      → (t : Γ ⊢ S ⇒ T)
+        {t : Γ ⊢ S ⇒ T}
         -------------------------------
       → t def-≡ ƛ (rename `S_ t) · ` `Z
 
@@ -305,7 +318,7 @@ data _def-≡_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set wher
                    → ƛ t def-≡ ƛ t′
 
   ≡-app-compatible : ∀ {Γ : Γ} {S T : Type}
-                       {r r′ : Γ ⊢ S ⇒ T} {s s′ : Γ ⊢ S}
+                     {r r′ : Γ ⊢ S ⇒ T} {s s′ : Γ ⊢ S}
                    → r def-≡ r′
                    → s def-≡ s′
                      ------------------
@@ -313,8 +326,7 @@ data _def-≡_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set wher
 
   -- Equivalence rules
 
-  ≡-refl : ∀ {Γ : Γ} {T : Type}
-         → (t : Γ ⊢ T)
+  ≡-refl : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
            -----------
          → t def-≡ t
 
@@ -329,8 +341,48 @@ data _def-≡_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set wher
             -----------
           → t₁ def-≡ t₃
 
-
 infix 3 _def-≡_
+
+module def-≡-Reasoning where
+  infix  1 begin_
+  infixr 2 _def-≡⟨_⟩_
+  infix  3 _∎
+
+  begin_ : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
+    → t def-≡ t′
+      ---------
+    → t def-≡ t′
+  begin pf = pf
+
+  _def-≡⟨_⟩_ : ∀ {Γ : Γ} {T : Type} {t₂ t₃ : Γ ⊢ T}
+    → (t₁ : Γ ⊢ T)
+    → t₁ def-≡ t₂
+    → t₂ def-≡ t₃
+      -----
+    → t₁ def-≡ t₃
+  t₁ def-≡⟨ t₁≡t₂ ⟩ t₂≡t₃  =  ≡-trans t₁≡t₂ t₂≡t₃
+
+  _∎ : ∀ {Γ : Γ} {T : Type} → (t : Γ ⊢ T)
+      -----
+    → t def-≡ t
+  t ∎  =  ≡-refl
+
+open def-≡-Reasoning
+
+-- TODO: need a rename-subst-commute lemma
+
+def-≡-rename : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T}
+  {ρ : Rename Γ Δ}
+  → t def-≡ t′ → rename ρ t def-≡ rename ρ t′
+def-≡-rename {t′ = t′} ≡-β-rec-z = ≡-trans ≡-β-rec-z ≡-refl
+def-≡-rename ≡-β-rec-s = ≡-trans ≡-β-rec-s ≡-refl
+def-≡-rename {t = (ƛ t) · s} {ρ = ρ} ≡-β-ƛ = ≡-trans ≡-β-ƛ {!!}
+def-≡-rename ≡-η = {!!}
+def-≡-rename (≡-abs-compatible defeq) = {!!}
+def-≡-rename (≡-app-compatible defeq defeq₁) = {!!}
+def-≡-rename ≡-refl = {!!}
+def-≡-rename (≡-sym defeq) = {!!}
+def-≡-rename (≡-trans defeq defeq₁) = {!!}
 
 {- Section 2.3 -- NbE sketch, neutral and normal terms -}
 
@@ -364,8 +416,10 @@ infix 3 _def-≡_
 -- but do not yet give a formalization of the actual algorithm
 -- itself
 
-data Ne (T : Type) (Γ : Γ) : Γ ⊢ T → Set     -- Neutral terms
-data Nf : (T : Type) → (Γ : Γ) → Γ ⊢ T → Set -- Normal terms
+-- Neutral terms, indicated by metavariable 𝓊
+data Ne (T : Type) (Γ : Γ) : Γ ⊢ T → Set
+-- Normal terms, indicated by metavariable 𝓋
+data Nf : (T : Type) → (Γ : Γ) → Γ ⊢ T → Set
 
 -- Neutral terms are blocked terms in their normal form
 data Ne T Γ where
@@ -439,15 +493,30 @@ data Nf where
 -- Because of this, liftable neutrals need return a placeholder value (tt)
 -- for some contexts.
 --
--- We write t↑ for the lifted version of a term t
+-- We write t↑ for the lifted version of a term t, and
+-- 𝓋̂ and 𝓊̂ for the lifted version of the metavariables
+-- 𝓋 and 𝓊
 
 -- Liftable neutral term
-data Ne↑ (T : Type) : Set where
-  ne↑ : (∀ (Γ : Γ) → ((∃[ t ] Ne T Γ t) ⊎ ⊤)) → Ne↑ T
+Ne↑ : Type → Set
+Ne↑ T = ∀ (Γ : Γ) → ∃[ t ] Ne T Γ t ⊎ ⊤
 
 -- Liftable normal term
-data Nf↑ (T : Type) : Set where
-  nf↑ : (∀ (Γ : Γ) → ∃[ t ] Nf T Γ t) → Nf↑ T
+Nf↑ : Type → Set
+Nf↑ T = ∀ (Γ : Γ) → ∃[ t ] Nf T Γ t
+
+-- Application of liftable terms is overloaded,
+-- i.e. (𝓊̂ 𝓋̂)(Γ) = 𝓊̂(Γ)𝓋̂(Γ)
+𝓊̂·𝓋̂ : ∀ {S T : Type} (𝓊̂ : Ne↑ (S ⇒ T)) (𝓋̂ : Nf↑ S)
+    → ∀ (Γ : Γ) → ∃[ t ] Ne T Γ t ⊎ ⊤
+𝓊̂·𝓋̂ 𝓊̂ 𝓋̂ Γ
+  with 𝓊̂ Γ              | 𝓋̂ Γ
+... | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩ | ⟨ 𝓋 , pf-𝓋 ⟩ =
+      -- Note that we need to provide proof
+      -- that our resulting lifted term is
+      -- a neutral term as well
+      inj₁ ⟨ 𝓊 · 𝓋 , ne-app pf-𝓊 pf-𝓋 ⟩
+... | inj₂ tt           | _ = inj₂ tt
 
 -- Since normalization by evaluation will need to be
 -- over lifted terms, the concrete interpretation of
@@ -486,12 +555,8 @@ instance
 --        and then reflect the neutral term resulting from the
 --        application of the reified object to the original
 --        neutral term
-↑ᵀ {S ⇒ T} (ne↑ 𝓊↑) a with ↓ᵀ a
-...  | nf↑ v↑ = ↑ᵀ (ne↑ 𝓊·v↑) where
-  𝓊·v↑ : ∀ (Γ : Γ) → (∃[ t ] Ne T Γ t) ⊎ ⊤
-  𝓊·v↑ Γ with 𝓊↑ Γ        | v↑ Γ
-  ... | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩ | ⟨ 𝓋 , pf-𝓋 ⟩ = inj₁ ⟨ 𝓊 · 𝓋 , ne-app pf-𝓊 pf-𝓋 ⟩
-  ... | inj₂ tt           | _ = inj₂ tt
+
+↑ᵀ {S ⇒ T} 𝓊̂ a = ↑ᵀ (𝓊̂·𝓋̂ 𝓊̂ (↓ᵀ a))
 
 -- Given one context is an extension of another, and a
 -- lookup judgement in the original context, there
@@ -508,11 +573,12 @@ lookup-Γ-≤ (≤-, pf) i
 
 -- Create a new lifted variable of type S in the context Γ,
 -- which can only be applied to extensions of Γ , S
-mk-lifted-var : ∀ {S : Type} (Γ₁ : Γ) → Ne↑ S
-mk-lifted-var {S} Γ₁ = ne↑ var↑ where
-  var↑ : ∀ (Γ₂ : Γ) → (∃[ t ] Ne S Γ₂ t) ⊎ ⊤
+𝓍̂ : ∀ {S : Type} (Γ₁ : Γ) → Ne↑ S
+𝓍̂ {S} Γ₁ = var↑ where
+  var↑ : ∀ (Γ₂ : Γ) → ∃[ t ] Ne S Γ₂ t ⊎ ⊤
   var↑ Γ₂ with Γ₂ Γ-≤? (Γ₁ , S)
-  ... | yes pf  = inj₁ ⟨ ` x , ne-var x ⟩ where x = lookup-Γ-≤ pf `Z
+  ... | yes pf  =
+    inj₁ ⟨ ` x , ne-var x ⟩ where x = lookup-Γ-≤ pf `Z
   ... | no _    = inj₂ tt
 
 -- ↓ᴺ - Reification of semantic objects of type ⟦N⟧, which
@@ -521,15 +587,15 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 --      zero is used if the neutral cannot be lifted to the
 --      context Γ
 ↓ℕ̂ : ⟦ nat ⟧ → Nf↑ nat
-↓ℕ̂ zero = nf↑ (λ _ → ⟨ zero , nf-zero ⟩)
+↓ℕ̂ zero = (λ _ → ⟨ zero , nf-zero ⟩)
 ↓ℕ̂ (suc n) with ↓ℕ̂ n
-... | nf↑ n↑ = nf↑ suc↑ where
+... | n↑ = suc↑ where
   suc↑ : (Γ : Γ) → ∃[ t ] Nf nat Γ t
   suc↑ Γ with n↑ Γ
   ... | ⟨ 𝓋 , pf ⟩ = ⟨ suc · 𝓋 , nf-suc pf ⟩
-↓ℕ̂ (ne (ne↑ 𝓊↑)) = nf↑ 𝓊̂ where
-  𝓊̂ : ∀ (Γ : Γ) → ∃[ t ] Nf nat Γ t
-  𝓊̂ Γ with 𝓊↑ Γ
+↓ℕ̂ (ne 𝓊̂) = 𝓋̂ where
+  𝓋̂ : ∀ (Γ : Γ) → ∃[ t ] Nf nat Γ t
+  𝓋̂ Γ with 𝓊̂ Γ
   ... | inj₁ ⟨ 𝓊 , pf ⟩ = ⟨ 𝓊 , nf-neutral pf ⟩
   ... | inj₂ tt         = ⟨ zero , nf-zero ⟩
 
@@ -540,10 +606,10 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 --        resulting normal term is an abstraction over
 --        the reification of the function applied to the
 --        reflection of the bound variable
-↓ᵀ {S ⇒ T} f = nf↑ f↑ where
+↓ᵀ {S ⇒ T} f = f↑ where
   f↑ : ∀ (Γ : Γ) → ∃[ t ] Nf (S ⇒ T) Γ t
-  f↑ Γ with ↓ᵀ (f a) where a = ↑ᵀ (mk-lifted-var Γ)
-  ... | nf↑ f·a↑
+  f↑ Γ with ↓ᵀ (f a) where a = ↑ᵀ (𝓍̂ Γ)
+  ... | f·a↑
       with f·a↑ (Γ , S)
   ... | ⟨ 𝓋 , pf ⟩ = ⟨ ƛ 𝓋 , nf-abs pf ⟩
 
@@ -552,7 +618,7 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 -- will be interpreted
 ↑Γ : ∀ (Γ : Γ) → ⟦ Γ ⟧
 ↑Γ ∅ = tt
-↑Γ (Γ , T) = ⟨ ↑Γ Γ  , ↑ᵀ {T} (mk-lifted-var Γ) ⟩
+↑Γ (Γ , T) = ⟨ ↑Γ Γ  , ↑ᵀ {T} (𝓍̂ Γ) ⟩
 
 -- We also need to use reflection and reification to
 -- define the interpretation of primitive recursion in
@@ -563,15 +629,16 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 ⟦rec⟧ : ∀ {T : Type} → ⟦ T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T ⟧
 ⟦rec⟧ z s zero = z
 ⟦rec⟧ z s (suc n) = s n (⟦rec⟧ z s n)
-⟦rec⟧ {T} z s (ne (ne↑ u↑)) = ↑ᵀ (ne↑ rec↑) where
+⟦rec⟧ {T} z s (ne 𝓊̂) = ↑ᵀ rec↑ where
   rec↑ : ∀ (Γ : Γ) → ∃[ t ] Ne T Γ t ⊎ ⊤
-  rec↑ Γ with u↑ Γ
+  rec↑ Γ with 𝓊̂ Γ
   ... | inj₂ tt = inj₂ tt
   ... | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩
-         with ↓ᵀ z | ↓ᵀ s
-  ... | nf↑ z↑     | nf↑ s↑
+        with ↓ᵀ z  | ↓ᵀ s
+  ... | z↑         | s↑
         with z↑ Γ      | s↑ Γ
-  ... | ⟨ 𝓋z , pf-𝓋z ⟩ | ⟨ 𝓋s , pf-𝓋s ⟩ = inj₁ ⟨ rec · 𝓋z · 𝓋s · 𝓊 , ne-rec pf-𝓋z pf-𝓋s pf-𝓊 ⟩
+  ... | ⟨ 𝓋z , pf-𝓋z ⟩ | ⟨ 𝓋s , pf-𝓋s ⟩ =
+    inj₁ ⟨ rec · 𝓋z · 𝓋s · 𝓊 , ne-rec pf-𝓋z pf-𝓋s pf-𝓊 ⟩
 
 -- Now that we have a concrete interpretation of types,
 -- and an interpretation for primitive recursion,
@@ -596,7 +663,7 @@ mk-lifted-var {S} Γ₁ = ne↑ var↑ where
 -- Finally, the algorithm for normalization by evaluation
 nbe : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ∃[ t ] Nf T Γ t
 nbe {Γ} t with ↓ᵀ (⊢⟦ t ⟧ (↑Γ Γ))
-... | nf↑ t↑ = t↑ Γ
+... | t↑ = t↑ Γ
 
 nf : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T
 nf t with nbe t
@@ -631,35 +698,90 @@ postulate
 -- We start by defining a few functions for
 -- the convenience of defining the relation
 
--- The first extends a well typed term in context Γ to its corresponding
--- well typed term in Γ′, an extension of Γ
+-- The first extends a well typed term in context Γ to its
+-- corresponding well typed term in Γ′, an extension of Γ,
+--
+-- Formally, this represents the changing of contexts
+-- used in the Kripe logical relation, e.g.
+-- Γ ⊢ t : T ⇒ Γ′ ⊢ t : T
 _ext-⊢_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ Γ-≤ Γ → Γ ⊢ T → Γ′ ⊢ T
 pf ext-⊢ t = rename (lookup-Γ-≤ pf) t
 
 infix 4 _ext-⊢_
 
+-- And we define a lemma that lets us "collapse"
+-- a term extended twice
+ext-⊢-collapse : ∀ {Γ₃ Γ₂ Γ₁ : Γ} {T : Type} {t : Γ₁ ⊢ T}
+                 {Γ₃≤Γ₂ : Γ₃ Γ-≤ Γ₂} {Γ₂≤Γ₁ : Γ₂ Γ-≤ Γ₁}
+               → (Γ₃≤Γ₁ : Γ₃ Γ-≤ Γ₁)
+               → Γ₃≤Γ₂ ext-⊢ (Γ₂≤Γ₁ ext-⊢ t) def-≡ Γ₃≤Γ₁ ext-⊢ t
+ext-⊢-collapse = {!!} -- TODO: prove
+
 -- The next function we define "lifts"
 -- definitional equality over liftable neutrals
-_def-≡↑_ : {Γ : Γ} {T : Type} → Γ ⊢ T → Ne↑ T → Set
-_def-≡↑_ {Γ} t (ne↑ 𝓊↑) with 𝓊↑ Γ
-... | inj₁ ⟨ 𝓊 , _ ⟩ = t def-≡ 𝓊
-... | inj₂ _ = ⊥
+--
+-- Formally, this represents the condition seen
+-- in the Kripke logical relation:
+--   Γ ⊢ 𝓊 = 𝓊̂(Γ) : T
+-- or, equivalently in our syntax:
+_def-≡↑_ : {Γ : Γ} {T : Type}
+         → Γ ⊢ T
+         → (𝓊̂ : Ne↑ T)
+         → Set
+_def-≡↑_ {Γ} t 𝓊̂ with 𝓊̂ Γ
+... | inj₁ ⟨ 𝓊 , _ ⟩ =
+      -- If the liftable neutral can be lifted to the
+      -- context Γ, this is just definitional equality
+      t def-≡ 𝓊
+... | inj₂ _ =
+      -- Otherwise, the proposition cannot be proven,
+      -- as there is no lifted term in the context
+      -- to compare a term to
+      ⊥
 
 infix 3 _def-≡↑_
 
--- The Kripe logical relation between a typed term Γ ⊢ T and a
--- value in ⟦T⟧
+-- The next function provides a shorthand for reifying
+-- an interpretation of T then immediately applying a
+-- context Γ
+--
+↓ᵀᵧ : ∀ {Γ : Γ} {T : Type} → (a : ⟦ T ⟧) → Γ ⊢ T
+↓ᵀᵧ {Γ} a with ↓ᵀ a
+... | a↑ = proj₁ (a↑ Γ)
 
+-- The Kripe logical relation between a typed term Γ ⊢ T and a
+-- value in ⟦T⟧, it is constructed by induction on types so
+-- that it implies definitional equality
 _Ⓡ_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
 
+-- The relation defined over nats:
+--   (t : Γ ⊢ nat) Ⓡ 𝓋̂ =
+--     ∀ (Γ′ : Γ). Γ′ ≤ Γ → Γ′ ⊢ t = 𝓋̂(Γ) : nat
+--
+-- We slightly simplify the relation, as 𝓋̂ / 𝓋̂(Γ) are
+-- a bit of an abuse of notation:
+--   - For zero, there is no context Γ to lift to,
+--     we are only concerned with definitional equality
 _Ⓡ_ {_} {nat} t zero = t def-≡ zero
+
+--   - For suc, we are only interested in the
+--     underlying natural with embedded liftable neutrals,
+--     so we further define the relation inductively
 _Ⓡ_ {Γ} {nat} t (suc 𝓋̂) = ∃[ n ] n Ⓡ 𝓋̂ × t def-≡ (suc · n)
+
+--   - For an embedded liftable neutral, the proposition
+--     is a direct translation into our syntax
 _Ⓡ_ {Γ₁} {nat} t (ne 𝓊̂) =
   ∀ {Γ₂ : Γ}
   → (Γ′ : Γ₂ Γ-≤ Γ₁)
     ----------------
   → Γ′ ext-⊢ t def-≡↑ 𝓊̂
 
+-- The relation defined over functions:
+--   (r : Γ ⊢ S ⇒ T) Ⓡ f =
+--     ∀ (Γ′ : Γ). (s : Γ′ ⊢ S) Ⓡ a → Γ′ ⊢ r s Ⓡ f(a)
+-- For this case, we can also provide a direct translation
+-- into our syntax
 _Ⓡ_ {Γ₁} {S ⇒ T} r f =
   ∀ {Γ₂ : Γ} {s : Γ₂ ⊢ S} {a : ⟦ S ⟧}
   → (Γ′ : Γ₂ Γ-≤ Γ₁)
@@ -669,8 +791,39 @@ _Ⓡ_ {Γ₁} {S ⇒ T} r f =
 
 infix 4 _Ⓡ_
 
-defeq→Ⓡ : ∀ {Γ Γ′ : Γ} {T : Type} {𝓊 : Γ′ ⊢ T} {𝓊̂ : Ne↑ T}
-        → (Γ′ Γ-≤ Γ → 𝓊 def-≡↑ 𝓊̂)
-          -----------------------
-        → 𝓊 Ⓡ (↑ᵀ 𝓊̂)
-defeq→Ⓡ = {!!}
+-- The Kripke logical relation is "sandwiched" between
+-- reflection and reification. This means that we should
+-- be able to prove the following implications by induction
+-- on types:
+
+-- (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : T) ⇒ Γ ⊢ 𝓊 : T Ⓡ ↑ᵀ 𝓊̂
+def-≡↑→Ⓡ : ∀ {Γ₁ : Γ} {T : Type} {𝓊 : Γ₁ ⊢ T} {𝓊̂ : Ne↑ T}
+          → (∀ {Γ₂ : Γ}
+            → (Γ′ : Γ₂ Γ-≤ Γ₁)
+            → Γ′ ext-⊢ 𝓊 def-≡↑ 𝓊̂)
+            ----------------------
+          → 𝓊 Ⓡ (↑ᵀ 𝓊̂)
+
+-- t : Γ ⊢ T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ(a)(Γ′) : T
+Ⓡ→def-≡ : ∀ {Γ₁ Γ₂ : Γ} {T : Type} {t : Γ₁ ⊢ T} {a : ⟦ T ⟧}
+          → t Ⓡ a
+            ----------------------
+          → (Γ′ : Γ₂ Γ-≤ Γ₁)
+          → Γ′ ext-⊢ t def-≡ ↓ᵀᵧ a
+
+def-≡↑→Ⓡ {T = nat} pf Γ′≤Γ = pf Γ′≤Γ
+def-≡↑→Ⓡ {_} {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ sⓇa =
+  def-≡↑→Ⓡ λ{ {Γ″} Γ″≤Γ′ → lemma {Γ″} Γ″≤Γ′ }
+    where
+      lemma : {Γ″ : Γ}
+        → (Γ″≤Γ′ : Γ″ Γ-≤ Γ′)
+        → Γ″≤Γ′ ext-⊢ (Γ′≤Γ ext-⊢ 𝓊) · s def-≡↑ 𝓊̂·𝓋̂ 𝓊̂ (↓ᵀ a)
+      lemma {Γ″} Γ″≤Γ′
+        with 𝓊̂ Γ″ | pf (Γ-≤-trans Γ′≤Γ Γ″≤Γ′) | Ⓡ→def-≡ sⓇa Γ″≤Γ′
+      ... | inj₁ ⟨ 𝓊″ , _ ⟩ | defeq | pf′ =
+        ≡-app-compatible
+          (≡-trans (ext-⊢-collapse (Γ-≤-trans Γ′≤Γ Γ″≤Γ′)) defeq)
+          pf′
+
+Ⓡ→def-≡ {T = nat} = {!!}
+Ⓡ→def-≡ {T = S ⇒ T} = {!!}
