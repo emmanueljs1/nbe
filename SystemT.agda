@@ -140,6 +140,22 @@ infix 5 ƛ_
 infixl 7 _·_
 infix 9 `_
 
+-- Some sample programs:
+
+-- λx. x
+id : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T ⇒ T
+id = ƛ ` (`Z)
+
+-- (λx. x) zero
+ex1 = id · zero {∅}
+
+-- suc ((λx. x) zero)
+ex2 = suc · ex1
+
+-- x:nat, y:nat ⊢ suc ((λz. suc y) x)
+ex3 : ∅ , nat , nat ⊢ nat
+ex3 = suc · ((ƛ suc · ` (`S `Z)) · ` (`S `Z))
+
 -- The normalization of terms in System T will involve dealing
 -- with the interpretations of the types, terms, and contexts
 -- of System T into our meta language
@@ -671,6 +687,25 @@ nf : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T
 nf t with nbe t
 ... | ⟨ t′ , _ ⟩ = t′
 
+-- Some examples of the algorithm in action
+
+
+-- normal form of (λx. x) zero is zero
+nf-ex1 : nf ex1 ≡ zero
+nf-ex1 with ex1
+... | _ = refl
+
+-- normal form of suc ((λx. x) zero) is suc zero
+nf-ex2 : nf ex2 ≡ (suc · zero)
+nf-ex2 with ex2
+... | _ = refl
+
+-- normal form of x:nat, y:nat ⊢ suc ((λz. suc y) x)
+-- is x:nat, y:nat ⊢ suc (suc y)
+nf-ex3 : nf ex3 ≡ (suc · (suc · ` (`Z)))
+nf-ex3 with ex3
+... | _ = refl
+
 -- As for the properties we want from this algorithm:
 --   - Γ ⊢ nf(t) : T (well-typedness)
 --       We are using an intrinsically typed
@@ -813,19 +848,51 @@ def-≡↑→Ⓡ : ∀ {Γ₁ : Γ} {T : Type} {𝓊 : Γ₁ ⊢ T} {𝓊̂ : Ne
           → (Γ′ : Γ₂ Γ-≤ Γ₁)
           → Γ′ ext-⊢ t def-≡ ↓ᵀᵧ a
 
+-- To prove the first implication, first we show that it always
+-- holds for nat
 def-≡↑→Ⓡ {T = nat} pf Γ′≤Γ = pf Γ′≤Γ
+-- Now, for terms with type S ⇒ T, we prove that
+-- the relation holds for ↑ᵀ (𝓊̂ · ↓ˢ a) (which is of type T)
 def-≡↑→Ⓡ {_} {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ sⓇa =
-  def-≡↑→Ⓡ λ{ {Γ″} Γ″≤Γ′ → lemma {Γ″} Γ″≤Γ′ }
+  -- We prove the relation holds by using our induction
+  -- hypothesis, so that our new goal is to prove that
+  -- 𝓊̂ · (↓ˢ a) is definitionally equal to 𝓊̂(Γ″) · s
+  -- for any Γ″ that is an extension of Γ′ (which itself
+  -- extends Γ).
+  def-≡↑→Ⓡ λ {Γ″} Γ″≤Γ′ → defeq {Γ″} Γ″≤Γ′
     where
-      lemma : {Γ″ : Γ}
+      defeq : {Γ″ : Γ}
         → (Γ″≤Γ′ : Γ″ Γ-≤ Γ′)
         → Γ″≤Γ′ ext-⊢ (Γ′≤Γ ext-⊢ 𝓊) · s def-≡↑ 𝓊̂ ·↑ (↓ᵀ a)
-      lemma {Γ″} Γ″≤Γ′
-        with 𝓊̂ Γ″ | pf (Γ-≤-trans Γ′≤Γ Γ″≤Γ′) | Ⓡ→def-≡ sⓇa Γ″≤Γ′
-      ... | inj₁ ⟨ 𝓊″ , _ ⟩ | defeq | pf′ =
-        ≡-app-compatible
-          (≡-trans (ext-⊢-collapse (Γ-≤-trans Γ′≤Γ Γ″≤Γ′)) defeq)
-          pf′
+      defeq {Γ″} Γ″≤Γ′
+        -- First, we deconstruct 𝓊̂ (Γ″), using our
+        -- proof that it's definitionally equal
+        -- to Γ″ ⊢ 𝓊 to both discard the case
+        -- where 𝓊̂ (Γ″) is undefined and simplify
+        -- our goal to proving that:
+        -- Γ″ ⊢ 𝓊 · s = 𝓊″ · ↓ˢ a Γ″
+        with 𝓊̂ Γ″ | pf (Γ-≤-trans Γ′≤Γ Γ″≤Γ′)
+      ... | inj₁ ⟨ 𝓊″ , _ ⟩ | 𝓊≡𝓊″
+        -- We also use the other implication we will prove,
+        -- alongside the fact that s Ⓡ a, to
+        -- show that Γ″ ⊢ s is definitionally equal to
+        -- ↓ᵀ a Γ″
+        with Ⓡ→def-≡ sⓇa Γ″≤Γ′
+      ... | s≡↓ᵀa =
+        -- We can now equational reasoning for definitional
+        -- equality to prove the desired goal
+        begin
+          Γ″≤Γ′ ext-⊢ (Γ′≤Γ ext-⊢ 𝓊) · s
+        def-≡⟨ ≡-app-compatible collapse ≡-refl ⟩
+          (Γ″≤Γ ext-⊢ 𝓊) · (Γ″≤Γ′ ext-⊢ s)
+        def-≡⟨ ≡-app-compatible 𝓊≡𝓊″ ≡-refl ⟩
+          𝓊″ · (Γ″≤Γ′ ext-⊢ s)
+        def-≡⟨ ≡-app-compatible ≡-refl s≡↓ᵀa ⟩
+          𝓊″ · ↓ᵀᵧ a
+        ∎
+        where
+          Γ″≤Γ = Γ-≤-trans Γ′≤Γ Γ″≤Γ′
+          collapse = ext-⊢-collapse Γ″≤Γ
 
 Ⓡ→def-≡ {T = nat} = {!!}
 Ⓡ→def-≡ {T = S ⇒ T} = {!!}
