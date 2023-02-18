@@ -507,9 +507,11 @@ Nf↑ T = ∀ (Γ : Γ) → ∃[ t ] Nf T Γ t
 
 -- Application of liftable terms is overloaded,
 -- i.e. (𝓊̂ 𝓋̂)(Γ) = 𝓊̂(Γ)𝓋̂(Γ)
-𝓊̂·𝓋̂ : ∀ {S T : Type} (𝓊̂ : Ne↑ (S ⇒ T)) (𝓋̂ : Nf↑ S)
+--
+-- We provide an operation for this for convenience
+_·↑_ : ∀ {S T : Type} (𝓊̂ : Ne↑ (S ⇒ T)) (𝓋̂ : Nf↑ S)
     → ∀ (Γ : Γ) → ∃[ t ] Ne T Γ t ⊎ ⊤
-𝓊̂·𝓋̂ 𝓊̂ 𝓋̂ Γ
+_·↑_ 𝓊̂ 𝓋̂ Γ
   with 𝓊̂ Γ              | 𝓋̂ Γ
 ... | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩ | ⟨ 𝓋 , pf-𝓋 ⟩ =
       -- Note that we need to provide proof
@@ -556,7 +558,7 @@ instance
 --        application of the reified object to the original
 --        neutral term
 
-↑ᵀ {S ⇒ T} 𝓊̂ a = ↑ᵀ (𝓊̂·𝓋̂ 𝓊̂ (↓ᵀ a))
+↑ᵀ {S ⇒ T} 𝓊̂ a = ↑ᵀ (𝓊̂ ·↑ (↓ᵀ a))
 
 -- Given one context is an extension of another, and a
 -- lookup judgement in the original context, there
@@ -817,7 +819,7 @@ def-≡↑→Ⓡ {_} {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ
     where
       lemma : {Γ″ : Γ}
         → (Γ″≤Γ′ : Γ″ Γ-≤ Γ′)
-        → Γ″≤Γ′ ext-⊢ (Γ′≤Γ ext-⊢ 𝓊) · s def-≡↑ 𝓊̂·𝓋̂ 𝓊̂ (↓ᵀ a)
+        → Γ″≤Γ′ ext-⊢ (Γ′≤Γ ext-⊢ 𝓊) · s def-≡↑ 𝓊̂ ·↑ (↓ᵀ a)
       lemma {Γ″} Γ″≤Γ′
         with 𝓊̂ Γ″ | pf (Γ-≤-trans Γ′≤Γ Γ″≤Γ′) | Ⓡ→def-≡ sⓇa Γ″≤Γ′
       ... | inj₁ ⟨ 𝓊″ , _ ⟩ | defeq | pf′ =
