@@ -849,38 +849,39 @@ def-≡↑→Ⓡ : ∀ {Γ₁ : Γ} {T : Type} {𝓊 : Γ₁ ⊢ T} {𝓊̂ : Ne
           → Γ′ ext-⊢ t def-≡ ↓ᵀᵧ a
 
 -- To prove the first implication, first we show that it always
--- holds for nat
+-- holds for liftable neutral terms of type nat
 def-≡↑→Ⓡ {T = nat} pf Γ′≤Γ = pf Γ′≤Γ
--- Now, for terms with type S ⇒ T, we prove that
--- the relation holds for ↑ᵀ (𝓊̂ · ↓ˢ a) (which is of type T)
+-- Now, for liftable neutral terms of type S ⇒ T, we prove that
+-- the relation holds for ↑ᵀ (𝓊̂ · ↓ˢ a)
 def-≡↑→Ⓡ {_} {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ sⓇa =
   -- We prove the relation holds by using our induction
   -- hypothesis, so that our new goal is to prove that
-  -- 𝓊̂ · (↓ˢ a) is definitionally equal to 𝓊̂(Γ″) · s
+  -- Γ″ ⊢ 𝓊 · s is definitionally equal to 𝓊̂ · ↓ˢ a
   -- for any Γ″ that is an extension of Γ′ (which itself
   -- extends Γ).
-  def-≡↑→Ⓡ λ {Γ″} Γ″≤Γ′ → defeq {Γ″} Γ″≤Γ′
+  def-≡↑→Ⓡ 𝓊·s≡𝓊̂·↓ˢa
     where
-      defeq : {Γ″ : Γ}
+      𝓊·s≡𝓊̂·↓ˢa : {Γ″ : Γ}
         → (Γ″≤Γ′ : Γ″ Γ-≤ Γ′)
         → Γ″≤Γ′ ext-⊢ (Γ′≤Γ ext-⊢ 𝓊) · s def-≡↑ 𝓊̂ ·↑ (↓ᵀ a)
-      defeq {Γ″} Γ″≤Γ′
+      𝓊·s≡𝓊̂·↓ˢa  {Γ″} Γ″≤Γ′
         -- First, we deconstruct 𝓊̂ (Γ″), using our
         -- proof that it's definitionally equal
         -- to Γ″ ⊢ 𝓊 to both discard the case
         -- where 𝓊̂ (Γ″) is undefined and simplify
         -- our goal to proving that:
-        -- Γ″ ⊢ 𝓊 · s = 𝓊″ · ↓ˢ a Γ″
+        -- Γ″ ⊢ 𝓊 · s = 𝓊″ · ↓ˢ a Γ″ : T
+        -- (where 𝓊″ is 𝓊̂ lifted to the context Γ″)
         with 𝓊̂ Γ″ | pf (Γ-≤-trans Γ′≤Γ Γ″≤Γ′)
       ... | inj₁ ⟨ 𝓊″ , _ ⟩ | 𝓊≡𝓊″
         -- We also use the other implication we will prove,
         -- alongside the fact that s Ⓡ a, to
         -- show that Γ″ ⊢ s is definitionally equal to
-        -- ↓ᵀ a Γ″
+        -- ↓ˢ a Γ″
         with Ⓡ→def-≡ sⓇa Γ″≤Γ′
       ... | s≡↓ᵀa =
-        -- We can now equational reasoning for definitional
-        -- equality to prove the desired goal
+        -- We can now use equational reasoning for
+        -- definitional equality to prove the desired goal
         begin
           Γ″≤Γ′ ext-⊢ (Γ′≤Γ ext-⊢ 𝓊) · s
         def-≡⟨ ≡-app-compatible collapse ≡-refl ⟩
