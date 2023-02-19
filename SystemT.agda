@@ -1,12 +1,11 @@
 module SystemT where
 
-open import Data.Empty using (⊥)
+open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Unit using (⊤; tt)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
-open import Relation.Nullary using (Dec; yes; no)
+open import Relation.Nullary using (¬_; Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
-
 {- Section 2.1 -- System T -}
 
 -- We start off by defining the language that we will
@@ -77,6 +76,55 @@ data _Γ-≤_ : Γ → Γ → Set where
       → Γ′ , T Γ-≤ Γ
 
 infix 4 _Γ-≤_
+
+-- A few properties about the relation
+
+Γ-≤-less : ∀ {Γ Γ′ : Γ} {T : Type}
+         → Γ′ Γ-≤ Γ , T
+         → Γ′ Γ-≤ Γ
+Γ-≤-less ≤-refl = ≤-, ≤-refl
+Γ-≤-less (≤-, x) = ≤-, (Γ-≤-less x)
+
+Γ-≤-,-uniq-T : ∀ {Γ Γ′ : Γ} {S T : Type}
+             → Γ′ Γ-≤ Γ , T
+             → Γ′ Γ-≤ Γ , S
+             → T ≡ S
+
+Γ-≤-antisym : ∀ {Γ Γ′ : Γ}
+            → Γ Γ-≤ Γ′
+            → Γ′ Γ-≤ Γ
+            → Γ ≡ Γ′
+
+Γ≰Γ,T : ∀ {Γ : Γ} {T : Type} → ¬ (Γ Γ-≤ Γ , T)
+
+Γ-≤-,-uniq-T ≤-refl ≤-refl = refl
+Γ-≤-,-uniq-T ≤-refl (≤-, c) = ⊥-elim (Γ≰Γ,T c)
+Γ-≤-,-uniq-T (≤-, c) ≤-refl = ⊥-elim (Γ≰Γ,T c)
+Γ-≤-,-uniq-T (≤-, p₁) (≤-, p₂)
+  rewrite Γ-≤-,-uniq-T p₁ p₂ = refl
+
+Γ-≤-antisym ≤-refl Γ′≤Γ = refl
+Γ-≤-antisym (≤-, Γ≤Γ′) ≤-refl = refl
+Γ-≤-antisym (≤-, {T = T₁} p₁) (≤-, {T = T₂} p₂)
+  with Γ-≤-less p₁ | Γ-≤-less p₂
+... | ≤→ | ≤←
+  with Γ-≤-antisym ≤→ ≤←
+... | refl
+  rewrite Γ-≤-,-uniq-T p₁ p₂ = refl
+
+Γ≰Γ,T {Γ} {T} Γ≤Γ,T with ≤-, {T = T} (≤-refl {Γ})
+... | Γ,T≤Γ
+  with Γ-≤-antisym Γ≤Γ,T Γ,T≤Γ
+... | ()
+
+Γ-≤-uniq : ∀ {Γ′ Γ : Γ}
+         → (pf₁ : Γ′ Γ-≤ Γ)
+         → (pf₂ : Γ′ Γ-≤ Γ)
+         → pf₁ ≡ pf₂
+Γ-≤-uniq ≤-refl ≤-refl = refl
+Γ-≤-uniq ≤-refl (≤-, pf) = ⊥-elim (Γ≰Γ,T pf)
+Γ-≤-uniq (≤-, pf) ≤-refl = ⊥-elim (Γ≰Γ,T pf)
+Γ-≤-uniq (≤-, pf₁) (≤-, pf₂) rewrite Γ-≤-uniq pf₁ pf₂ = refl
 
 Γ≤∅ : ∀ {Γ : Γ} → Γ Γ-≤ ∅
 Γ≤∅ {∅} = ≤-refl
@@ -918,4 +966,19 @@ def-≡↑→Ⓡ {_} {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ
 Ⓡ→def-≡ {_} {Γ′} {T = nat} {t} {ne 𝓊̂} pf Γ′≤Γ
   with 𝓊̂ Γ′          | pf Γ′≤Γ
 ... | inj₁ ⟨ 𝓊 , _ ⟩ | t≡𝓊 = t≡𝓊
-Ⓡ→def-≡ {T = S ⇒ T} {a = a} pf Γ′≤Γ = {!!}
+Ⓡ→def-≡ {T = S ⇒ T} {t} {a = a} pf Γ′≤Γ = {!!}
+
+-- A consequence of the first implication is that
+-- a Γ , x:T ⊢ x Ⓡ ↑ᵀ (𝓍̂ Γ), as we show here:
+xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
+     → ` `Z {Γ} {T} Ⓡ ↑ᵀ (𝓍̂ Γ)
+xⓇ↑ᵀ𝓍̂ {_} {T} = def-≡↑→Ⓡ defeq where
+  defeq : ∀ {Γ Γ′ : Γ}
+        → (Γ′≤Γ,T : Γ′ Γ-≤ (Γ , T))
+        → Γ′≤Γ,T ext-⊢ ` `Z def-≡↑ 𝓍̂ Γ
+  defeq {Γ} {Γ′} pf
+    with Γ′ Γ-≤? (Γ , T)
+  ... | no ¬pf = ¬pf pf
+  ... | yes pf′
+    with 𝓍̂ {T} Γ | Γ-≤-uniq pf pf′
+  ... | _        | refl            = ≡-refl
