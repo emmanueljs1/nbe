@@ -62,98 +62,6 @@ data _∋_ : Γ → Type → Set where
 
 infix 4 _∋_
 
--- Rules for determining when one context is the
--- extension of another, this is not introduced in this section,
--- but will be useful throughout
-data _Γ-≤_ : Γ → Γ → Set where
-  ≤-refl : ∀ {Γ : Γ} → Γ Γ-≤ Γ
-
-  ≤-, : ∀ {Γ Γ′ : Γ} {T : Type}
-      → Γ′ Γ-≤ Γ
-        ------------
-      → Γ′ , T Γ-≤ Γ
-
-infix 4 _Γ-≤_
-
--- A few properties about the relation
-
-Γ-≤-less : ∀ {Γ Γ′ : Γ} {T : Type}
-         → Γ′ Γ-≤ Γ , T
-         → Γ′ Γ-≤ Γ
-Γ-≤-less ≤-refl = ≤-, ≤-refl
-Γ-≤-less (≤-, x) = ≤-, (Γ-≤-less x)
-
-Γ-≤-,-uniq-T : ∀ {Γ Γ′ : Γ} {S T : Type}
-             → Γ′ Γ-≤ Γ , T
-             → Γ′ Γ-≤ Γ , S
-             → T ≡ S
-
-Γ-≤-antisym : ∀ {Γ Γ′ : Γ}
-            → Γ Γ-≤ Γ′
-            → Γ′ Γ-≤ Γ
-            → Γ ≡ Γ′
-
-Γ≰Γ,T : ∀ {Γ : Γ} {T : Type} → ¬ (Γ Γ-≤ Γ , T)
-
-Γ-≤-,-uniq-T ≤-refl ≤-refl = refl
-Γ-≤-,-uniq-T ≤-refl (≤-, c) = ⊥-elim (Γ≰Γ,T c)
-Γ-≤-,-uniq-T (≤-, c) ≤-refl = ⊥-elim (Γ≰Γ,T c)
-Γ-≤-,-uniq-T (≤-, p₁) (≤-, p₂)
-  rewrite Γ-≤-,-uniq-T p₁ p₂ = refl
-
-Γ-≤-antisym ≤-refl Γ′≤Γ = refl
-Γ-≤-antisym (≤-, Γ≤Γ′) ≤-refl = refl
-Γ-≤-antisym (≤-, {T = T₁} p₁) (≤-, {T = T₂} p₂)
-  with Γ-≤-less p₁ | Γ-≤-less p₂
-... | ≤→ | ≤←
-  with Γ-≤-antisym ≤→ ≤←
-... | refl
-  rewrite Γ-≤-,-uniq-T p₁ p₂ = refl
-
-Γ≰Γ,T {Γ} {T} Γ≤Γ,T with ≤-, {T = T} (≤-refl {Γ})
-... | Γ,T≤Γ
-  with Γ-≤-antisym Γ≤Γ,T Γ,T≤Γ
-... | ()
-
-Γ-≤-uniq : ∀ {Γ′ Γ : Γ}
-         → (pf₁ : Γ′ Γ-≤ Γ)
-         → (pf₂ : Γ′ Γ-≤ Γ)
-         → pf₁ ≡ pf₂
-Γ-≤-uniq ≤-refl ≤-refl = refl
-Γ-≤-uniq ≤-refl (≤-, pf) = ⊥-elim (Γ≰Γ,T pf)
-Γ-≤-uniq (≤-, pf) ≤-refl = ⊥-elim (Γ≰Γ,T pf)
-Γ-≤-uniq (≤-, pf₁) (≤-, pf₂) rewrite Γ-≤-uniq pf₁ pf₂ = refl
-
-Γ≤∅ : ∀ {Γ : Γ} → Γ Γ-≤ ∅
-Γ≤∅ {∅} = ≤-refl
-Γ≤∅ {Γ , _} with Γ≤∅ {Γ}
-... | pf = ≤-, pf
-
-_Γ-≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ Γ-≤ Γ)
-∅ Γ-≤? ∅ = yes ≤-refl
-∅ Γ-≤? (_ , _) = no λ()
-(Γ , T) Γ-≤? ∅ = yes Γ≤∅
-(Γ′ , T) Γ-≤? Γ@(_ , _)
-  with (Γ′ , T) ≟Γ Γ
-... | yes refl = yes ≤-refl
-... | no Γ′≢Γ
-  with Γ′ Γ-≤? Γ
-... | yes pf = yes (≤-, pf)
-... | no ¬pf =
-  no λ where
-    ≤-refl → Γ′≢Γ refl
-    (≤-, pf) → ¬pf pf
-
-Γ-≤-trans : ∀ {Γ₃ Γ₂ Γ₁ : Γ}
-        → Γ₂ Γ-≤ Γ₁
-        → Γ₃ Γ-≤ Γ₂
-          ---------
-        → Γ₃ Γ-≤ Γ₁
-Γ-≤-trans ≤-refl Γ₃≤Γ₂ = Γ₃≤Γ₂
-Γ-≤-trans (≤-, Γ₂≤Γ₁) ≤-refl = ≤-, Γ₂≤Γ₁
-Γ-≤-trans (≤-, Γ₂≤Γ₁) (≤-, Γ₃≤Γ₂) =
-  ≤-, (Γ-≤-trans (≤-, Γ₂≤Γ₁) Γ₃≤Γ₂)
-
 -- Typing judgement in a context
 -- (these correspond to intrinsically typed terms)
 data _⊢_ (Γ : Γ) : Type → Set where
@@ -383,10 +291,12 @@ open def-≡-Reasoning
 
 -- TODO: need a rename-subst-commute lemma
 
+postulate
+  -- TODO: prove ?
+  def-≡-rename : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T}
+    {ρ : Rename Γ Δ}
+    → t def-≡ t′ → rename ρ t def-≡ rename ρ t′
 {-
-def-≡-rename : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T}
-  {ρ : Rename Γ Δ}
-  → t def-≡ t′ → rename ρ t def-≡ rename ρ t′
 def-≡-rename {t′ = t′} ≡-β-rec-z = ≡-trans ≡-β-rec-z ≡-refl
 def-≡-rename ≡-β-rec-s = ≡-trans ≡-β-rec-s ≡-refl
 def-≡-rename {t = (ƛ t) · s} {ρ = ρ} ≡-β-ƛ = ≡-trans ≡-β-ƛ {!!}
@@ -397,3 +307,95 @@ def-≡-rename ≡-refl = {!!}
 def-≡-rename (≡-sym defeq) = {!!}
 def-≡-rename (≡-trans defeq defeq₁) = {!!}
 -}
+
+-- We also define a relation detailing  when one context is the
+-- extension of another, this is not introduced in this section,
+-- but will be useful throughout
+data _Γ-≤_ : Γ → Γ → Set where
+  ≤-refl : ∀ {Γ : Γ} → Γ Γ-≤ Γ
+
+  ≤-, : ∀ {Γ Γ′ : Γ} {T : Type}
+      → Γ′ Γ-≤ Γ
+        ------------
+      → Γ′ , T Γ-≤ Γ
+
+infix 4 _Γ-≤_
+
+-- A few properties about the relation
+
+Γ-≤-less : ∀ {Γ Γ′ : Γ} {T : Type}
+         → Γ′ Γ-≤ Γ , T
+         → Γ′ Γ-≤ Γ
+Γ-≤-less ≤-refl = ≤-, ≤-refl
+Γ-≤-less (≤-, x) = ≤-, (Γ-≤-less x)
+
+Γ-≤-,-uniq-T : ∀ {Γ Γ′ : Γ} {S T : Type}
+             → Γ′ Γ-≤ Γ , T
+             → Γ′ Γ-≤ Γ , S
+             → T ≡ S
+
+Γ-≤-antisym : ∀ {Γ Γ′ : Γ}
+            → Γ Γ-≤ Γ′
+            → Γ′ Γ-≤ Γ
+            → Γ ≡ Γ′
+
+Γ≰Γ,T : ∀ {Γ : Γ} {T : Type} → ¬ (Γ Γ-≤ Γ , T)
+
+Γ-≤-,-uniq-T ≤-refl ≤-refl = refl
+Γ-≤-,-uniq-T ≤-refl (≤-, c) = ⊥-elim (Γ≰Γ,T c)
+Γ-≤-,-uniq-T (≤-, c) ≤-refl = ⊥-elim (Γ≰Γ,T c)
+Γ-≤-,-uniq-T (≤-, p₁) (≤-, p₂)
+  rewrite Γ-≤-,-uniq-T p₁ p₂ = refl
+
+Γ-≤-antisym ≤-refl Γ′≤Γ = refl
+Γ-≤-antisym (≤-, Γ≤Γ′) ≤-refl = refl
+Γ-≤-antisym (≤-, {T = T₁} p₁) (≤-, {T = T₂} p₂)
+  with Γ-≤-less p₁ | Γ-≤-less p₂
+... | ≤→ | ≤←
+  with Γ-≤-antisym ≤→ ≤←
+... | refl
+  rewrite Γ-≤-,-uniq-T p₁ p₂ = refl
+
+Γ≰Γ,T {Γ} {T} Γ≤Γ,T with ≤-, {T = T} (≤-refl {Γ})
+... | Γ,T≤Γ
+  with Γ-≤-antisym Γ≤Γ,T Γ,T≤Γ
+... | ()
+
+Γ-≤-uniq : ∀ {Γ′ Γ : Γ}
+         → (pf₁ : Γ′ Γ-≤ Γ)
+         → (pf₂ : Γ′ Γ-≤ Γ)
+         → pf₁ ≡ pf₂
+Γ-≤-uniq ≤-refl ≤-refl = refl
+Γ-≤-uniq ≤-refl (≤-, pf) = ⊥-elim (Γ≰Γ,T pf)
+Γ-≤-uniq (≤-, pf) ≤-refl = ⊥-elim (Γ≰Γ,T pf)
+Γ-≤-uniq (≤-, pf₁) (≤-, pf₂) rewrite Γ-≤-uniq pf₁ pf₂ = refl
+
+Γ≤∅ : ∀ {Γ : Γ} → Γ Γ-≤ ∅
+Γ≤∅ {∅} = ≤-refl
+Γ≤∅ {Γ , _} with Γ≤∅ {Γ}
+... | pf = ≤-, pf
+
+_Γ-≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ Γ-≤ Γ)
+∅ Γ-≤? ∅ = yes ≤-refl
+∅ Γ-≤? (_ , _) = no λ()
+(Γ , T) Γ-≤? ∅ = yes Γ≤∅
+(Γ′ , T) Γ-≤? Γ@(_ , _)
+  with (Γ′ , T) ≟Γ Γ
+... | yes refl = yes ≤-refl
+... | no Γ′≢Γ
+  with Γ′ Γ-≤? Γ
+... | yes pf = yes (≤-, pf)
+... | no ¬pf =
+  no λ where
+    ≤-refl → Γ′≢Γ refl
+    (≤-, pf) → ¬pf pf
+
+Γ-≤-trans : ∀ {Γ₃ Γ₂ Γ₁ : Γ}
+        → Γ₂ Γ-≤ Γ₁
+        → Γ₃ Γ-≤ Γ₂
+          ---------
+        → Γ₃ Γ-≤ Γ₁
+Γ-≤-trans ≤-refl Γ₃≤Γ₂ = Γ₃≤Γ₂
+Γ-≤-trans (≤-, Γ₂≤Γ₁) ≤-refl = ≤-, Γ₂≤Γ₁
+Γ-≤-trans (≤-, Γ₂≤Γ₁) (≤-, Γ₃≤Γ₂) =
+  ≤-, (Γ-≤-trans (≤-, Γ₂≤Γ₁) Γ₃≤Γ₂)
