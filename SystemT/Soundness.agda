@@ -7,7 +7,6 @@ open import Relation.Nullary using (yes; no)
 open import Relation.Binary.PropositionalEquality using (refl)
 
 open import SystemT
-open def-≡-Reasoning
 open import NbE
 
 {- Section 2.6 -- Soundness -}

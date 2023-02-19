@@ -287,7 +287,7 @@ module def-≡-Reasoning where
     → t def-≡ t
   t ∎  =  ≡-refl
 
-open def-≡-Reasoning
+open def-≡-Reasoning public
 
 -- TODO: need a rename-subst-commute lemma
 
@@ -310,7 +310,7 @@ def-≡-rename (≡-trans defeq defeq₁) = {!!}
 
 -- We also define a relation detailing  when one context is the
 -- extension of another, this is not introduced in this section,
--- but will be useful throughout
+-- but will be useful throughout (see [NbE.agda])
 data _Γ-≤_ : Γ → Γ → Set where
   ≤-refl : ∀ {Γ : Γ} → Γ Γ-≤ Γ
 

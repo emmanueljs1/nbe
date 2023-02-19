@@ -8,7 +8,6 @@ open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import SystemT
-open def-≡-Reasoning
 
 -- The normalization of terms in System T will involve dealing
 -- with the interpretations of the types, terms, and contexts
