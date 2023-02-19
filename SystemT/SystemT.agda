@@ -1,4 +1,4 @@
-module Syntax where
+module SystemT where
 
 open import Data.Empty using (⊥-elim)
 open import Relation.Nullary using (¬_; Dec; yes; no)

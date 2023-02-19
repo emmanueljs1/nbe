@@ -1,4 +1,4 @@
-module SystemT where
+module NbE where
 
 open import Data.Empty using (⊥)
 open import Data.Unit using (⊤; tt)
@@ -7,8 +7,7 @@ open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
-open import Syntax
-
+open import SystemT
 open def-≡-Reasoning
 
 -- The normalization of terms in System T will involve dealing
