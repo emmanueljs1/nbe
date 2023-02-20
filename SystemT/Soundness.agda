@@ -2,7 +2,7 @@ module Soundness where
 
 open import Data.Empty using (⊥)
 open import Data.Sum using (inj₁; inj₂)
-open import Data.Product renaming (_,_ to ⟨_,_⟩)
+open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
 open import Relation.Nullary using (yes; no)
 open import Relation.Binary.PropositionalEquality using (refl)
 
