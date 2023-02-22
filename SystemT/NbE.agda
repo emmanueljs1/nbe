@@ -1,13 +1,15 @@
 module NbE where
 
+import Relation.Binary.PropositionalEquality as Eq
 open import Data.Empty using (⊥)
 open import Data.Unit using (⊤; tt)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
 open import Relation.Nullary using (Dec; yes; no)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+open Eq using (_≡_; refl; cong; cong-app; icong; sym)
+open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; step-≡; _∎)
 
-open import SystemT
+open import SystemT hiding (begin_; _∎)
 
 -- The normalization of terms in System T will involve dealing
 -- with the interpretations of the types, terms, and contexts
@@ -283,12 +285,8 @@ lookup-Γ-≤ (≤-, pf) i
 --        resulting normal term is an abstraction over
 --        the reification of the function applied to the
 --        reflection of the bound variable
-↓ᵀ {S ⇒ T} f = f↑ where
-  f↑ : ∀ (Γ : Γ) → ∃[ t ] Nf (S ⇒ T) Γ t
-  f↑ Γ with ↓ᵀ (f a) where a = ↑ᵀ (𝓍̂ Γ)
-  ... | f·a↑
-      with f·a↑ (Γ , S)
-  ... | ⟨ 𝓋 , pf ⟩ = ⟨ ƛ 𝓋 , nf-abs pf ⟩
+↓ᵀ {S ⇒ T} f Γ with ↓ᵀ (f a) (Γ , S) where a = ↑ᵀ (𝓍̂ Γ)
+... | ⟨ 𝓋 , pf ⟩ = ⟨ ƛ 𝓋 , nf-abs pf ⟩
 
 -- Reflection of a context gamma, this will be the reflected
 -- environment over which a typed term in the context Γ
@@ -376,7 +374,48 @@ nf-ex3 with ex3
 --
 --   - nf(nf(t)) = nf(t) (idempotency)
 --       We have the following proposition:
+
 postulate
-  -- TODO: prove?
-  idempotent : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
-             → nf (nf t) ≡ nf t
+  nf-idempotent : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
+                → nf (nf t) ≡ nf t
+
+-- Its proof follows directly from the completeness
+-- and soundness of NbE for System T:
+-- Γ ⊢ nf t = t : T ⇒ ⟦ nf t ⟧ = ⟦ t ⟧ ⇒ nf (nf t) = nf t
+
+-- Additionally, we want completeness from this algorithm
+-- e.g. two programs with the same meaning (i.e. definitionally
+-- equal) have the same normal form:
+--
+--  Γ ⊢ t = t′ : T implies nf(t) = nf(t′)
+
+-- This follows directly from the definitional equality
+-- of two terms implying that they are semantically
+-- equal paired with some equational reasoning
+postulate
+  def-≡→⟦≡⟧ : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
+            → t def-≡ t′
+            → ⊢⟦ t ⟧ ≡ ⊢⟦ t′ ⟧
+
+completeness : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
+             → t def-≡ t′
+             → nf t ≡ nf t′
+completeness {Γ} {T} {t} {t′} defeq
+  with ⟨ nf-t  , pf  ⟩ ← nbe t  in eq
+  with ⟨ nf-t′ , pf′ ⟩ ← nbe t′ in eq′ =
+  begin
+    nf-t
+  ≡⟨ cong proj₁ (sym eq) ⟩
+    proj₁ (↓ᵀ (⊢⟦ t ⟧ (↑Γ Γ)) Γ)
+  ≡⟨ proj₁-≡ {b = pf} {c = pf′} (cong-app {B = B} (cong f (cong-app (def-≡→⟦≡⟧ defeq) (↑Γ Γ))) Γ) ⟩
+    proj₁ (↓ᵀ (⊢⟦ t′ ⟧ (↑Γ Γ)) Γ)
+  ≡⟨ cong proj₁ eq′ ⟩
+    nf-t′
+  ∎
+  where
+    B = λ _ → Γ ⊢ T
+    f = (λ a _ → proj₁ (↓ᵀ a Γ))
+    proj₁-≡ : ∀ {A B C : Set} {a₁ a₂ : A} {b : B} {c : C}
+            → a₁ ≡ a₂
+            → proj₁ ⟨ a₁ , b ⟩ ≡ proj₁ ⟨ a₂ , c ⟩
+    proj₁-≡ refl = refl
