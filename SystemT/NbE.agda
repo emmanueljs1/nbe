@@ -373,25 +373,21 @@ nf-ex3 with ex3
 --       using definitional equality [Soundness.agda]
 --
 --   - nf(nf(t)) = nf(t) (idempotency)
---       We have the following proposition:
+--       This follows directly from the soundness
+--       and completeness properties of the algorithm:
+--       By soundness, we have Γ ⊢ nf t = t : T, which
+--       implies nf (nf t) = nf(t) by completeness
 
-postulate
-  nf-idempotent : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
-                → nf (nf t) ≡ nf t
-
--- Its proof follows directly from the completeness
--- and soundness of NbE for System T:
--- Γ ⊢ nf t = t : T ⇒ ⟦ nf t ⟧ = ⟦ t ⟧ ⇒ nf (nf t) = nf t
-
--- Additionally, we want completeness from this algorithm
--- e.g. two programs with the same meaning (i.e. definitionally
--- equal) have the same normal form:
+-- As for proving the completeness property of NbE,
+-- our goal is to prove that two programs with the
+-- same meaning (i.e. definitionally equal) have the
+-- same normal form:
 --
 --  Γ ⊢ t = t′ : T implies nf(t) = nf(t′)
 
--- This follows directly from the definitional equality
--- of two terms implying that they are semantically
--- equal paired with some equational reasoning
+-- We can prove this using some equational reasoning
+-- paired with the definitional equality of two
+-- terms impliying they are semantically equal
 postulate
   def-≡→⟦≡⟧ : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
             → t def-≡ t′
