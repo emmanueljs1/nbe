@@ -97,11 +97,11 @@ infix 9 `_
 -- Some sample programs:
 
 -- λx. x
-id : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T ⇒ T
-id = ƛ ` (`Z)
+ex0 : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T ⇒ T
+ex0 = ƛ ` (`Z)
 
 -- (λx. x) zero
-ex1 = id · zero {∅}
+ex1 = ex0 · zero {∅}
 
 -- suc ((λx. x) zero)
 ex2 = suc · ex1
@@ -399,3 +399,9 @@ _Γ-≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ Γ-≤ Γ)
 Γ-≤-trans (≤-, Γ₂≤Γ₁) ≤-refl = ≤-, Γ₂≤Γ₁
 Γ-≤-trans (≤-, Γ₂≤Γ₁) (≤-, Γ₃≤Γ₂) =
   ≤-, (Γ-≤-trans (≤-, Γ₂≤Γ₁) Γ₃≤Γ₂)
+
+invert-Γ-≤ : ∀ {Γ′ Γ : Γ} {S : Type}
+           → Γ′ Γ-≤ Γ , S
+           → Γ′ Γ-≤ Γ
+invert-Γ-≤ ≤-refl = ≤-, ≤-refl
+invert-Γ-≤ (≤-, pf) = ≤-, (invert-Γ-≤ pf)

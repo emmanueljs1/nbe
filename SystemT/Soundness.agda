@@ -1,5 +1,6 @@
 module Soundness where
 
+open import Data.Unit using (⊤)
 open import Data.Empty using (⊥)
 open import Data.Sum using (inj₁; inj₂)
 open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
@@ -31,6 +32,8 @@ _ext-⊢_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ Γ-≤ Γ → Γ ⊢ T → 
 pf ext-⊢ t = rename (lookup-Γ-≤ pf) t
 
 infix 4 _ext-⊢_
+
+
 
 -- We also define a few lemmas related to the operation:
 -- the first lets us "collapse" a term extended twice
@@ -204,8 +207,6 @@ def-≡↑→Ⓡ {_} {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ
 Ⓡ→def-≡ {_} {Γ′} {T = nat} {t} {ne 𝓊̂} pf Γ′≤Γ
   with 𝓊̂ Γ′          | pf Γ′≤Γ
 ... | inj₁ ⟨ 𝓊 , _ ⟩ | t≡𝓊 = t≡𝓊
---  with proj₁ (↓ᵀ (f a) (Γ′ , S)) | Ⓡ→def-≡ (pf {a = a} Γ′≤Γ {!!}) (≤-, {T = S} ≤-refl)
---... | 𝓋 | defeq = ≡-trans ≡-η (≡-abs-compatible {!!})
 Ⓡ→def-≡ {Γ} {Γ′} {T = S ⇒ T} {t} {a = f} pf Γ′≤Γ = {!!}
 -- the following proof works (albeit it has a small hole) but leads to
 -- termination checks failing, keeping for reference until we figure out a
@@ -230,3 +231,103 @@ xⓇ↑ᵀ𝓍̂ {_} {T} = def-≡↑→Ⓡ defeq where
   ... | yes pf′
     with 𝓍̂ {T} Γ | Γ-≤-uniq pf pf′
   ... | _        | refl            = ≡-refl
+
+-- We will establish Γ ⊢ t : T Ⓡ ⟦t⟧ (↑ Γ) through the
+-- fundamental lemma of logical relations, for this we
+-- need to extend logical relations to include substitutions
+-- and enviroments
+
+-- An intrinsic substitution representation, i.e. σ : Γ ⊩ Δ,
+-- we use ⊩ instead of ⊢ since that is already reserved
+-- for typing judgements (and keep using ∥ for the "parallel"
+-- in "parallel substitutions") for which we will be defining
+-- similar logical relations
+data _⊩_ : Γ → Γ → Set where
+  ∅ : ∀ {Γ} → Γ ⊩ ∅
+
+  _,_ : ∀ {Γ Δ : Γ} {S : Type}
+        → Γ ⊩ Δ
+        → Γ ⊢ S
+          ---------
+        → Γ ⊩ Δ , S
+
+infix 4 _⊩_
+
+-- Similarly as for terms and values, a Kripe logical
+-- relation between a substitution and an environment
+-- is defined inductively on substitutions
+_∥Ⓡ∥_ : ∀ {Γ Δ : Γ}
+      → Γ ⊩ Δ
+      → ⟦ Δ ⟧
+      → Set
+
+infix 4 _∥Ⓡ∥_
+
+∅ ∥Ⓡ∥ ρ = ⊤
+(σ , s) ∥Ⓡ∥ ⟨ ρ , a ⟩ = σ ∥Ⓡ∥ ρ × s Ⓡ a
+
+-- Before we formulate the fundamental lemma,
+-- we introduce the operation t ∥[ σ ]∥ which allows
+-- us to switch contexts
+_∥[_]∥ : ∀ {Γ Δ : Γ} {T : Type}
+     → Δ ⊢ T
+     → Γ ⊩ Δ
+       -----
+     → Γ ⊢ T
+t ∥[ ∅ ]∥ = Γ≤∅ ext-⊢ t
+t ∥[ σ , s ]∥ = ((ƛ t) ∥[ σ ]∥) · s
+
+-- We also introduce the semantic typing judgement
+-- Γ ⊨ t : T as follows
+_⊨_ : ∀ {T : Type} → (Γ : Γ) → Γ ⊢ T → Set
+_⊨_ {T} Γ₁ t =
+  ∀ {Δ : Γ} {σ : Δ ⊩ Γ₁} {ρ : ⟦ Γ₁ ⟧}
+  → σ ∥Ⓡ∥ ρ
+    -------
+  → t ∥[ σ ]∥ Ⓡ ⊢⟦ t ⟧ ρ
+
+-- This allows us to prove the fundamental lemma
+-- of logical relations by induction on logical
+-- relations
+fundamental-lemma : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
+                  → Γ ⊨ t
+fundamental-lemma {t = zero} = {!!}
+fundamental-lemma {t = suc} = {!!}
+fundamental-lemma {t = rec} = {!!}
+fundamental-lemma {t = ` x} = {!!}
+fundamental-lemma {t = ƛ t} = {!!}
+fundamental-lemma {t = t · t₁} = {!!}
+
+-- We define a substitution that shifts
+-- indices an arbitrary amount of times
+-- to turn a context which extends
+-- another context in the original context
+↑ : ∀ {Γ′ Γ : Γ}
+  → Γ′ Γ-≤ Γ
+  → Γ′ ⊩ Γ
+↑ {∅} ≤-refl = ∅
+↑ {_ , _} ≤-refl = (↑ (≤-, ≤-refl)) , ` `Z
+↑ {Γ′ , T} {Γ} (≤-, pf) with ↑ pf
+... | ∅ = ∅
+... | σ , s = ↑ (≤-, (invert-Γ-≤ pf)) , (≤-, ≤-refl ext-⊢ s)
+
+-- Additionally, we define the identity substitution in terms
+-- of the shifting substitution
+id : ∀ {Γ : Γ} → Γ ⊩ Γ
+id {∅} = ∅
+id {Γ , _} = ↑ (≤-, ≤-refl) , (` `Z)
+
+-- We have, using Γ,x:T ⊢ x : T Ⓡ ↑ᵀ (𝓍ᵀ Γ), that
+-- Γ ⊢ id : Γ Ⓡ ↑Γ
+idⓇ↑Γ : ∀ {Γ : Γ}
+       → id ∥Ⓡ∥ (↑Γ Γ)
+idⓇ↑Γ = {!!}
+
+-- With this fact, we arrive at the soundness of NbE:
+soundness : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
+          → t def-≡ nf t
+soundness {Γ} {T} {t}
+  with fundamental-lemma {t = t} (idⓇ↑Γ {Γ})
+... | pf
+  with Ⓡ→def-≡ pf ≤-refl
+... | pf = ≡-trans {!!} pf
