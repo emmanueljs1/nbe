@@ -289,25 +289,6 @@ module def-≡-Reasoning where
 
 open def-≡-Reasoning public
 
--- TODO: need a rename-subst-commute lemma
-
-postulate
-  -- TODO: prove ?
-  def-≡-rename : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T}
-    {ρ : Rename Γ Δ}
-    → t def-≡ t′ → rename ρ t def-≡ rename ρ t′
-{-
-def-≡-rename {t′ = t′} ≡-β-rec-z = ≡-trans ≡-β-rec-z ≡-refl
-def-≡-rename ≡-β-rec-s = ≡-trans ≡-β-rec-s ≡-refl
-def-≡-rename {t = (ƛ t) · s} {ρ = ρ} ≡-β-ƛ = ≡-trans ≡-β-ƛ {!!}
-def-≡-rename ≡-η = {!!}
-def-≡-rename (≡-abs-compatible defeq) = {!!}
-def-≡-rename (≡-app-compatible defeq defeq₁) = {!!}
-def-≡-rename ≡-refl = {!!}
-def-≡-rename (≡-sym defeq) = {!!}
-def-≡-rename (≡-trans defeq defeq₁) = {!!}
--}
-
 -- We also define a relation detailing  when one context is the
 -- extension of another, this is not introduced in this section,
 -- but will be useful throughout (see [NbE.agda])
@@ -405,3 +386,15 @@ invert-Γ-≤ : ∀ {Γ′ Γ : Γ} {S : Type}
            → Γ′ Γ-≤ Γ
 invert-Γ-≤ ≤-refl = ≤-, ≤-refl
 invert-Γ-≤ (≤-, pf) = ≤-, (invert-Γ-≤ pf)
+
+-- Some lemmas around substitution/renaming
+-- and its relation to definitional equality
+-- that may or may not be useful
+
+-- TODO: need a rename-subst-commute lemma
+
+postulate
+  -- TODO: prove ?
+  def-≡-rename : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T}
+    {ρ : Rename Γ Δ}
+    → t def-≡ t′ → rename ρ t def-≡ rename ρ t′
