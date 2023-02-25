@@ -199,8 +199,20 @@ def-≡→Ⓡ {_} {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ s�
           Γ″≤Γ = Γ-≤-trans Γ′≤Γ Γ″≤Γ′
           collapse = ext-⊢-collapse Γ″≤Γ
 
+-- To prove the second implication, we proceed similarly
+-- and prove it for type nat. If the term is logically
+-- related to zero, the implication holds immediately from
+-- our given proof
 Ⓡ→def-≡ {T = nat} {t} {zero} pf Γ′≤Γ with ↓ᵀ {nat} zero
 ... | _ = pf Γ′≤Γ
+-- Otherwise, if the term is logically related to
+-- a successor, our given proof similarly leads
+-- to the implication, but we need to show that
+-- if a term of type nat is logically related to
+-- an object a of type ℕ̂ (i.e. a natural with
+-- embedded liftable neutrals), then it is
+-- definitionally equal to the reification of
+-- the object a.
 Ⓡ→def-≡ {_} {Γ′} {T = nat} {t} {suc a} pf Γ′≤Γ
   with pf Γ′≤Γ
 ... | ⟨ n , ⟨ t≡sn , n≡a ⟩ ⟩ =
@@ -222,12 +234,39 @@ def-≡→Ⓡ {_} {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ s�
     lemma {Γ} {t} {ne 𝓊̂} pf
       with 𝓊̂ Γ | pf
     ... | inj₁ ⟨ 𝓊 , _ ⟩ | t≡𝓊 = t≡𝓊
+-- Lastly, if the term is logically related to an
+-- embedded liftable neutral, the implication also
+-- holds immediately from our given proof
 Ⓡ→def-≡ {_} {Γ′} {T = nat} {t} {ne 𝓊̂} pf Γ′≤Γ
   with 𝓊̂ Γ′           | pf Γ′≤Γ
 ... | inj₁ ⟨ 𝓊 , _ ⟩  | t≡𝓊     = t≡𝓊
+-- For our inductive step, we prove the implication
+-- for terms of type S ⇒ T. Our desired implication
+-- is now:
+--   Γ′ ⊢ t = ↓ᵀ f Γ′ : T
+-- which, by definition, expands to:
+--   Γ′ ⊢ t = λx. ↓ᵀ f a (Γ′ , x:S) : T
+--     (where a = ↑ᵀ 𝓍̂ˢ Γ′)
 Ⓡ→def-≡ {Γ} {Γ′} {T = S ⇒ T} {t} {a = f} pf Γ′≤Γ
   with ↑ᵀ {S} (𝓍̂ Γ′) | xⓇ↑ᵀ𝓍̂ {Γ′} {S}
 ... | a              | xⓇa =
+  -- We prove this by η expanding t to λx. t x and
+  -- then using compatibility to prove that
+  -- Γ′ , x:S ⊢ t x = ↓ᵀ f a (Γ′, x:S). Our inductive
+  -- hypothesis has that:
+  --   t x Ⓡ f a implies t x = ↓ᵀ f a
+  --
+  -- This is exactly what we want to show, so now
+  -- all we need is to prove that t x Ⓡ f a
+  --
+  -- Luckily, our given proof holds that t and f
+  -- are logically related, which is equivalent
+  -- to saying that if x Ⓡ a , then t x Ⓡ f a,
+  -- reducing what we have to prove only to
+  -- x Ⓡ a. We have been using a for simplicity,
+  -- but a = ↑ᵀ 𝓍̂ˢ Γ′, and we are mutually proving
+  -- that x Ⓡ ↑ᵀ 𝓍̂, so we use this lemma here
+  -- to finish our proof.
   ≡-trans
     ≡-η
     (≡-abs-compatible
