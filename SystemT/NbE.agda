@@ -23,8 +23,6 @@ record Interpretation (D : Set) : Set₁ where
   field
     ⟦_⟧ : D → Set
 
-infix 5 ⟦_⟧
-
 open Interpretation {{...}} public
 
 -- Most of the original interpretations of are left
