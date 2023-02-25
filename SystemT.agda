@@ -125,7 +125,7 @@ ex3 = suc · ((ƛ suc · ` (`S `Z)) · ` (`S `Z))
 -- undecidable. However, in STLC, we have that two terms
 -- are βη-equivalent iff their interpretationss are equal.
 -- So, we wish to define an extension of βη-equivalence
--- for System T s.t. it implies equal interpretationss
+-- for System T s.t. it implies equal interpretations
 -- (thus making the proposition ⟦ nf(t) ⟧ = ⟦ t ⟧ decidable)
 
 -- Before we define this extension, we define the functions
@@ -187,44 +187,46 @@ _[_] {Γ} {A} {B} N M =  subst {Γ , B} {Γ} σ {A} N
   σ (`S x)  =  ` x
 
 -- With these defined, we introduce a new relation between two
--- terms: definitional equality. The relation is written such
--- that the definitional equality of two terms implies the
--- equality of their interpretations (t def-≡ t′ iff ⟦t⟧ = ⟦t′⟧),
--- it is the extension of Βη equivalence for System T
--- suggested earlier
+-- terms: definitional equality. In the thesis, this is
+-- written as Γ ⊢ t = t′ : T, we will use t == t′ in Agda
+-- (but continue using the first terminology in comments)
 --
--- We will use this to prove the soundness of
+-- The relation is written such that the definitional equality
+-- of two terms implies the equality of their interpretations
+-- (Γ ⊢ t = t′ : T iff ⟦t⟧ = ⟦t′⟧); it is the extension of Βη
+-- equivalence for System T suggested earlier
+--
+-- We will use this relation to prove the soundness of
 -- NbE (i.e. ⟦nf(t)⟧ = ⟦t⟧)
-
-data _def-≡_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
+data _==_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
 
   -- Computation rules
 
-  ≡-β-rec-z : ∀ {Γ : Γ} {T : Type}
+  β-rec-z : ∀ {Γ : Γ} {T : Type}
               {z : Γ ⊢ T}
               {s : Γ ⊢ nat ⇒ T ⇒ T}
-              --------------------------
-            → rec · z · s · zero def-≡ z
+              -----------------------
+            → rec · z · s · zero == z
 
-  ≡-β-rec-s : ∀ {Γ : Γ} {T : Type}
+  β-rec-s : ∀ {Γ : Γ} {T : Type}
       {z : Γ ⊢ T}
       {s : Γ ⊢ nat ⇒ T ⇒ T}
       {n : Γ ⊢ nat}
-      -------------------------------------------------------
-    → rec · z · s · (suc · n) def-≡ s · n · (rec · z · s · n)
+      ----------------------------------------------------
+    → rec · z · s · (suc · n) == s · n · (rec · z · s · n)
 
-  ≡-β-ƛ : ∀ {Γ : Γ} {S T : Type}
+  β-ƛ : ∀ {Γ : Γ} {S T : Type}
           {t : Γ , S ⊢ T}
           {s : Γ ⊢ S}
-          -----------------------
-        → (ƛ t) · s def-≡ t [ s ]
+          --------------------
+        → (ƛ t) · s == t [ s ]
 
   -- Function extensionality, i.e. Γ ⊢ t = Γ ⊢ λx. t x : S ⇒ T
 
-  ≡-η : ∀ {Γ : Γ} {S T : Type}
+  η : ∀ {Γ : Γ} {S T : Type}
         {t : Γ ⊢ S ⇒ T}
-        -------------------------------
-      → t def-≡ ƛ (rename `S_ t) · ` `Z
+        ----------------------------
+      → t == ƛ (rename `S_ t) · ` `Z
 
   -- Compatibility rules
   --
@@ -232,160 +234,161 @@ data _def-≡_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set wher
   -- we are using an intrinsically typed representation, so ≡-refl
   -- catches all of these cases
 
-  ≡-abs-compatible : ∀ {Γ : Γ} {S T : Type} {t t′ : Γ , S ⊢ T}
-                   → t def-≡ t′
-                     -------------
-                   → ƛ t def-≡ ƛ t′
+  abs-compatible : ∀ {Γ : Γ} {S T : Type} {t t′ : Γ , S ⊢ T}
+                   → t == t′
+                     -----------
+                   → ƛ t == ƛ t′
 
-  ≡-app-compatible : ∀ {Γ : Γ} {S T : Type}
+  app-compatible : ∀ {Γ : Γ} {S T : Type}
                      {r r′ : Γ ⊢ S ⇒ T} {s s′ : Γ ⊢ S}
-                   → r def-≡ r′
-                   → s def-≡ s′
-                     ------------------
-                   → r · s def-≡ r′ · s′
+                   → r == r′
+                   → s == s′
+                     ----------------
+                   → r · s == r′ · s′
 
   -- Equivalence rules
 
-  ≡-refl : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
-           -----------
-         → t def-≡ t
+  refl : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
+           ------
+         → t == t
 
-  ≡-sym : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
-        → t def-≡ t′
-          ----------
-        → t′ def-≡ t
+  sym : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
+        → t == t′
+          -------
+        → t′ == t
 
-  ≡-trans : ∀ {Γ : Γ} {T : Type} {t₁ t₂ t₃ : Γ ⊢ T}
-          → t₁ def-≡ t₂
-          → t₂ def-≡ t₃
-            -----------
-          → t₁ def-≡ t₃
+  trans : ∀ {Γ : Γ} {T : Type} {t₁ t₂ t₃ : Γ ⊢ T}
+          → t₁ == t₂
+          → t₂ == t₃
+            --------
+          → t₁ == t₃
 
-infix 3 _def-≡_
+infix 3 _==_
 
-module def-≡-Reasoning where
+module ==-Reasoning where
   infix  1 begin_
-  infixr 2 _def-≡⟨_⟩_
+  infixr 2 _==⟨_⟩_
   infix  3 _∎
 
   begin_ : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
-    → t def-≡ t′
+    → t == t′
       ---------
-    → t def-≡ t′
+    → t == t′
   begin pf = pf
 
-  _def-≡⟨_⟩_ : ∀ {Γ : Γ} {T : Type} {t₂ t₃ : Γ ⊢ T}
+  _==⟨_⟩_ : ∀ {Γ : Γ} {T : Type} {t₂ t₃ : Γ ⊢ T}
     → (t₁ : Γ ⊢ T)
-    → t₁ def-≡ t₂
-    → t₂ def-≡ t₃
+    → t₁ == t₂
+    → t₂ == t₃
       -----
-    → t₁ def-≡ t₃
-  t₁ def-≡⟨ t₁≡t₂ ⟩ t₂≡t₃  =  ≡-trans t₁≡t₂ t₂≡t₃
+    → t₁ == t₃
+  t₁ ==⟨ t₁≡t₂ ⟩ t₂≡t₃  =  trans t₁≡t₂ t₂≡t₃
 
   _∎ : ∀ {Γ : Γ} {T : Type} → (t : Γ ⊢ T)
       -----
-    → t def-≡ t
-  t ∎  =  ≡-refl
+    → t == t
+  t ∎  =  refl
 
-open def-≡-Reasoning public
+open ==-Reasoning public
 
 -- We also define a relation detailing  when one context is the
--- extension of another, this is not introduced in this section,
--- but will be useful throughout (see [NbE.agda])
-data _Γ-≤_ : Γ → Γ → Set where
-  ≤-refl : ∀ {Γ : Γ} → Γ Γ-≤ Γ
+-- extension of another, this is introduced formally in a later
+-- section but will be useful throughout (see [NbE.agda])
+data _≤_ : Γ → Γ → Set where
+  -- A context extends itself
+  ≤-refl : ∀ {Γ : Γ} → Γ ≤ Γ
 
+  -- Given a context that extends another, the first
+  -- can be extended further and the relation will
+  -- still hold
   ≤-, : ∀ {Γ Γ′ : Γ} {T : Type}
-      → Γ′ Γ-≤ Γ
-        ------------
-      → Γ′ , T Γ-≤ Γ
+      → Γ′ ≤ Γ
+        ----------
+      → Γ′ , T ≤ Γ
 
-infix 4 _Γ-≤_
+infix 4 _≤_
 
 -- A few properties about the relation
 
-Γ-≤-less : ∀ {Γ Γ′ : Γ} {T : Type}
-         → Γ′ Γ-≤ Γ , T
-         → Γ′ Γ-≤ Γ
-Γ-≤-less ≤-refl = ≤-, ≤-refl
-Γ-≤-less (≤-, x) = ≤-, (Γ-≤-less x)
+invert-≤ : ∀ {Γ Γ′ : Γ} {T : Type}
+         → Γ′ ≤ Γ , T
+           ----------
+         → Γ′ ≤ Γ
+invert-≤ ≤-refl = ≤-, ≤-refl
+invert-≤ (≤-, x) = ≤-, (invert-≤ x)
 
-Γ-≤-,-uniq-T : ∀ {Γ Γ′ : Γ} {S T : Type}
-             → Γ′ Γ-≤ Γ , T
-             → Γ′ Γ-≤ Γ , S
-             → T ≡ S
+≤-,-uniq-T : ∀ {Γ Γ′ : Γ} {S T : Type}
+           → Γ′ ≤ Γ , T
+           → Γ′ ≤ Γ , S
+             ----------
+           → T ≡ S
 
-Γ-≤-antisym : ∀ {Γ Γ′ : Γ}
-            → Γ Γ-≤ Γ′
-            → Γ′ Γ-≤ Γ
-            → Γ ≡ Γ′
+≤-antisym : ∀ {Γ Γ′ : Γ}
+          → Γ ≤ Γ′
+          → Γ′ ≤ Γ
+            ------
+          → Γ ≡ Γ′
 
-Γ≰Γ,T : ∀ {Γ : Γ} {T : Type} → ¬ (Γ Γ-≤ Γ , T)
+Γ≰Γ,T : ∀ {Γ : Γ} {T : Type} → ¬ (Γ ≤ Γ , T)
 
-Γ-≤-,-uniq-T ≤-refl ≤-refl = refl
-Γ-≤-,-uniq-T ≤-refl (≤-, c) = ⊥-elim (Γ≰Γ,T c)
-Γ-≤-,-uniq-T (≤-, c) ≤-refl = ⊥-elim (Γ≰Γ,T c)
-Γ-≤-,-uniq-T (≤-, p₁) (≤-, p₂)
-  rewrite Γ-≤-,-uniq-T p₁ p₂ = refl
+≤-,-uniq-T ≤-refl ≤-refl = refl
+≤-,-uniq-T ≤-refl (≤-, c) = ⊥-elim (Γ≰Γ,T c)
+≤-,-uniq-T (≤-, c) ≤-refl = ⊥-elim (Γ≰Γ,T c)
+≤-,-uniq-T (≤-, p₁) (≤-, p₂)
+  rewrite ≤-,-uniq-T p₁ p₂ = refl
 
-Γ-≤-antisym ≤-refl Γ′≤Γ = refl
-Γ-≤-antisym (≤-, Γ≤Γ′) ≤-refl = refl
-Γ-≤-antisym (≤-, {T = T₁} p₁) (≤-, {T = T₂} p₂)
-  with Γ-≤-less p₁ | Γ-≤-less p₂
-... | ≤→ | ≤←
-  with Γ-≤-antisym ≤→ ≤←
+≤-antisym ≤-refl Γ′≤Γ = refl
+≤-antisym (≤-, Γ≤Γ′) ≤-refl = refl
+≤-antisym (≤-, {T = T₁} p₁) (≤-, {T = T₂} p₂)
+  with invert-≤ p₁ | invert-≤ p₂
+... | ≤→         | ≤←
+  with ≤-antisym ≤→ ≤←
 ... | refl
-  rewrite Γ-≤-,-uniq-T p₁ p₂ = refl
+  rewrite ≤-,-uniq-T p₁ p₂ = refl
 
 Γ≰Γ,T {Γ} {T} Γ≤Γ,T with ≤-, {T = T} (≤-refl {Γ})
 ... | Γ,T≤Γ
-  with Γ-≤-antisym Γ≤Γ,T Γ,T≤Γ
+  with ≤-antisym Γ≤Γ,T Γ,T≤Γ
 ... | ()
 
-Γ-≤-uniq : ∀ {Γ′ Γ : Γ}
-         → (pf₁ : Γ′ Γ-≤ Γ)
-         → (pf₂ : Γ′ Γ-≤ Γ)
-         → pf₁ ≡ pf₂
-Γ-≤-uniq ≤-refl ≤-refl = refl
-Γ-≤-uniq ≤-refl (≤-, pf) = ⊥-elim (Γ≰Γ,T pf)
-Γ-≤-uniq (≤-, pf) ≤-refl = ⊥-elim (Γ≰Γ,T pf)
-Γ-≤-uniq (≤-, pf₁) (≤-, pf₂) rewrite Γ-≤-uniq pf₁ pf₂ = refl
+≤-uniq : ∀ {Γ′ Γ : Γ}
+       → (pf₁ : Γ′ ≤ Γ)
+       → (pf₂ : Γ′ ≤ Γ)
+       → pf₁ ≡ pf₂
+≤-uniq ≤-refl ≤-refl = refl
+≤-uniq ≤-refl (≤-, pf) = ⊥-elim (Γ≰Γ,T pf)
+≤-uniq (≤-, pf) ≤-refl = ⊥-elim (Γ≰Γ,T pf)
+≤-uniq (≤-, pf₁) (≤-, pf₂) rewrite ≤-uniq pf₁ pf₂ = refl
 
-Γ≤∅ : ∀ {Γ : Γ} → Γ Γ-≤ ∅
+Γ≤∅ : ∀ {Γ : Γ} → Γ ≤ ∅
 Γ≤∅ {∅} = ≤-refl
 Γ≤∅ {Γ , _} with Γ≤∅ {Γ}
 ... | pf = ≤-, pf
 
-_Γ-≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ Γ-≤ Γ)
-∅ Γ-≤? ∅ = yes ≤-refl
-∅ Γ-≤? (_ , _) = no λ()
-(Γ , T) Γ-≤? ∅ = yes Γ≤∅
-(Γ′ , T) Γ-≤? Γ@(_ , _)
+_≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ ≤ Γ)
+∅ ≤? ∅ = yes ≤-refl
+∅ ≤? (_ , _) = no λ()
+(Γ , T) ≤? ∅ = yes Γ≤∅
+(Γ′ , T) ≤? Γ@(_ , _)
   with (Γ′ , T) ≟Γ Γ
 ... | yes refl = yes ≤-refl
 ... | no Γ′≢Γ
-  with Γ′ Γ-≤? Γ
+  with Γ′ ≤? Γ
 ... | yes pf = yes (≤-, pf)
 ... | no ¬pf =
   no λ where
     ≤-refl → Γ′≢Γ refl
     (≤-, pf) → ¬pf pf
 
-Γ-≤-trans : ∀ {Γ₃ Γ₂ Γ₁ : Γ}
-        → Γ₂ Γ-≤ Γ₁
-        → Γ₃ Γ-≤ Γ₂
-          ---------
-        → Γ₃ Γ-≤ Γ₁
-Γ-≤-trans ≤-refl Γ₃≤Γ₂ = Γ₃≤Γ₂
-Γ-≤-trans (≤-, Γ₂≤Γ₁) ≤-refl = ≤-, Γ₂≤Γ₁
-Γ-≤-trans (≤-, Γ₂≤Γ₁) (≤-, Γ₃≤Γ₂) =
-  ≤-, (Γ-≤-trans (≤-, Γ₂≤Γ₁) Γ₃≤Γ₂)
-
-invert-Γ-≤ : ∀ {Γ′ Γ : Γ} {S : Type}
-           → Γ′ Γ-≤ Γ , S
-           → Γ′ Γ-≤ Γ
-invert-Γ-≤ ≤-refl = ≤-, ≤-refl
-invert-Γ-≤ (≤-, pf) = ≤-, (invert-Γ-≤ pf)
+≤-trans : ∀ {Γ₃ Γ₂ Γ₁ : Γ}
+        → Γ₂ ≤ Γ₁
+        → Γ₃ ≤ Γ₂
+          -------
+        → Γ₃ ≤ Γ₁
+≤-trans ≤-refl Γ₃≤Γ₂ = Γ₃≤Γ₂
+≤-trans (≤-, Γ₂≤Γ₁) ≤-refl = ≤-, Γ₂≤Γ₁
+≤-trans (≤-, Γ₂≤Γ₁) (≤-, Γ₃≤Γ₂) =
+  ≤-, (≤-trans (≤-, Γ₂≤Γ₁) Γ₃≤Γ₂)
 
 -- Some lemmas around substitution/renaming
 -- and its relation to definitional equality
@@ -395,6 +398,6 @@ invert-Γ-≤ (≤-, pf) = ≤-, (invert-Γ-≤ pf)
 
 postulate
   -- TODO: prove ?
-  def-≡-rename : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T}
+  ==-rename : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T}
     {ρ : Rename Γ Δ}
-    → t def-≡ t′ → rename ρ t def-≡ rename ρ t′
+    → t == t′ → rename ρ t == rename ρ t′
