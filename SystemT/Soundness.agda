@@ -1,6 +1,6 @@
 module Soundness where
 
-open import Data.Unit using (⊤)
+open import Data.Unit using (⊤; tt)
 open import Data.Empty using (⊥)
 open import Data.Sum using (inj₁; inj₂)
 open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
@@ -27,13 +27,11 @@ open import NbE
 --
 -- Formally, this represents the changing of contexts
 -- used in the Kripe logical relation, e.g.
--- Γ ⊢ t : T ⇒ Γ′ ⊢ t : T
+-- Γ ⊢ t : T --> Γ′ ⊢ t : T
 _ext-⊢_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ Γ-≤ Γ → Γ ⊢ T → Γ′ ⊢ T
 pf ext-⊢ t = rename (lookup-Γ-≤ pf) t
 
 infix 4 _ext-⊢_
-
-
 
 -- We also define a few lemmas related to the operation:
 -- the first lets us "collapse" a term extended twice
@@ -43,13 +41,17 @@ ext-⊢-collapse : ∀ {Γ₃ Γ₂ Γ₁ : Γ} {T : Type} {t : Γ₁ ⊢ T}
                → Γ₃≤Γ₂ ext-⊢ (Γ₂≤Γ₁ ext-⊢ t) def-≡ Γ₃≤Γ₁ ext-⊢ t
 ext-⊢-collapse = {!!} -- TODO: prove
 
--- And this one allows us to extend definitional equality
--- to extensions of the context upon which the original
--- relation was established
-def-≡-ext-⊢ : ∀ {Γ Γ′ : Γ} {T : Type} {Γ′≤Γ : Γ′ Γ-≤ Γ}
-        {t t′ : Γ ⊢ T}
-      → t def-≡ t′ → Γ′≤Γ ext-⊢ t def-≡ Γ′≤Γ ext-⊢ t′
-def-≡-ext-⊢ = {!!} -- TODO: prove
+-- The second establishes that extending a term's context
+-- to itself yields the original term
+ext-⊢-refl : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
+           → ≤-refl ext-⊢ t def-≡ t
+ext-⊢-refl {t = zero} = ≡-refl
+ext-⊢-refl {t = suc} = ≡-refl
+ext-⊢-refl {t = rec} = ≡-refl
+ext-⊢-refl {t = ` _} = ≡-refl
+ext-⊢-refl {t = ƛ t} with ext-⊢-refl {t = t}
+... | defeq = ≡-abs-compatible {!!}
+ext-⊢-refl {t = _ · _} = ≡-app-compatible ext-⊢-refl ext-⊢-refl
 
 -- The next function we define "lifts"
 -- definitional equality over liftable neutrals
@@ -60,7 +62,7 @@ def-≡-ext-⊢ = {!!} -- TODO: prove
 -- or, equivalently in our syntax:
 _def-≡↑_ : {Γ : Γ} {T : Type}
          → Γ ⊢ T
-         → (𝓊̂ : Ne↑ T)
+         → Ne↑ T
          → Set
 _def-≡↑_ {Γ} t 𝓊̂ with 𝓊̂ Γ
 ... | inj₁ ⟨ 𝓊 , _ ⟩ =
@@ -74,6 +76,18 @@ _def-≡↑_ {Γ} t 𝓊̂ with 𝓊̂ Γ
       ⊥
 
 infix 3 _def-≡↑_
+
+-- We also define a function for definitional equality
+-- over naturals with embedded liftable neutrals
+_def-≡↓_ : {Γ : Γ}
+         → Γ ⊢ nat
+         → ⟦ nat ⟧
+         → Set
+_def-≡↓_ {Γ} t zero = t def-≡ zero
+_def-≡↓_ {Γ} t (suc 𝓋̂) = ∃[ n ] t def-≡ suc · n × n def-≡↓ 𝓋̂
+_def-≡↓_ {Γ} t (ne 𝓊̂) = t def-≡↑ 𝓊̂
+
+infix 3 _def-≡↓_
 
 -- The next function provides a shorthand for reifying
 -- an interpretation of T then immediately applying a
@@ -92,24 +106,10 @@ _Ⓡ_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
 --   (t : Γ ⊢ nat) Ⓡ 𝓋̂ =
 --     ∀ (Γ′ : Γ). Γ′ ≤ Γ → Γ′ ⊢ t = 𝓋̂(Γ) : nat
 --
--- We slightly simplify the relation, as 𝓋̂ / 𝓋̂(Γ) are
--- a bit of an abuse of notation:
---   - For zero, there is no context Γ to lift to,
---     we are only concerned with definitional equality
-_Ⓡ_ {_} {nat} t zero = t def-≡ zero
-
---   - For suc, we are only interested in the
---     underlying natural with embedded liftable neutrals,
---     so we further define the relation inductively
-_Ⓡ_ {Γ} {nat} t (suc 𝓋̂) = ∃[ n ] n Ⓡ 𝓋̂ × t def-≡ (suc · n)
-
---   - For an embedded liftable neutral, the proposition
---     is a direct translation into our syntax
-_Ⓡ_ {Γ₁} {nat} t (ne 𝓊̂) =
+_Ⓡ_ {Γ₁} {nat} t 𝓋̂ =
   ∀ {Γ₂ : Γ}
-  → (Γ′ : Γ₂ Γ-≤ Γ₁)
-    ----------------
-  → Γ′ ext-⊢ t def-≡↑ 𝓊̂
+  → (Γ₂≤Γ₁ : Γ₂ Γ-≤ Γ₁)
+  → Γ₂≤Γ₁ ext-⊢ t def-≡↓ 𝓋̂
 
 -- The relation defined over functions:
 --   (r : Γ ⊢ S ⇒ T) Ⓡ f =
@@ -131,32 +131,39 @@ infix 4 _Ⓡ_
 -- on types:
 
 -- (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : T) ⇒ Γ ⊢ 𝓊 : T Ⓡ ↑ᵀ 𝓊̂
-def-≡↑→Ⓡ : ∀ {Γ₁ : Γ} {T : Type} {𝓊 : Γ₁ ⊢ T} {𝓊̂ : Ne↑ T}
+def-≡→Ⓡ : ∀ {Γ₁ : Γ} {T : Type} {𝓊 : Γ₁ ⊢ T} {𝓊̂ : Ne↑ T}
           → (∀ {Γ₂ : Γ}
-            → (Γ′ : Γ₂ Γ-≤ Γ₁)
-            → Γ′ ext-⊢ 𝓊 def-≡↑ 𝓊̂)
-            ----------------------
+              → (Γ′ : Γ₂ Γ-≤ Γ₁)
+              → Γ′ ext-⊢ 𝓊 def-≡↑ 𝓊̂)
+              ----------------------
           → 𝓊 Ⓡ (↑ᵀ 𝓊̂)
 
 -- t : Γ ⊢ T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ(a)(Γ′) : T
 Ⓡ→def-≡ : ∀ {Γ₁ Γ₂ : Γ} {T : Type} {t : Γ₁ ⊢ T} {a : ⟦ T ⟧}
-          → t Ⓡ a
-            ----------------------
-          → (Γ′ : Γ₂ Γ-≤ Γ₁)
-          → Γ′ ext-⊢ t def-≡ ↓ᵀᵧ a
+         → t Ⓡ a
+           ----------------------
+         → (Γ′ : Γ₂ Γ-≤ Γ₁)
+         → Γ′ ext-⊢ t def-≡ ↓ᵀᵧ a
+
+-- A consequence of the first implication is that
+-- Γ , x:T ⊢ x Ⓡ ↑ᵀ (𝓍̂ Γ), which will be helpful for proving the
+-- second implication
+xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
+        -----------------------
+      → ` `Z {Γ} {T} Ⓡ ↑ᵀ (𝓍̂ Γ)
 
 -- To prove the first implication, first we show that it always
 -- holds for liftable neutral terms of type nat
-def-≡↑→Ⓡ {T = nat} pf Γ′≤Γ = pf Γ′≤Γ
+def-≡→Ⓡ {T = nat} pf Γ′≤Γ = pf Γ′≤Γ
 -- Now, for liftable neutral terms of type S ⇒ T, we prove that
 -- the relation holds for ↑ᵀ (𝓊̂ · ↓ˢ a)
-def-≡↑→Ⓡ {_} {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ sⓇa =
+def-≡→Ⓡ {_} {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ sⓇa =
   -- We prove the relation holds by using our induction
   -- hypothesis, so that our new goal is to prove that
   -- Γ″ ⊢ 𝓊 · s is definitionally equal to 𝓊̂ · ↓ˢ a
   -- for any Γ″ that is an extension of Γ′ (which itself
   -- extends Γ).
-  def-≡↑→Ⓡ 𝓊·s≡𝓊̂·↓ˢa
+  def-≡→Ⓡ 𝓊·s≡𝓊̂·↓ˢa
     where
       𝓊·s≡𝓊̂·↓ˢa : {Γ″ : Γ}
         → (Γ″≤Γ′ : Γ″ Γ-≤ Γ′)
@@ -192,36 +199,38 @@ def-≡↑→Ⓡ {_} {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ
           Γ″≤Γ = Γ-≤-trans Γ′≤Γ Γ″≤Γ′
           collapse = ext-⊢-collapse Γ″≤Γ
 
-Ⓡ→def-≡ {T = nat} {t} {zero} t≡zero Γ′≤Γ with ↓ᵀ {nat} zero
-... | _ = def-≡-ext-⊢ t≡zero
-Ⓡ→def-≡ {T = nat} {t} {suc a} ⟨ n , ⟨ nⓇa , t≡sn ⟩ ⟩ Γ′≤Γ
-  with ↓ᵀ {nat} (suc a)
-... | _ =
+Ⓡ→def-≡ {T = nat} {t} {zero} pf Γ′≤Γ with ↓ᵀ {nat} zero
+... | _ = pf Γ′≤Γ
+Ⓡ→def-≡ {_} {Γ′} {T = nat} {t} {suc a} pf Γ′≤Γ
+  with pf Γ′≤Γ
+... | ⟨ n , ⟨ t≡sn , n≡a ⟩ ⟩ =
   begin
     Γ′≤Γ ext-⊢ t
-  def-≡⟨ def-≡-ext-⊢ t≡sn ⟩
-    Γ′≤Γ ext-⊢ (suc · n)
-  def-≡⟨ ≡-app-compatible ≡-refl (Ⓡ→def-≡ nⓇa Γ′≤Γ) ⟩
+  def-≡⟨ t≡sn ⟩
+    suc · n
+  def-≡⟨ ≡-app-compatible ≡-refl (lemma {a = a} n≡a) ⟩
     suc · ↓ᵀᵧ a
   ∎
+  where
+    lemma : ∀ {Γ : Γ} {n : Γ ⊢ nat} {a : ⟦ nat ⟧}
+        → n def-≡↓ a → n def-≡ ↓ᵀᵧ a
+    lemma {a = zero} pf with ↓ᵀ {nat} zero
+    ... | _ = pf
+    lemma {a = suc a} ⟨ n , ⟨ m≡sn , n≡a ⟩ ⟩
+      with ↓ᵀ {nat} (suc a) | lemma {a = a} n≡a
+    ... | _ | pf   = ≡-trans m≡sn (≡-app-compatible ≡-refl pf)
+    lemma {Γ} {t} {ne 𝓊̂} pf
+      with 𝓊̂ Γ | pf
+    ... | inj₁ ⟨ 𝓊 , _ ⟩ | t≡𝓊 = t≡𝓊
 Ⓡ→def-≡ {_} {Γ′} {T = nat} {t} {ne 𝓊̂} pf Γ′≤Γ
-  with 𝓊̂ Γ′          | pf Γ′≤Γ
-... | inj₁ ⟨ 𝓊 , _ ⟩ | t≡𝓊 = t≡𝓊
-Ⓡ→def-≡ {Γ} {Γ′} {T = S ⇒ T} {t} {a = f} pf Γ′≤Γ = {!!}
--- the following proof works (albeit it has a small hole) but leads to
--- termination checks failing, keeping for reference until we figure out a
--- real proof:
---
---Ⓡ→def-≡ {Γ} {Γ′} {T = S ⇒ T} {t} {a = f} pf Γ′≤Γ
---  with ↑ᵀ {S} (𝓍̂ Γ′) | xⓇ↑ᵀ𝓍̂ {Γ′} {S}
---... | a              | xⓇa =
---  ≡-trans ≡-η (≡-abs-compatible (≡-trans {!!} (Ⓡ→def-≡ (pf (≤-, {T = S} Γ′≤Γ) xⓇa) ≤-refl)))
+  with 𝓊̂ Γ′           | pf Γ′≤Γ
+... | inj₁ ⟨ 𝓊 , _ ⟩  | t≡𝓊     = t≡𝓊
+Ⓡ→def-≡ {Γ} {Γ′} {T = S ⇒ T} {t} {a = f} pf Γ′≤Γ
+  with ↑ᵀ {S} (𝓍̂ Γ′) | xⓇ↑ᵀ𝓍̂ {Γ′} {S}
+... | a              | xⓇa =
+  ≡-trans ≡-η (≡-abs-compatible (≡-trans {!!} (Ⓡ→def-≡ (pf (≤-, {T = S} Γ′≤Γ) xⓇa) ≤-refl)))
 
--- A consequence of the first implication is that
--- Γ , x:T ⊢ x Ⓡ ↑ᵀ (𝓍̂ Γ), as we show here:
-xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
-     → ` `Z {Γ} {T} Ⓡ ↑ᵀ (𝓍̂ Γ)
-xⓇ↑ᵀ𝓍̂ {_} {T} = def-≡↑→Ⓡ defeq where
+xⓇ↑ᵀ𝓍̂ {_} {T} = def-≡→Ⓡ defeq where
   defeq : ∀ {Γ Γ′ : Γ}
         → (Γ′≤Γ,T : Γ′ Γ-≤ (Γ , T))
         → Γ′≤Γ,T ext-⊢ ` `Z def-≡↑ 𝓍̂ Γ
@@ -280,23 +289,28 @@ t ∥[ σ , s ]∥ = ((ƛ t) ∥[ σ ]∥) · s
 -- We also introduce the semantic typing judgement
 -- Γ ⊨ t : T as follows
 _⊨_ : ∀ {T : Type} → (Γ : Γ) → Γ ⊢ T → Set
-_⊨_ {T} Γ₁ t =
-  ∀ {Δ : Γ} {σ : Δ ⊩ Γ₁} {ρ : ⟦ Γ₁ ⟧}
+_⊨_ {T} Γ t =
+  ∀ {Δ : SystemT.Γ} {σ : Δ ⊩ Γ} {ρ : ⟦ Γ ⟧}
   → σ ∥Ⓡ∥ ρ
     -------
   → t ∥[ σ ]∥ Ⓡ ⊢⟦ t ⟧ ρ
 
 -- This allows us to prove the fundamental lemma
--- of logical relations by induction on logical
--- relations
+-- of logical relations by induction on the
+-- typing judgement Γ ⊢ t : T
 fundamental-lemma : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
                   → Γ ⊨ t
-fundamental-lemma {t = zero} = {!!}
-fundamental-lemma {t = suc} = {!!}
-fundamental-lemma {t = rec} = {!!}
-fundamental-lemma {t = ` x} = {!!}
-fundamental-lemma {t = ƛ t} = {!!}
-fundamental-lemma {t = t · t₁} = {!!}
+fundamental-lemma {t = zero} {σ = ∅} σⓇρ Γ₂≤Γ₁ = ≡-refl
+fundamental-lemma {t = zero} {σ = σ , s} {⟨ ρ , a ⟩}
+  ⟨ σⓇρ , sⓇa ⟩ Γ₂≤Γ₁
+  with fundamental-lemma {t = zero} {σ = σ} σⓇρ Γ₂≤Γ₁
+... | x = {!!}
+fundamental-lemma {t = suc} {σ = σ} σⓇρ {s = s} Γ₂≤Γ₁ sⓇa Γ₃≤Γ₂ =
+  ⟨ Γ₃≤Γ₂ ext-⊢ s , ⟨ {!!} , {!!} ⟩ ⟩
+fundamental-lemma {t = rec} {σ = σ} σⓇρ = {!!}
+fundamental-lemma {t = ` x} {σ = σ} σⓇρ = {!!}
+fundamental-lemma {t = ƛ t} {σ = σ} σⓇρ = {!!}
+fundamental-lemma {t = t · t₁} {σ = σ} σⓇρ = {!!}
 
 -- We define a substitution that shifts
 -- indices an arbitrary amount of times
@@ -314,14 +328,14 @@ fundamental-lemma {t = t · t₁} = {!!}
 -- Additionally, we define the identity substitution in terms
 -- of the shifting substitution
 id : ∀ {Γ : Γ} → Γ ⊩ Γ
-id {∅} = ∅
-id {Γ , _} = ↑ (≤-, ≤-refl) , (` `Z)
+id = ↑ ≤-refl
 
 -- We have, using Γ,x:T ⊢ x : T Ⓡ ↑ᵀ (𝓍ᵀ Γ), that
 -- Γ ⊢ id : Γ Ⓡ ↑Γ
 idⓇ↑Γ : ∀ {Γ : Γ}
        → id ∥Ⓡ∥ (↑Γ Γ)
-idⓇ↑Γ = {!!}
+idⓇ↑Γ {∅} = tt
+idⓇ↑Γ {Γ , T} = ⟨ {!!} , xⓇ↑ᵀ𝓍̂ ⟩
 
 -- With this fact, we arrive at the soundness of NbE:
 soundness : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
@@ -330,4 +344,5 @@ soundness {Γ} {T} {t}
   with fundamental-lemma {t = t} (idⓇ↑Γ {Γ})
 ... | pf
   with Ⓡ→def-≡ pf ≤-refl
-... | pf = ≡-trans {!!} pf
+... | pf                  =
+  ≡-trans {!!} pf
