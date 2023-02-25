@@ -23,6 +23,8 @@ record Interpretation (D : Set) : Set₁ where
   field
     ⟦_⟧ : D → Set
 
+infix 5 ⟦_⟧
+
 open Interpretation {{...}} public
 
 -- Most of the original interpretations of are left
@@ -186,8 +188,10 @@ Nf↑ T = ∀ (Γ : Γ) → ∃[ t ] Nf T Γ t
 -- i.e. (𝓊̂ 𝓋̂)(Γ) = 𝓊̂(Γ)𝓋̂(Γ)
 --
 -- We provide an operation for this for convenience
-_·↑_ : ∀ {S T : Type} (𝓊̂ : Ne↑ (S ⇒ T)) (𝓋̂ : Nf↑ S)
-    → ∀ (Γ : Γ) → ∃[ t ] Ne T Γ t ⊎ ⊤
+_·↑_ : ∀ {S T : Type}
+     → (𝓊̂ : Ne↑ (S ⇒ T))
+     → (𝓋̂ : Nf↑ S)
+     → Ne↑ T
 _·↑_ 𝓊̂ 𝓋̂ Γ
   with 𝓊̂ Γ              | 𝓋̂ Γ
 ... | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩ | ⟨ 𝓋 , pf-𝓋 ⟩ =
@@ -235,7 +239,7 @@ instance
 --        application of the reified object to the original
 --        neutral term
 
-↑ᵀ {S ⇒ T} 𝓊̂ a = ↑ᵀ (𝓊̂ ·↑ (↓ᵀ a))
+↑ᵀ {S ⇒ T} 𝓊̂ a = ↑ᵀ (𝓊̂ ·↑ 𝓋̂) where 𝓋̂ = ↓ᵀ a
 
 -- Given one context is an extension of another, and a
 -- lookup judgement in the original context, there
@@ -254,7 +258,7 @@ lookup-Γ-≤ (≤-, pf) i
 -- which can only be applied to extensions of Γ , S
 𝓍̂ : ∀ {S : Type} (Γ₁ : Γ) → Ne↑ S
 𝓍̂ {S} Γ₁ = var↑ where
-  var↑ : ∀ (Γ₂ : Γ) → ∃[ t ] Ne S Γ₂ t ⊎ ⊤
+  var↑ : Ne↑ S
   var↑ Γ₂ with Γ₂ Γ-≤? (Γ₁ , S)
   ... | yes pf  =
     inj₁ ⟨ ` x , ne-var x ⟩ where x = lookup-Γ-≤ pf `Z
@@ -269,11 +273,11 @@ lookup-Γ-≤ (≤-, pf) i
 ↓ℕ̂ zero = (λ _ → ⟨ zero , nf-zero ⟩)
 ↓ℕ̂ (suc n) with ↓ℕ̂ n
 ... | n↑ = suc↑ where
-  suc↑ : (Γ : Γ) → ∃[ t ] Nf nat Γ t
+  suc↑ : Nf↑ nat
   suc↑ Γ with n↑ Γ
   ... | ⟨ 𝓋 , pf ⟩ = ⟨ suc · 𝓋 , nf-suc pf ⟩
 ↓ℕ̂ (ne 𝓊̂) = 𝓋̂ where
-  𝓋̂ : ∀ (Γ : Γ) → ∃[ t ] Nf nat Γ t
+  𝓋̂ : Nf↑ nat
   𝓋̂ Γ with 𝓊̂ Γ
   ... | inj₁ ⟨ 𝓊 , pf ⟩ = ⟨ 𝓊 , nf-neutral pf ⟩
   ... | inj₂ tt         = ⟨ zero , nf-zero ⟩
@@ -305,7 +309,7 @@ lookup-Γ-≤ (≤-, pf) i
 ⟦rec⟧ z s zero = z
 ⟦rec⟧ z s (suc n) = s n (⟦rec⟧ z s n)
 ⟦rec⟧ {T} z s (ne 𝓊̂) = ↑ᵀ rec↑ where
-  rec↑ : ∀ (Γ : Γ) → ∃[ t ] Ne T Γ t ⊎ ⊤
+  rec↑ : Ne↑ T
   rec↑ Γ with 𝓊̂ Γ
   ... | inj₂ tt = inj₂ tt
   ... | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩
@@ -327,18 +331,17 @@ lookup-Γ-≤ (≤-, pf) i
 ∋⟦_⟧ {Γ , T} `Z ⟨ _ , a ⟩ = a
 ∋⟦_⟧ {Γ , T} (`S x) ⟨ ρ , _ ⟩ = ∋⟦ x ⟧ ρ
 
-⊢⟦_⟧ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ Γ ⟧ → ⟦ T ⟧
+⊢⟦_⟧_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ Γ ⟧ → ⟦ T ⟧
 ⊢⟦ zero ⟧ _ = zero
 ⊢⟦ suc ⟧ _ = suc
 ⊢⟦ rec ⟧ _ = ⟦rec⟧
-⊢⟦ ` x ⟧ = ∋⟦ x ⟧
-⊢⟦ ƛ t ⟧ ρ a = ⊢⟦ t ⟧ ⟨ ρ , a ⟩
-⊢⟦ r · s ⟧ ρ = ⊢⟦ r ⟧ ρ (⊢⟦ s ⟧ ρ)
+⊢⟦ ` x ⟧ ρ = ∋⟦ x ⟧ ρ
+⊢⟦ ƛ t ⟧ ρ = λ a → ⊢⟦ t ⟧ ⟨ ρ , a ⟩
+⊢⟦ r · s ⟧ ρ = (⊢⟦ r ⟧ ρ) (⊢⟦ s ⟧  ρ)
 
 -- Finally, the algorithm for normalization by evaluation
 nbe : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ∃[ t ] Nf T Γ t
-nbe {Γ} t with ↓ᵀ (⊢⟦ t ⟧ (↑Γ Γ))
-... | t↑ = t↑ Γ
+nbe {Γ} t = ↓ᵀ (⊢⟦ t ⟧ (↑Γ Γ)) Γ
 
 nf : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T
 nf t with nbe t
@@ -378,7 +381,7 @@ nf-ex3 with ex3
 --       By soundness, we have Γ ⊢ nf t = t : T, which
 --       implies nf (nf t) = nf(t) by completeness
 
--- As for proving the completeness property of NbE,
+-- For proving the completeness property of NbE,
 -- our goal is to prove that two programs with the
 -- same meaning (i.e. definitionally equal) have the
 -- same normal form:
@@ -389,9 +392,9 @@ nf-ex3 with ex3
 -- paired with the definitional equality of two
 -- terms impliying they are semantically equal
 postulate
-  def-≡→⟦≡⟧ : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
+  def-≡→⟦≡⟧ : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T} {ρ : ⟦ Γ ⟧}
             → t def-≡ t′
-            → ⊢⟦ t ⟧ ≡ ⊢⟦ t′ ⟧
+            → ⊢⟦ t ⟧ ρ ≡ ⊢⟦ t′ ⟧ ρ
 
 completeness : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
              → t def-≡ t′
@@ -403,7 +406,7 @@ completeness {Γ} {T} {t} {t′} defeq
     nf-t
   ≡⟨ cong proj₁ (sym eq) ⟩
     proj₁ (↓ᵀ (⊢⟦ t ⟧ (↑Γ Γ)) Γ)
-  ≡⟨ proj₁-≡ {b = pf} {c = pf′} (cong-app {B = B} (cong f (cong-app (def-≡→⟦≡⟧ defeq) (↑Γ Γ))) Γ) ⟩
+  ≡⟨ proj₁-≡ {b = pf} {c = pf′} (cong-app {B = B} (cong f (def-≡→⟦≡⟧ defeq)) Γ) ⟩
     proj₁ (↓ᵀ (⊢⟦ t′ ⟧ (↑Γ Γ)) Γ)
   ≡⟨ cong proj₁ eq′ ⟩
     nf-t′
