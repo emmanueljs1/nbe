@@ -226,25 +226,16 @@ instance
 --        neutral term
 ↑ᵀ {S ⇒ T} 𝓊̂ a = ↑ᵀ (𝓊̂ ·↑ 𝓋̂) where 𝓋̂ = ↓ᵀ a
 
--- Given one context is an extension of another, and a
--- lookup judgement in the original context, there
--- is a corresponding lookup judgement in the extended context.
-lookup-≤ : ∀ {Γ′ Γ : Γ} {T : Type}
-         → Γ′ ≤ Γ
-         → Γ ∋ T
-           --------
-         → Γ′ ∋ T
-lookup-≤ ≤-refl i = i
-lookup-≤ (≤-, pf) i
-  with lookup-≤ pf i
-... | j = `S j
-
 -- Create a new lifted variable of type S in the context Γ,
 -- which can only be applied to extensions of Γ , S
 𝓍̂ : (S : Type) → Γ → Ne↑ S
 𝓍̂ S Γ Γ′ with Γ′ ≤? (Γ , S)
-... | yes pf = inj₁ ⟨ ` x , ne-var x ⟩ where x = lookup-≤ pf `Z
-... | no _   = inj₂ tt
+... | no _ = inj₂ tt
+... | yes pf with ρ-≤ pf
+  -- The variable x in the extended context Γ′ can
+  -- be accessed through the renaming between Γ′ and
+  -- Γ , S
+... | _ , x = inj₁ ⟨ ` x , ne-var x ⟩
 
 -- ↓ᴺ - Reification of semantic objects of type ⟦nat⟧, which
 --      are our naturals with embedded liftable neutrals (ℕ̂).
@@ -285,19 +276,19 @@ lookup-≤ (≤-, pf) i
 --
 -- Note: the original habilitation has the type of the first
 -- argument to rec as "N" (nat), this seems to be a typo
+rec↑ : ∀ {T : Type} → Nf↑ T → Nf↑ (nat ⇒ T ⇒ T) → Ne↑ nat → Ne↑ T
+rec↑ 𝓋̂z 𝓋̂s 𝓊̂ Γ with 𝓊̂ Γ
+... | inj₂ tt = inj₂ tt
+... | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩
+      with 𝓋̂z Γ      | 𝓋̂s Γ
+... | ⟨ 𝓋z , pf-𝓋z ⟩ | ⟨ 𝓋s , pf-𝓋s ⟩ =
+  inj₁ ⟨ rec · 𝓋z · 𝓋s · 𝓊 , ne-rec pf-𝓋z pf-𝓋s pf-𝓊 ⟩
+
 ⟦rec⟧ : ∀ {T : Type} → ⟦ T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T ⟧
 ⟦rec⟧ z s zero = z
 ⟦rec⟧ z s (suc n) = s n (⟦rec⟧ z s n)
-⟦rec⟧ {T} z s (ne 𝓊̂) = ↑ᵀ rec↑ where
-  rec↑ : Ne↑ T
-  rec↑ Γ with 𝓊̂ Γ
-  ... | inj₂ tt = inj₂ tt
-  ... | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩
-        with ↓ᵀ z  | ↓ᵀ s
-  ... | z↑         | s↑
-        with z↑ Γ      | s↑ Γ
-  ... | ⟨ 𝓋z , pf-𝓋z ⟩ | ⟨ 𝓋s , pf-𝓋s ⟩ =
-    inj₁ ⟨ rec · 𝓋z · 𝓋s · 𝓊 , ne-rec pf-𝓋z pf-𝓋s pf-𝓊 ⟩
+⟦rec⟧ {T} z s (ne 𝓊̂) =
+  ↑ᵀ (rec↑ 𝓋̂z 𝓋̂s 𝓊̂) where 𝓋̂z = ↓ᵀ z ; 𝓋̂s = ↓ᵀ s
 
 -- Now that we have a concrete interpretation of types,
 -- and an interpretation for primitive recursion,

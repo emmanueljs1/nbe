@@ -31,26 +31,21 @@ open import NbE
 -- used in the Kripe logical relation, e.g.
 -- Γ ⊢ t : T --> Γ′ ⊢ t : T
 --
--- This is also a weakening lemma for our intrinsically typed
--- de Brujin index representation
+-- Really, this is just notation for applying a weakening
+-- substitution
 _ext-⊢_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ ≤ Γ → Γ ⊢ T → Γ′ ⊢ T
-pf ext-⊢ t = rename (lookup-≤ pf) t
+pf ext-⊢ t = t ∥[ weaken pf ]∥
 
 infix 4 _ext-⊢_
 
--- We also define a few lemmas related to the operation:
--- the first lets us "collapse" a term extended twice
-ext-⊢-collapse : ∀ {Γ₃ Γ₂ Γ₁ : Γ} {T : Type} {t : Γ₁ ⊢ T}
-                 {Γ₃≤Γ₂ : Γ₃ ≤ Γ₂} {Γ₂≤Γ₁ : Γ₂ ≤ Γ₁}
-               → (Γ₃≤Γ₁ : Γ₃ ≤ Γ₁)
-               → Γ₃≤Γ₂ ext-⊢ (Γ₂≤Γ₁ ext-⊢ t) == Γ₃≤Γ₁ ext-⊢ t
-ext-⊢-collapse = {!!} -- TODO: prove
-
--- The second establishes that extending a term's context
--- to itself yields the original term
-ext-⊢-refl : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
-           → ≤-refl ext-⊢ t == t
-ext-⊢-refl  = {!!} -- TODO: prove
+-- A term extended twice can be "collapsed" to
+-- a single extension
+ext-⊢-collapse : ∀ {Γ₃ Γ₂ Γ₁ : Γ} {T : Type}
+  → (Γ₃≤Γ₂ : Γ₃ ≤ Γ₂)
+  → (Γ₂≤Γ₁ : Γ₂ ≤ Γ₁)
+  → (t : Γ₁ ⊢ T)
+  → Γ₃≤Γ₂ ext-⊢ (Γ₂≤Γ₁ ext-⊢ t) == (≤-trans Γ₃≤Γ₂ Γ₂≤Γ₁) ext-⊢ t
+ext-⊢-collapse = {!!}
 
 -- The next function we define "lifts"
 -- definitional equality over liftable neutrals
@@ -157,7 +152,7 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
   -- extends Γ).
   ==→Ⓡ 𝓊·s==𝓊̂·↓ˢa
     where
-      𝓊·s==𝓊̂·↓ˢa : {Γ″ : Γ}
+      𝓊·s==𝓊̂·↓ˢa : ∀ {Γ″ : Γ}
         → (Γ″≤Γ′ : Γ″ ≤ Γ′)
         → Γ″≤Γ′ ext-⊢ (Γ′≤Γ ext-⊢ 𝓊) · s ==↑ 𝓊̂ ·↑ (↓ᵀ a)
       𝓊·s==𝓊̂·↓ˢa  {Γ″} Γ″≤Γ′
@@ -169,7 +164,7 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
         -- to proving that:
         --   Γ″ ⊢ 𝓊 · s = 𝓊″ · ↓ˢ a Γ″ : T
         -- (where 𝓊″ is 𝓊̂ lifted to the context Γ″)
-        with 𝓊̂ Γ″           | pf (≤-trans Γ′≤Γ Γ″≤Γ′)
+        with 𝓊̂ Γ″           | pf (≤-trans Γ″≤Γ′ Γ′≤Γ)
       ... | inj₁ ⟨ 𝓊″ , _ ⟩ | 𝓊==𝓊″
         -- We also use the other implication we will prove,
         -- alongside the fact that s Ⓡ a, to have evidence
@@ -181,7 +176,7 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
         -- definitional equality to prove the desired goal
         begin
           Γ″≤Γ′ ext-⊢ (Γ′≤Γ ext-⊢ 𝓊) · s
-        ==⟨ app-compatible collapse refl ⟩
+        ==⟨ app-compatible (ext-⊢-collapse Γ″≤Γ′ Γ′≤Γ 𝓊) refl ⟩
           (Γ″≤Γ ext-⊢ 𝓊) · (Γ″≤Γ′ ext-⊢ s)
         ==⟨ app-compatible 𝓊==𝓊″ refl ⟩
           𝓊″ · (Γ″≤Γ′ ext-⊢ s)
@@ -189,8 +184,7 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
           𝓊″ · ↓ᵀᵧ a
         ∎
         where
-          Γ″≤Γ = ≤-trans Γ′≤Γ Γ″≤Γ′
-          collapse = ext-⊢-collapse Γ″≤Γ
+          Γ″≤Γ = ≤-trans Γ″≤Γ′ Γ′≤Γ
 
 -- To prove the second implication, we proceed similarly
 -- and first prove it for type nat. If the term is logically
@@ -245,7 +239,7 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
 -- which, by definition, expands to:
 --   Γ′ ⊢ t = λx. ↓ᵀ f a (Γ′ , x:S) : T
 --     (where a = ↑ᵀ 𝓍̂ˢ Γ′)
-Ⓡ→== {Γ′} {T = S ⇒ _} {a = f} pf Γ′≤Γ
+Ⓡ→== {Γ′} {T = S ⇒ _} pf Γ′≤Γ
   with ↑ᵀ {S} (𝓍̂ S Γ′) | xⓇ↑ᵀ𝓍̂ {Γ′} {S}
 ... | a                | xⓇa =
   -- We prove this by η expanding t to λx. t x and
@@ -275,64 +269,50 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
         (app-compatible {!!} refl)
         (Ⓡ→== (pf (≤-, {T = S} Γ′≤Γ) xⓇa) ≤-refl)))
 
+-- Using our first implication, we
+-- prove Γ , x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂
 xⓇ↑ᵀ𝓍̂ {_} {T} = ==→Ⓡ x==𝓍̂ where
   x==𝓍̂ : ∀ {Γ Γ′ : Γ}
-        → (Γ′≤Γ,T : Γ′ ≤ (Γ , T))
-        → Γ′≤Γ,T ext-⊢ ` `Z ==↑ 𝓍̂ T Γ
+       → (Γ′≤Γ,T : Γ′ ≤ (Γ , T))
+       → Γ′≤Γ,T ext-⊢ ` `Z ==↑ 𝓍̂ T Γ
   x==𝓍̂ {Γ} {Γ′} pf
     with Γ′ ≤? (Γ , T)
   ... | no ¬pf = ¬pf pf
   ... | yes pf′
-    with 𝓍̂ T Γ   | ≤-uniq pf pf′
-  ... | _        | refl            = refl
+    with 𝓍̂ T Γ | ≤-uniq pf pf′
+  ... | _      | refl
+    with ρ-≤ pf′
+  ...| _ , x  = refl
 
--- We will finally establish Γ ⊢ t : T Ⓡ ⟦t⟧ (↑ Γ) through
--- the fundamental lemma of logical relations, for this we
--- need to extend logical relations to include substitutions
--- and enviroments
-
--- An intrinsic substitution representation, i.e. σ : Γ ⊩ Δ,
--- we use ⊩ instead of ⊢ since that is already reserved
--- for typing judgements (and keep using ∥ for the "parallel"
--- in "parallel substitutions") for which we will be defining
--- similar logical relations
-data _⊩_ : Γ → Γ → Set where
-  ∅ : ∀ {Γ} → Γ ⊩ ∅
-
-  _,_ : ∀ {Γ Δ : Γ} {S : Type}
-        → Γ ⊩ Δ
-        → Γ ⊢ S
-          ---------
-        → Γ ⊩ Δ , S
-
-infix 4 _⊩_
-
--- Similarly as for terms and values, a Kripe logical
--- relation between a substitution and an environment
--- is defined inductively on the rules for parallel
--- substitutions
+-- We now have that Γ ⊢ t : T Ⓡ a ⇒ Γ ⊢ t = ↓ᵀ a Γ : T,
+-- which is what we want to show for a = ⟦t⟧ (↑ Γ)
+--
+-- For this, we will establish that Γ ⊢ t : T Ⓡ ⟦t⟧ (↑ Γ)
+-- using the fundamental lemma of logical relations. First,
+-- we will need to extend logical relations to include
+-- substitutions and environments
 _∥Ⓡ∥_ : ∀ {Γ Δ : Γ}
       → Γ ⊩ Δ
       → ⟦ Δ ⟧
       → Set
 
-infix 4 _∥Ⓡ∥_
+-- Similarly as for terms and values, a Kripe logical
+-- relation between a parallel substitution and an
+-- environment is defined inductively, though this time
+-- by induction on the rules for parallel substitutions
 
-∅ ∥Ⓡ∥ ρ = ⊤
+-- An empty substitution is always logically related to
+-- an empty environment
+∅ ∥Ⓡ∥ tt = ⊤
+
+-- An extension to a substition (σ , s / x) is logically
+-- related to an environment (ρ , a) if σ is logically
+-- related to ρ and s is logically related to a
 (σ , s) ∥Ⓡ∥ ⟨ ρ , a ⟩ = σ ∥Ⓡ∥ ρ × s Ⓡ a
 
--- Before we formulate the fundamental lemma,
--- we introduce the operation t ∥[ σ ]∥ which allows
--- us to switch contexts
-_∥[_]∥ : ∀ {Γ Δ : Γ} {T : Type}
-     → Δ ⊢ T
-     → Γ ⊩ Δ
-       -----
-     → Γ ⊢ T
-t ∥[ ∅ ]∥ = Γ≤∅ ext-⊢ t
-t ∥[ σ , s ]∥ = ((ƛ t) ∥[ σ ]∥) · s
+infix 4 _∥Ⓡ∥_
 
--- We also introduce the semantic typing judgement
+-- We introduce the semantic typing judgement
 -- Γ ⊨ t : T as follows
 _⊨_ : ∀ {T : Type} → (Γ : Γ) → Γ ⊢ T → Set
 _⊨_ {T} Γ t =
@@ -341,37 +321,20 @@ _⊨_ {T} Γ t =
     -------
   → t ∥[ σ ]∥ Ⓡ ⟦⊢ t ⟧ ρ
 
--- This allows us to prove the fundamental lemma
--- of logical relations by induction on the
--- typing judgement Γ ⊢ t : T
+-- By induction on the typing judgement Γ ⊢ t : T,
+-- we prove the semantic typing judgement Γ ⊨ t : T,
+-- this is called the fundamental lemma of logical
+-- relations
 fundamental-lemma : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
                   → Γ ⊨ t
-fundamental-lemma {t} σⓇρ = {!!} -- TODO: prove
-
--- We define a substitution that shifts
--- indices an arbitrary amount of times
--- to turn a context which extends
--- another context in the original context
-↑ : ∀ {Γ′ Γ : Γ}
-  → Γ′ ≤ Γ
-  → Γ′ ⊩ Γ
-↑ {∅} ≤-refl = ∅
-↑ {_ , _} ≤-refl = (↑ (≤-, ≤-refl)) , ` `Z
-↑ {Γ′ , T} {Γ} (≤-, pf) with ↑ pf
-... | ∅ = ∅
-... | σ , s = ↑ (≤-, (invert-≤ pf)) , (≤-, ≤-refl ext-⊢ s)
-
--- Additionally, we define the identity substitution in terms
--- of the shifting substitution
-id : ∀ {Γ : Γ} → Γ ⊩ Γ
-id = ↑ ≤-refl
+fundamental-lemma = {!!}
 
 -- For the identity substitution we have that Γ ⊢ id : Γ,
 -- which we prove using our lemma that Γ,x:T ⊢ x : T Ⓡ ↑ᵀ (𝓍ᵀ Γ)
 idⓇ↑Γ : ∀ {Γ : Γ}
        → id ∥Ⓡ∥ (↑Γ Γ)
 idⓇ↑Γ {∅} = tt
-idⓇ↑Γ {Γ , T} = ⟨ {!!} , xⓇ↑ᵀ𝓍̂ ⟩ -- TODO: prove
+idⓇ↑Γ {Γ , T} = ⟨ {!!} , xⓇ↑ᵀ𝓍̂ ⟩
 
 -- With this fact, we arrive at the soundness of NbE:
 soundness : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
