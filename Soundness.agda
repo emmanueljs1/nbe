@@ -5,7 +5,7 @@ open import Data.Empty using (⊥)
 open import Data.Sum using (inj₁; inj₂)
 open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
 open import Relation.Nullary using (yes; no)
-open import Relation.Binary.PropositionalEquality using (refl)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import SystemT
 open import NbE
@@ -51,6 +51,13 @@ ext-⊢-collapse = {!!} -- TODO: prove
 ext-⊢-refl : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
            → ≤-refl ext-⊢ t == t
 ext-⊢-refl  = {!!} -- TODO: prove
+
+-- We also add a lemma for extending a definitional
+-- equality judgement
+ext-⊢-== : ∀ {Γ Γ′ : Γ} {T : Type} {t t′ : Γ ⊢ T} {Γ′≤Γ : Γ′ ≤ Γ}
+         → t == t′
+         → Γ′≤Γ ext-⊢ t == Γ′≤Γ ext-⊢ t′
+ext-⊢-== = {!!}
 
 -- The next function we define "lifts"
 -- definitional equality over liftable neutrals
@@ -307,6 +314,17 @@ data _⊩_ : Γ → Γ → Set where
 
 infix 4 _⊩_
 
+--  We add a lookup judgement for substitutions as well
+_∥∋∥_ : {Γ Δ : Γ} {S : Type}
+     → Γ ⊩ Δ
+     → Δ ∋ S
+       -----
+     → Γ ⊢ S
+(_ , s) ∥∋∥ `Z = s
+(σ , _) ∥∋∥ (`S x) = σ ∥∋∥ x
+
+infix 4 _∥∋∥_
+
 -- Similarly as for terms and values, a Kripe logical
 -- relation between a substitution and an environment
 -- is defined inductively on the rules for parallel
@@ -323,14 +341,25 @@ infix 4 _∥Ⓡ∥_
 
 -- Before we formulate the fundamental lemma,
 -- we introduce the operation t ∥[ σ ]∥ which allows
--- us to switch contexts
+-- us to apply a substitution to a term
+exts′ : ∀ {Γ Δ : Γ} {T : Type}
+      → Γ ⊩ Δ
+      → Γ , T ⊩ Δ , T
+exts′ ∅ = ∅ , (` `Z)
+exts′ {Γ} {Δ , S} {T} (σ , s) with exts′ σ
+... | σ′ , _ = σ′ , (≤-, ≤-refl ext-⊢ s) , ` `Z
+
 _∥[_]∥ : ∀ {Γ Δ : Γ} {T : Type}
      → Δ ⊢ T
      → Γ ⊩ Δ
        -----
      → Γ ⊢ T
-t ∥[ ∅ ]∥ = Γ≤∅ ext-⊢ t
-t ∥[ σ , s ]∥ = ((ƛ t) ∥[ σ ]∥) · s
+zero ∥[ σ ]∥ = zero
+suc ∥[ σ ]∥ = suc
+rec ∥[ σ ]∥ = rec
+(` x) ∥[ σ ]∥ = σ ∥∋∥ x
+(ƛ t) ∥[ σ ]∥ = ƛ (t ∥[ exts′ σ ]∥)
+(r · s) ∥[ σ ]∥ = (r ∥[ σ ]∥) · (s ∥[ σ ]∥)
 
 -- We also introduce the semantic typing judgement
 -- Γ ⊨ t : T as follows
@@ -341,12 +370,84 @@ _⊨_ {T} Γ t =
     -------
   → t ∥[ σ ]∥ Ⓡ ⟦⊢ t ⟧ ρ
 
+rename-refl : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
+            → (≤-refl ext-⊢ t) ≡ t
+rename-refl {t = zero} = refl
+rename-refl {t = suc} = refl
+rename-refl {t = rec} = refl
+rename-refl {t = ` x} = refl
+rename-refl {t = ƛ t} = {!!}
+rename-refl {t = r · s}
+  with rename-refl {t = r} | rename-refl {t = s}
+...  | ≡r                  | ≡s
+  rewrite ≡r | ≡s = refl
+
+subst-app : ∀ {Γ Δ : Γ} {S T : Type} {σ : Γ ⊩ Δ} {t : Δ , S ⊢ T} {s : Γ ⊢ S}
+          → (ƛ t ∥[ exts′ σ ]∥) · s == t ∥[ σ , s ]∥
+subst-app = {!!}
+
+Ⓡ-trans-== : ∀ {Γ : Γ} {T : Type} {a : ⟦ T ⟧} {t t′ : Γ ⊢ T}
+            → t == t′
+            → t Ⓡ a
+            → t′ Ⓡ a
+Ⓡ-trans-== {_} {nat} {zero} t==t′ pf Γ′≤Γ = trans (ext-⊢-== (sym t==t′)) (pf Γ′≤Γ)
+Ⓡ-trans-== {_} {nat} {suc a} t==t′ pf Γ′≤Γ with pf Γ′≤Γ
+... | ⟨ n , ⟨ t==sn , n==a ⟩ ⟩ = ⟨ n , ⟨ trans (ext-⊢-== (sym t==t′)) t==sn , n==a ⟩ ⟩
+Ⓡ-trans-== {_} {nat} {ne 𝓊̂} t==t′ pf {Γ′} Γ′≤Γ
+  with 𝓊̂ Γ′          | pf Γ′≤Γ
+... | inj₁ ⟨ 𝓊 , _ ⟩ | t==𝓊    = trans (ext-⊢-== (sym t==t′)) t==𝓊
+Ⓡ-trans-== {_} {S ⇒ T} t==t′ pf Γ′≤Γ sⓇa = Ⓡ-trans-== (app-compatible (ext-⊢-== t==t′) refl) (pf Γ′≤Γ sⓇa)
+
 -- This allows us to prove the fundamental lemma
 -- of logical relations by induction on the
 -- typing judgement Γ ⊢ t : T
 fundamental-lemma : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
                   → Γ ⊨ t
-fundamental-lemma {t} σⓇρ = {!!} -- TODO: prove
+fundamental-lemma {t = zero} σⓇρ _ = refl
+fundamental-lemma {t = suc} _ {s = s} _ pf Γ″≤Γ′ with pf Γ″≤Γ′
+... | s==a = ⟨ Γ″≤Γ′ ext-⊢ s , ⟨ refl , s==a ⟩ ⟩
+fundamental-lemma {t = rec} σⓇρ
+  {Γ′} {z} {a₁} Γ′≤Δ zⓇa₁
+  {Γ″} {s} {a₂} Γ″≤Γ′ sⓇa₂
+  {Γ‴} {n} {zero} Γ‴≤Γ″ pf = {!!}
+fundamental-lemma {t = rec} σⓇρ
+  {Γ′} {z} {a₁} Γ′≤Δ zⓇa₁
+  {Γ″} {s} {a₂} Γ″≤Γ′ sⓇa₂
+  {Γ‴} {n} {suc 𝓋̂} Γ‴≤Γ″ pf = {!!}
+fundamental-lemma {t = rec} σⓇρ
+    {Γ′} {z} {a₁} Γ′≤Δ zⓇa₁
+    {Γ″} {s} {a₂} Γ″≤Γ′ sⓇa₂
+    {Γ‴} {n} {ne 𝓊̂} Γ‴≤Γ″ pf = ==→Ⓡ defeq
+  where
+    defeq : ∀ {Γ⁗ : Γ}
+      → (Γ⁗≤Γ‴ : Γ⁗ ≤ Γ‴)
+      → Γ⁗≤Γ‴ ext-⊢ (Γ‴≤Γ″ ext-⊢ (Γ″≤Γ′ ext-⊢ (Γ′≤Δ ext-⊢ rec) · z) · s) · n ==↑ rec↑ (↓ᵀ a₁) (↓ᵀ a₂) 𝓊̂
+    defeq {Γ⁗} Γ⁗≤Γ‴
+      with 𝓊̂ Γ⁗          | pf Γ⁗≤Γ‴
+    ... | inj₁ ⟨ 𝓊 , _ ⟩ | n==𝓊 =
+      app-compatible
+        (app-compatible
+          (app-compatible
+            refl
+            (Ⓡ→== {!zⓇa₁!} Γ⁗≤Γ‴))
+          (trans η (abs-compatible (trans η (abs-compatible {!Ⓡ→== !})))))
+        n==𝓊
+fundamental-lemma {t = ` `Z} {σ = _ , _  } ⟨ _ , x[σ]Ⓡa ⟩ = x[σ]Ⓡa
+fundamental-lemma {t = ` (`S x)} {σ = _ , _} ⟨ σⓇρ , _ ⟩ = fundamental-lemma σⓇρ
+fundamental-lemma {Γ} {t = ƛ t} {Δ} {σ} {ρ} σⓇρ {Δ′} {s} {a} ≤-refl sⓇa
+  rewrite rename-refl {Δ} {t = ƛ (t ∥[ exts′ σ ]∥)} = Ⓡ-trans-== (sym (subst-app {σ = σ} {t} {s})) ih
+  where
+    ih : t ∥[ σ , s ]∥ Ⓡ ⟦⊢ t ⟧ ⟨ ρ , a ⟩
+    ih = fundamental-lemma {t = t} ⟨ σⓇρ , sⓇa ⟩
+fundamental-lemma {Γ} {t = ƛ t} {Δ} {σ} {ρ} σⓇρ {Δ′ , T′} {s′} {a} (≤-, Δ′≤Δ) sⓇa
+  with fundamental-lemma {Γ} {t = ƛ t} {Δ} {σ} {ρ} σⓇρ {Δ′} Δ′≤Δ
+... | ih = {!!}
+fundamental-lemma {t = r · s} {Δ} {σ} σⓇρ
+  with fundamental-lemma {t = r} σⓇρ | fundamental-lemma {t = s} σⓇρ
+... | Γ⊨r                             | Γ⊨s
+  with Γ⊨r ≤-refl Γ⊨s
+... | pf
+  rewrite rename-refl {Δ} {t = r ∥[ σ ]∥} = pf
 
 -- We define a substitution that shifts
 -- indices an arbitrary amount of times
