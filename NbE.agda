@@ -226,25 +226,15 @@ instance
 --        neutral term
 ↑ᵀ {S ⇒ T} 𝓊̂ a = ↑ᵀ (𝓊̂ ·↑ 𝓋̂) where 𝓋̂ = ↓ᵀ a
 
--- Given one context is an extension of another, and a
--- lookup judgement in the original context, there
--- is a corresponding lookup judgement in the extended context.
-lookup-≤ : ∀ {Γ′ Γ : Γ} {T : Type}
-         → Γ′ ≤ Γ
-         → Γ ∋ T
-           --------
-         → Γ′ ∋ T
-lookup-≤ ≤-refl i = i
-lookup-≤ (≤-, pf) i
-  with lookup-≤ pf i
-... | j = `S j
-
 -- Create a new lifted variable of type S in the context Γ,
 -- which can only be applied to extensions of Γ , S
 𝓍̂ : (S : Type) → Γ → Ne↑ S
-𝓍̂ S Γ Γ′ with Γ′ ≤? (Γ , S)
-... | yes pf = inj₁ ⟨ ` x , ne-var x ⟩ where x = lookup-≤ pf `Z
-... | no _   = inj₂ tt
+𝓍̂ S Γ Γ′
+  with Γ′ ≤? (Γ , S)
+... | no _ = inj₂ tt
+... | yes pf
+  with ρ-≤ pf
+... | _ , x = inj₁ ⟨ ` x , ne-var x ⟩
 
 -- ↓ᴺ - Reification of semantic objects of type ⟦nat⟧, which
 --      are our naturals with embedded liftable neutrals (ℕ̂).
