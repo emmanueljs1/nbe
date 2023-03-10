@@ -48,6 +48,23 @@ _≟Γ_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ ≡ Γ)
 ... | yes _    | no ¬pf   = no (λ where refl → ¬pf refl)
 ... | yes refl | yes refl = yes refl
 
+-- We also define a relation detailing  when one context is the
+-- extension of another, this is introduced formally in a later
+-- section but will be useful throughout
+data _≤_ : Γ → Γ → Set where
+  -- A context extends itself
+  ≤-refl : ∀ {Γ : Γ} → Γ ≤ Γ
+
+  -- Given a context that extends another, the first
+  -- can be extended further and the relation will
+  -- still hold
+  ≤-, : ∀ {Γ Γ′ : Γ} {T : Type}
+      → Γ′ ≤ Γ
+        ----------
+      → Γ′ , T ≤ Γ
+
+infix 4 _≤_
+
 -- Lookup judgement for contexts
 -- (corresponds to de Brujin indices)
 data _∋_ : Γ → Type → Set where
@@ -130,61 +147,164 @@ ex3 = suc · ((ƛ suc · ` (`S `Z)) · ` (`S `Z))
 
 -- Before we define this extension, we define the functions
 -- needed to establish βη-equivalence -- renaming and
--- substitution
+-- substitution. Note that we've use the rules for parallel
+-- substitution introduced in section 2.6, and design
+-- all other relations and operations around them
 
-ext : ∀ {Γ Δ}
-  → (∀ {A} →       Γ ∋ A →     Δ ∋ A)
-    ---------------------------------
-  → (∀ {A B} → Γ , B ∋ A → Δ , B ∋ A)
-ext ρ `Z      =  `Z
-ext ρ (`S x)  =  `S (ρ x)
+-- A renaming between the contexts Γ and Δ
+-- provides a variable in Γ to replace every
+-- variable in Δ
+data Renaming : Γ → Γ → Set where
+  ∅ : ∀ {Γ : Γ} → Renaming Γ ∅
 
-Rename : Γ → Γ → Set
-Rename Γ Δ = ∀{A} → Γ ∋ A → Δ ∋ A
+  _,_ : ∀ {Γ Δ : Γ} {S : Type}
+      → Renaming Γ Δ
+      → Γ ∋ S
+        ------------------
+      → Renaming Γ (Δ , S)
 
--- Rename a well typed terms, enabling us to rebase from one
--- context to another (to establish η-equivalence)
-rename : ∀ {Γ Δ}
-  → Rename Γ Δ
-    -----------------------
-  → (∀ {A} → Γ ⊢ A → Δ ⊢ A)
-rename ρ zero = zero
-rename ρ suc = suc
-rename ρ rec = rec
-rename ρ (` x) = ` ρ x
-rename ρ (ƛ t) = ƛ rename (ext ρ) t
-rename ρ (r · s) = rename ρ r · rename ρ s
+-- Shift the indices in a renaming by 1,
+-- in other words for a renaming between Γ
+-- and Δ, we can create a renaming between
+-- Γ , T and Δ
+--
+-- We will use this to extend a renaming
+-- under a binder
+ρ-↑ : ∀ {Γ Δ : Γ} {T : Type}
+    → Renaming Γ Δ
+      ------------------
+    → Renaming (Γ , T) Δ
+ρ-↑ ∅ = ∅
+ρ-↑ (ρ , x) with ρ-↑ ρ
+... | ρ′ = ρ′ , (`S x)
 
-exts : ∀ {Γ Δ}
-  → (∀ {A} →       Γ ∋ A →     Δ ⊢ A)
-    ---------------------------------
-  → (∀ {A B} → Γ , B ∋ A → Δ , B ⊢ A)
-exts σ `Z      =  ` `Z
-exts σ (`S x)  =  rename `S_ (σ x)
+-- The application of a renaming to rebase a term
+-- from a context Δ to a context Γ, this is done
+-- by using the renaming to replace all variables
+-- used in the term by their corresponding variables
+-- in Γ
+rename : ∀ {Γ Δ : Γ} {T : Type}
+        → Δ ⊢ T
+        → Renaming Γ Δ
+          ------------
+        → Γ ⊢ T
+rename zero ρ = zero
+rename suc ρ = suc
+rename rec ρ = rec
+rename (` `Z) (ρ , x) = ` x
+rename (` (`S x)) (ρ , _) = rename (` x) ρ
+rename (ƛ t) ρ = ƛ rename t (ρ-↑ ρ , `Z)
+rename (r · s) ρ = rename r ρ · rename s ρ
 
-subst : ∀ {Γ Δ}
-  → (∀ {A} → Γ ∋ A → Δ ⊢ A)
-    -----------------------
-  → (∀ {A} → Γ ⊢ A → Δ ⊢ A)
-subst σ (` x)          =  σ x
-subst σ (ƛ t)          =  ƛ (subst (exts σ) t)
-subst σ (r · s)        =  (subst σ r) · (subst σ s)
-subst σ zero           =  zero
-subst σ suc            =  suc
-subst σ rec            =  rec
+-- We also define a few renamings that
+-- will be convenient for substitutions:
 
--- Substitute the first free variable in a term
--- Γ , B ⊢ A with a term Γ ⊢ B (to establish β equivalence)
-_[_] : ∀ {Γ A B}
-  → Γ , B ⊢ A
-  → Γ ⊢ B
+-- The identity renaming, defined
+-- mutually with a renaming which
+-- increments all indices in a context
+ρ-id : ∀ {Γ : Γ} → Renaming Γ Γ
+ρ-incr : ∀ {Γ : Γ} {T : Type} → Renaming (Γ , T) Γ
+
+ρ-id {∅} = ∅
+ρ-id {Γ , T} = ρ-incr , `Z
+
+ρ-incr = ρ-↑ ρ-id
+
+-- A renaming between a context Γ′ and Γ,
+-- where Γ′ is an extension of Γ. This renaming
+-- is really a series of shifts based on
+-- how many extensions to Γ the context Γ′
+-- contains
+ρ-≤ : ∀ {Γ′ Γ : Γ} → Γ′ ≤ Γ → Renaming Γ′ Γ
+ρ-≤ ≤-refl = ρ-id
+ρ-≤ (≤-, pf) = ρ-↑ (ρ-≤ pf)
+
+-- A parallel substitution Γ ⊢ σ : Δ provides
+-- a well-typed term in Γ to substitute for
+-- each variable in the context Δ
+--
+-- We use ⊩ instead of ⊢ since that is already reserved
+-- for typing judgements (and keep using ∥ for the "parallel"
+-- in "parallel substitutions" for operations related
+-- to this type)
+data _⊩_ : Γ → Γ → Set where
+  ∅ : ∀ {Γ} → Γ ⊩ ∅
+
+  _,_ : ∀ {Γ Δ : Γ} {S : Type}
+        → Γ ⊩ Δ
+        → Γ ⊢ S
+          ---------
+        → Γ ⊩ Δ , S
+
+infix 4 _⊩_
+
+-- Any renaming can be converted into a substitution
+-- (for every variable in the context Δ we simply
+-- use its corresponding variable in the context
+-- Γ)
+subst-ρ : ∀ {Γ Δ : Γ} → Renaming Γ Δ → Γ ⊩ Δ
+subst-ρ ∅ = ∅
+subst-ρ (ρ , x) = subst-ρ ρ , ` x
+
+-- Shift the indices in a substitution by 1, as was
+-- done for renamings
+--
+-- Similarly, we use this operation to extend a
+-- substitution under a binder
+_↑ : ∀ {Γ Δ : Γ} {T : Type}
+      → Γ ⊩ Δ
+        ---------
+      → Γ , T ⊩ Δ
+_↑ ∅ = ∅
+_↑ (σ , s) = (σ ↑) , rename s ρ-incr
+
+-- Application of a parallel substitution
+-- Γ ⊢ σ : Δ to a term Δ ⊢ t : T (e.g. t[σ])
+--
+-- This operation is introduced in section 2.6
+_∥[_]∥ : ∀ {Γ Δ : Γ} {T : Type}
+     → Δ ⊢ T
+     → Γ ⊩ Δ
+       -----
+     → Γ ⊢ T
+zero ∥[ σ ]∥ = zero
+suc ∥[ σ ]∥ = suc
+rec ∥[ σ ]∥ = rec
+(` `Z) ∥[ _ , x ]∥ = x
+(` (`S x)) ∥[ σ , _ ]∥ = (` x) ∥[ σ ]∥
+(ƛ t) ∥[ σ ]∥ = ƛ (t ∥[ σ ↑ , ` `Z ]∥)
+(r · s) ∥[ σ ]∥ = (r ∥[ σ ]∥) · (s ∥[ σ ]∥)
+
+-- We define a substitution that shifts
+-- indices an arbitrary amount of times
+-- to turn a context which extends
+-- another context in the original context,
+-- in other words a weakening substitution.
+--
+-- This substitution really is the renaming
+-- between extended contexts
+weaken : ∀ {Γ′ Γ : Γ}
+       → Γ′ ≤ Γ
+         ------
+       → Γ′ ⊩ Γ
+weaken pf = subst-ρ (ρ-≤ pf)
+
+-- Additionally, we define an identity substitution,
+-- which is simply the identity renaming
+id : ∀ {Γ : Γ} → Γ ⊩ Γ
+id = subst-ρ ρ-id
+
+-- And now, we define an operation for
+-- substituting the first free variable in a term
+-- Γ , B ⊢ A with a term Γ ⊢ B,
+-- to establish β equivalence. t [ s / x ] is
+-- really shorthand for t [ id , s / x ]
+_[_] : ∀ {Γ : Γ} {S T : Type}
+  → Γ , T ⊢ S
+  → Γ ⊢ T
     ---------
-  → Γ ⊢ A
-_[_] {Γ} {A} {B} N M =  subst {Γ , B} {Γ} σ {A} N
-  where
-  σ : ∀ {A} → Γ , B ∋ A → Γ ⊢ A
-  σ `Z      =  M
-  σ (`S x)  =  ` x
+  → Γ ⊢ S
+s [ t ] =  s ∥[ id , t ]∥
 
 -- With these defined, we introduce a new relation between two
 -- terms: definitional equality. In the thesis, this is
@@ -226,12 +346,12 @@ data _==_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
   η : ∀ {Γ : Γ} {S T : Type}
         {t : Γ ⊢ S ⇒ T}
         ----------------------------
-      → t == ƛ (rename `S_ t) · ` `Z
+      → t == ƛ rename t ρ-incr · ` `Z
 
   -- Compatibility rules
   --
   -- Note that we do not need a rule for constants and variables as
-  -- we are using an intrinsically typed representation, so ≡-refl
+  -- we are using an intrinsically typed representation, so refl
   -- catches all of these cases
 
   abs-compatible : ∀ {Γ : Γ} {S T : Type} {t t′ : Γ , S ⊢ T}
@@ -291,24 +411,7 @@ module ==-Reasoning where
 
 open ==-Reasoning public
 
--- We also define a relation detailing  when one context is the
--- extension of another, this is introduced formally in a later
--- section but will be useful throughout (see [NbE.agda])
-data _≤_ : Γ → Γ → Set where
-  -- A context extends itself
-  ≤-refl : ∀ {Γ : Γ} → Γ ≤ Γ
-
-  -- Given a context that extends another, the first
-  -- can be extended further and the relation will
-  -- still hold
-  ≤-, : ∀ {Γ Γ′ : Γ} {T : Type}
-      → Γ′ ≤ Γ
-        ----------
-      → Γ′ , T ≤ Γ
-
-infix 4 _≤_
-
--- A few properties about the relation
+-- A few properties about the ≤ relation
 
 invert-≤ : ∀ {Γ Γ′ : Γ} {T : Type}
          → Γ′ ≤ Γ , T
@@ -381,14 +484,14 @@ _≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ ≤ Γ)
     (≤-, pf) → ¬pf pf
 
 ≤-trans : ∀ {Γ₃ Γ₂ Γ₁ : Γ}
-        → Γ₂ ≤ Γ₁
         → Γ₃ ≤ Γ₂
+        → Γ₂ ≤ Γ₁
           -------
         → Γ₃ ≤ Γ₁
-≤-trans ≤-refl Γ₃≤Γ₂ = Γ₃≤Γ₂
-≤-trans (≤-, Γ₂≤Γ₁) ≤-refl = ≤-, Γ₂≤Γ₁
-≤-trans (≤-, Γ₂≤Γ₁) (≤-, Γ₃≤Γ₂) =
-  ≤-, (≤-trans (≤-, Γ₂≤Γ₁) Γ₃≤Γ₂)
+≤-trans ≤-refl ≤-refl = ≤-refl
+≤-trans ≤-refl (≤-, pf) = ≤-, pf
+≤-trans (≤-, pf) ≤-refl = ≤-, pf
+≤-trans (≤-, pf₁) (≤-, pf₂) = ≤-, (≤-trans pf₁ (≤-, pf₂))
 
 -- Some lemmas around substitution/renaming
 -- and its relation to definitional equality
@@ -399,5 +502,6 @@ _≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ ≤ Γ)
 postulate
   -- TODO: prove ?
   ==-rename : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T}
-    {ρ : Rename Γ Δ}
-    → t == t′ → rename ρ t == rename ρ t′
+              {ρ : Renaming Δ Γ}
+            → t == t′
+            → rename t ρ == rename t′ ρ
