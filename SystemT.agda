@@ -145,79 +145,12 @@ ex3 = suc · ((ƛ suc · ` (`S `Z)) · ` (`S `Z))
 -- for System T s.t. it implies equal interpretations
 -- (thus making the proposition ⟦ nf(t) ⟧ = ⟦ t ⟧ decidable)
 
--- Before we define this extension, we define the functions
--- needed to establish βη-equivalence -- renaming and
--- substitution. Note that we've use the rules for parallel
--- substitution introduced in section 2.6, and design
--- all other relations and operations around them
-
--- A renaming between the contexts Γ and Δ
--- provides a variable in Γ to replace every
--- variable in Δ
-data Renaming : Γ → Γ → Set where
-  ∅ : ∀ {Γ : Γ} → Renaming Γ ∅
-
-  _,_ : ∀ {Γ Δ : Γ} {S : Type}
-      → Renaming Γ Δ
-      → Γ ∋ S
-        ------------------
-      → Renaming Γ (Δ , S)
-
--- Shift the indices in a renaming by 1,
--- in other words for a renaming between Γ
--- and Δ, we can create a renaming between
--- Γ , T and Δ
+-- Before we define this extension, we need to define
+-- substitution so that we can establish βη-equivalence.
 --
--- We will use this to extend a renaming
--- under a binder
-ρ-↑ : ∀ {Γ Δ : Γ} {T : Type}
-    → Renaming Γ Δ
-      ------------------
-    → Renaming (Γ , T) Δ
-ρ-↑ ∅ = ∅
-ρ-↑ (ρ , x) with ρ-↑ ρ
-... | ρ′ = ρ′ , (`S x)
-
--- The application of a renaming to rebase a term
--- from a context Δ to a context Γ, this is done
--- by using the renaming to replace all variables
--- used in the term by their corresponding variables
--- in Γ
-rename : ∀ {Γ Δ : Γ} {T : Type}
-        → Δ ⊢ T
-        → Renaming Γ Δ
-          ------------
-        → Γ ⊢ T
-rename zero ρ = zero
-rename suc ρ = suc
-rename rec ρ = rec
-rename (` `Z) (ρ , x) = ` x
-rename (` (`S x)) (ρ , _) = rename (` x) ρ
-rename (ƛ t) ρ = ƛ rename t (ρ-↑ ρ , `Z)
-rename (r · s) ρ = rename r ρ · rename s ρ
-
--- We also define a few renamings that
--- will be convenient for substitutions:
-
--- The identity renaming, defined
--- mutually with a renaming which
--- increments all indices in a context
-ρ-id : ∀ {Γ : Γ} → Renaming Γ Γ
-ρ-incr : ∀ {Γ : Γ} {T : Type} → Renaming (Γ , T) Γ
-
-ρ-id {∅} = ∅
-ρ-id {Γ , T} = ρ-incr , `Z
-
-ρ-incr = ρ-↑ ρ-id
-
--- A renaming between a context Γ′ and Γ,
--- where Γ′ is an extension of Γ. This renaming
--- is really a series of shifts based on
--- how many extensions to Γ the context Γ′
--- contains
-ρ-≤ : ∀ {Γ′ Γ : Γ} → Γ′ ≤ Γ → Renaming Γ′ Γ
-ρ-≤ ≤-refl = ρ-id
-ρ-≤ (≤-, pf) = ρ-↑ (ρ-≤ pf)
+-- We will define substitution using the rules for
+-- parallel substitution and the rule for the application
+-- of a substitution as they are introduced in section 2.6
 
 -- A parallel substitution Γ ⊢ σ : Δ provides
 -- a well-typed term in Γ to substitute for
@@ -238,42 +171,118 @@ data _⊩_ : Γ → Γ → Set where
 
 infix 4 _⊩_
 
--- Any renaming can be converted into a substitution
--- (for every variable in the context Δ we simply
--- use its corresponding variable in the context
--- Γ)
-subst-ρ : ∀ {Γ Δ : Γ} → Renaming Γ Δ → Γ ⊩ Δ
-subst-ρ ∅ = ∅
-subst-ρ (ρ , x) = subst-ρ ρ , ` x
+-- Before defining the application of a substitution
+-- Γ ⊢ t [ σ ] : T, we introduce renaming.
+--
+-- Renaming is a specialized substitution where
+-- we can only substitute variables with other
+-- variables (i.e. a renaming Γ ⊢ σᵨ : Δ provides
+-- a variable in Γ to replace for every variable in Δ).
+-- It is useful to define our operations so that
+-- termination is guaranteed. We will use the subscript
+-- 'ᵨ' to indicate a renaming substitution
+data _⊩ᵨ_ : Γ → Γ → Set where
+  ∅ : ∀ {Γ : Γ} → Γ ⊩ᵨ ∅
+
+  _,_ : ∀ {Γ Δ : Γ} {S : Type}
+      → Γ ⊩ᵨ Δ
+      → Γ ∋ S
+        ------------
+      → Γ ⊩ᵨ (Δ , S)
+
+-- Our first renaming substitution will shift
+-- the indices in a renaming by 1, in other words,
+-- given a renaming between Γ and Δ, we can create
+-- a renaming between Γ , T and Δ
+--
+-- We will use this to extend a renaming
+-- under a binder
+_↑ᵨ : ∀ {Γ Δ : Γ} {T : Type}
+    → Γ ⊩ᵨ Δ
+      ------------
+    → (Γ , T) ⊩ᵨ Δ
+∅ ↑ᵨ = ∅
+(σᵨ , x) ↑ᵨ = σᵨ ↑ᵨ , `S x
+
+-- The application of a renaming to rebase a term
+-- from a context Δ to a context Γ, this is done
+-- by using the renaming to replace all variables
+-- used in the term by their corresponding variables
+-- in Γ
+_[_]ᵨ : ∀ {Γ Δ : Γ} {T : Type}
+        → Δ ⊢ T
+        → Γ ⊩ᵨ Δ
+          ------
+        → Γ ⊢ T
+zero [ _ ]ᵨ = zero
+suc [ _ ]ᵨ = suc
+rec [ _ ]ᵨ = rec
+(` `Z) [ _ , x ]ᵨ = ` x
+(` (`S x)) [ σᵨ , _ ]ᵨ = (` x) [ σᵨ ]ᵨ
+(ƛ t) [ σᵨ ]ᵨ = ƛ t [ σᵨ ↑ᵨ , `Z ]ᵨ
+(r · s) [ σᵨ ]ᵨ = r [ σᵨ ]ᵨ · s [ σᵨ ]ᵨ
+
+-- We also define a few renamings that
+-- will be convenient for general
+-- substitutions:
+
+-- The identity renaming, defined
+-- mutually with a renaming which
+-- increments all indices in a context
+idᵨ : ∀ {Γ : Γ} → Γ ⊩ᵨ Γ
+incrᵨ : ∀ {Γ : Γ} {T : Type} → (Γ , T) ⊩ᵨ Γ
+
+idᵨ {∅} = ∅
+idᵨ {Γ , T} = incrᵨ , `Z
+
+-- We will use this to establish η-equivalence
+incrᵨ = idᵨ ↑ᵨ
+
+-- A renaming between a context Γ′ and Γ,
+-- where Γ′ is an extension of Γ. This renaming
+-- is really a series of shifts based on
+-- how many extensions to Γ the context Γ′
+-- contains
+≤ᵨ : ∀ {Γ′ Γ : Γ} → Γ′ ≤ Γ → Γ′ ⊩ᵨ Γ
+≤ᵨ ≤-refl = idᵨ
+≤ᵨ (≤-, pf) = (≤ᵨ pf) ↑ᵨ
+
+-- Now that we have our building blocks in place,
+-- we also provide a way to generalize a
+-- renaming into a general substitution
+substᵨ : ∀ {Γ Δ : Γ} → Γ ⊩ᵨ Δ → Γ ⊩ Δ
+substᵨ ∅ = ∅
+substᵨ (σᵨ , x) = substᵨ σᵨ , ` x
+
+-- We can now use our renaming substitutions to
+-- build out more general substitutions
 
 -- Shift the indices in a substitution by 1, as was
 -- done for renamings
 --
--- Similarly, we use this operation to extend a
--- substitution under a binder
+-- Similarly as for ↑ᵨ, we use this operation to
+-- extend a substitution under a binder
 _↑ : ∀ {Γ Δ : Γ} {T : Type}
       → Γ ⊩ Δ
         ---------
       → Γ , T ⊩ Δ
 _↑ ∅ = ∅
-_↑ (σ , s) = (σ ↑) , rename s ρ-incr
+_↑ (σ , s) = (σ ↑) , s [ incrᵨ ]ᵨ
 
 -- Application of a parallel substitution
 -- Γ ⊢ σ : Δ to a term Δ ⊢ t : T (e.g. t[σ])
---
--- This operation is introduced in section 2.6
-_∥[_]∥ : ∀ {Γ Δ : Γ} {T : Type}
+_[_] : ∀ {Γ Δ : Γ} {T : Type}
      → Δ ⊢ T
      → Γ ⊩ Δ
        -----
      → Γ ⊢ T
-zero ∥[ σ ]∥ = zero
-suc ∥[ σ ]∥ = suc
-rec ∥[ σ ]∥ = rec
-(` `Z) ∥[ _ , x ]∥ = x
-(` (`S x)) ∥[ σ , _ ]∥ = (` x) ∥[ σ ]∥
-(ƛ t) ∥[ σ ]∥ = ƛ (t ∥[ σ ↑ , ` `Z ]∥)
-(r · s) ∥[ σ ]∥ = (r ∥[ σ ]∥) · (s ∥[ σ ]∥)
+zero [ σ ] = zero
+suc [ σ ] = suc
+rec [ σ ] = rec
+(` `Z) [ _ , x ] = x
+(` (`S x)) [ σ , _ ] = (` x) [ σ ]
+(ƛ t) [ σ ] = ƛ (t [ σ ↑ , ` `Z ])
+(r · s) [ σ ] = (r [ σ ]) · (s [ σ ])
 
 -- We define a substitution that shifts
 -- indices an arbitrary amount of times
@@ -282,29 +291,30 @@ rec ∥[ σ ]∥ = rec
 -- in other words a weakening substitution.
 --
 -- This substitution really is the renaming
--- between extended contexts
+-- substitution between extended contexts
 weaken : ∀ {Γ′ Γ : Γ}
        → Γ′ ≤ Γ
          ------
        → Γ′ ⊩ Γ
-weaken pf = subst-ρ (ρ-≤ pf)
+weaken pf = substᵨ (≤ᵨ pf)
 
 -- Additionally, we define an identity substitution,
 -- which is simply the identity renaming
 id : ∀ {Γ : Γ} → Γ ⊩ Γ
-id = subst-ρ ρ-id
+id = substᵨ idᵨ
 
--- And now, we define an operation for
--- substituting the first free variable in a term
--- Γ , B ⊢ A with a term Γ ⊢ B,
--- to establish β equivalence. t [ s / x ] is
--- really shorthand for t [ id , s / x ]
-_[_] : ∀ {Γ : Γ} {S T : Type}
+-- And now, to finally establish β-equivalence,
+-- we define an operation for substituting the first
+-- free variable in a term Γ , S ⊢ t : T with a
+-- term Γ ⊢ s : S
+--
+-- t [ s / x ] is really shorthand for t [ id , s / x ]
+_[_/x] : ∀ {Γ : Γ} {S T : Type}
   → Γ , T ⊢ S
   → Γ ⊢ T
     ---------
   → Γ ⊢ S
-s [ t ] =  s ∥[ id , t ]∥
+s [ t /x] =  s [ id , t ]
 
 -- With these defined, we introduce a new relation between two
 -- terms: definitional equality. In the thesis, this is
@@ -339,14 +349,14 @@ data _==_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
           {t : Γ , S ⊢ T}
           {s : Γ ⊢ S}
           --------------------
-        → (ƛ t) · s == t [ s ]
+        → (ƛ t) · s == t [ s /x]
 
   -- Function extensionality, i.e. Γ ⊢ t = Γ ⊢ λx. t x : S ⇒ T
 
   η : ∀ {Γ : Γ} {S T : Type}
         {t : Γ ⊢ S ⇒ T}
         ----------------------------
-      → t == ƛ rename t ρ-incr · ` `Z
+      → t == ƛ t [ incrᵨ ]ᵨ · ` `Z
 
   -- Compatibility rules
   --
@@ -502,6 +512,6 @@ _≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ ≤ Γ)
 postulate
   -- TODO: prove ?
   ==-rename : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T}
-              {ρ : Renaming Δ Γ}
+              {ρ : Δ ⊩ᵨ Γ}
             → t == t′
-            → rename t ρ == rename t′ ρ
+            → t [ ρ ]ᵨ == t′ [ ρ ]ᵨ

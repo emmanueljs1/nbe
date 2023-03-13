@@ -231,7 +231,7 @@ instance
 𝓍̂ : (S : Type) → Γ → Ne↑ S
 𝓍̂ S Γ Γ′ with Γ′ ≤? (Γ , S)
 ... | no _ = inj₂ tt
-... | yes pf with ρ-≤ pf
+... | yes pf with ≤ᵨ pf
   -- The variable x in the extended context Γ′ can
   -- be accessed through the renaming between Γ′ and
   -- Γ , S

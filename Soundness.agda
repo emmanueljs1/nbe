@@ -34,7 +34,7 @@ open import NbE
 -- Really, this is just notation for applying a weakening
 -- substitution
 _ext-⊢_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ ≤ Γ → Γ ⊢ T → Γ′ ⊢ T
-pf ext-⊢ t = t ∥[ weaken pf ]∥
+pf ext-⊢ t = t [ weaken pf ]
 
 infix 4 _ext-⊢_
 
@@ -281,7 +281,7 @@ xⓇ↑ᵀ𝓍̂ {_} {T} = ==→Ⓡ x==𝓍̂ where
   ... | yes pf′
     with 𝓍̂ T Γ | ≤-uniq pf pf′
   ... | _      | refl
-    with ρ-≤ pf′
+    with ≤ᵨ pf′
   ...| _ , x  = refl
 
 -- We now have that Γ ⊢ t : T Ⓡ a ⇒ Γ ⊢ t = ↓ᵀ a Γ : T,
@@ -319,7 +319,7 @@ _⊨_ {T} Γ t =
   ∀ {Δ : SystemT.Γ} {σ : Δ ⊩ Γ} {ρ : ⟦ Γ ⟧}
   → σ ∥Ⓡ∥ ρ
     -------
-  → t ∥[ σ ]∥ Ⓡ ⟦⊢ t ⟧ ρ
+  → t [ σ ] Ⓡ ⟦⊢ t ⟧ ρ
 
 -- By induction on the typing judgement Γ ⊢ t : T,
 -- we prove the semantic typing judgement Γ ⊨ t : T,
@@ -334,7 +334,7 @@ fundamental-lemma = {!!}
 idⓇ↑Γ : ∀ {Γ : Γ}
        → id ∥Ⓡ∥ (↑Γ Γ)
 idⓇ↑Γ {∅} = tt
-idⓇ↑Γ {Γ , T} = ⟨ {!!} , xⓇ↑ᵀ𝓍̂ ⟩
+idⓇ↑Γ {Γ , T} = {!!}
 
 -- With this fact, we arrive at the soundness of NbE:
 soundness : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
