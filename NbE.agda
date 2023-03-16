@@ -6,10 +6,9 @@ open import Data.Unit using (⊤; tt)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
 open import Relation.Nullary using (Dec; yes; no)
-open Eq using (_≡_; refl; cong; cong-app; icong; sym)
-open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; step-≡; _∎)
+open Eq using (_≡_; refl)
 
-open import SystemT hiding (begin_; _∎; sym)
+open import SystemT
 
 -- The normalization of terms in System T will involve dealing
 -- with the interpretations of the types, terms, and contexts
@@ -366,28 +365,10 @@ nf-ex3 with ex3
 -- (included as a postulate for now)
 postulate
   ==→⟦≡⟧ : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T} {ρ : ⟦ Γ ⟧}
-            → t == t′
-            → ⟦⊢ t ⟧ ρ ≡ ⟦⊢ t′ ⟧ ρ
+         → t == t′
+         → ⟦⊢ t ⟧ ρ ≡ ⟦⊢ t′ ⟧ ρ
 
 completeness : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
              → t == t′
              → nf t ≡ nf t′
-completeness {Γ} {T} {t} {t′} defeq
-  with ⟨ nf-t  , pf  ⟩ ← nbe t  in eq
-  with ⟨ nf-t′ , pf′ ⟩ ← nbe t′ in eq′ =
-  begin
-    nf-t
-  ≡⟨ cong proj₁ (sym eq) ⟩
-    proj₁ (↓ᵀ (⟦⊢ t ⟧ (↑Γ Γ)) Γ)
-  ≡⟨ proj₁-≡ {b = pf} {c = pf′} (cong-app {B = B} (cong f (==→⟦≡⟧ defeq)) Γ) ⟩
-    proj₁ (↓ᵀ (⟦⊢ t′ ⟧ (↑Γ Γ)) Γ)
-  ≡⟨ cong proj₁ eq′ ⟩
-    nf-t′
-  ∎
-  where
-    B = λ _ → Γ ⊢ T
-    f = (λ a _ → proj₁ (↓ᵀ a Γ))
-    proj₁-≡ : ∀ {A B C : Set} {a₁ a₂ : A} {b : B} {c : C}
-            → a₁ ≡ a₂
-            → proj₁ ⟨ a₁ , b ⟩ ≡ proj₁ ⟨ a₂ , c ⟩
-    proj₁-≡ refl = refl
+completeness {Γ} t==t′ rewrite ==→⟦≡⟧ {ρ = ↑Γ Γ} t==t′ = refl
