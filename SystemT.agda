@@ -1,8 +1,9 @@
 module SystemT where
 
+import Relation.Binary.PropositionalEquality as Eq
 open import Data.Empty using (⊥-elim)
 open import Relation.Nullary using (¬_; Dec; yes; no)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+open Eq using (_≡_; refl) renaming (sym to ≡-sym)
 
 {- Section 2.1 -- System T -}
 
@@ -190,6 +191,18 @@ data _⊩ᵨ_ : Γ → Γ → Set where
         ------------
       → Γ ⊩ᵨ (Δ , S)
 
+infix 4 _⊩ᵨ_
+
+-- We can apply a renaming substitution to convert
+-- lookup judgements (i.e. rename variables)
+rename : ∀ {Γ Δ : Γ} {T : Type}
+       → Δ ∋ T
+       → Γ ⊩ᵨ Δ
+         ------
+       → Γ ∋ T
+rename `Z (σᵨ , x) = x
+rename (`S x) (σᵨ , _) = rename x σᵨ
+
 -- Our first renaming substitution will shift
 -- the indices in a renaming by 1, in other words,
 -- given a renaming between Γ and Δ, we can create
@@ -203,6 +216,8 @@ _↑ᵨ : ∀ {Γ Δ : Γ} {T : Type}
     → (Γ , T) ⊩ᵨ Δ
 ∅ ↑ᵨ = ∅
 (σᵨ , x) ↑ᵨ = σᵨ ↑ᵨ , `S x
+
+infix 6 _↑ᵨ
 
 -- The application of a renaming to rebase a term
 -- from a context Δ to a context Γ, this is done
@@ -221,6 +236,8 @@ rec [ _ ]ᵨ = rec
 (` (`S x)) [ σᵨ , _ ]ᵨ = (` x) [ σᵨ ]ᵨ
 (ƛ t) [ σᵨ ]ᵨ = ƛ t [ σᵨ ↑ᵨ , `Z ]ᵨ
 (r · s) [ σᵨ ]ᵨ = r [ σᵨ ]ᵨ · s [ σᵨ ]ᵨ
+
+infix 8 _[_]ᵨ
 
 -- We also define a few renamings that
 -- will be convenient for general
@@ -269,6 +286,8 @@ _↑ : ∀ {Γ Δ : Γ} {T : Type}
 _↑ ∅ = ∅
 _↑ (σ , s) = (σ ↑) , s [ incrᵨ ]ᵨ
 
+infix 6 _↑
+
 -- Application of a parallel substitution
 -- Γ ⊢ σ : Δ to a term Δ ⊢ t : T (e.g. t[σ])
 _[_] : ∀ {Γ Δ : Γ} {T : Type}
@@ -280,9 +299,11 @@ zero [ σ ] = zero
 suc [ σ ] = suc
 rec [ σ ] = rec
 (` `Z) [ _ , x ] = x
-(` (`S x)) [ σ , _ ] = (` x) [ σ ]
+(` (`S x)) [ σ , _ ] = ` x [ σ ]
 (ƛ t) [ σ ] = ƛ (t [ σ ↑ , ` `Z ])
-(r · s) [ σ ] = (r [ σ ]) · (s [ σ ])
+(r · s) [ σ ] = r [ σ ] · s [ σ ]
+
+infix 8 _[_]
 
 -- We define a substitution that shifts
 -- indices an arbitrary amount of times
@@ -315,6 +336,8 @@ _[_/x] : ∀ {Γ : Γ} {S T : Type}
     ---------
   → Γ ⊢ S
 s [ t /x] =  s [ id , t ]
+
+infix 8 _[_/x]
 
 -- With these defined, we introduce a new relation between two
 -- terms: definitional equality. In the thesis, this is
@@ -394,6 +417,13 @@ data _==_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
           → t₁ == t₃
 
 infix 3 _==_
+
+-- Equivaleny terms are definitionally equal
+≡→== : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
+     → t ≡ t′
+       -------
+     → t == t′
+≡→== pf rewrite pf = refl
 
 module ==-Reasoning where
   infix  1 begin_
@@ -503,14 +533,84 @@ _≤?_ : ∀ (Γ′ Γ : Γ) → Dec (Γ′ ≤ Γ)
 ≤-trans (≤-, pf) ≤-refl = ≤-, pf
 ≤-trans (≤-, pf₁) (≤-, pf₂) = ≤-, (≤-trans pf₁ (≤-, pf₂))
 
--- Some lemmas around substitution/renaming
--- and its relation to definitional equality
--- that may or may not be useful
+≤-trans-refl : ∀ {Γ′ Γ : Γ} {Γ′≤Γ : Γ′ ≤ Γ}
+             → ≤-trans Γ′≤Γ ≤-refl ≡ Γ′≤Γ
+≤-trans-refl {Γ′≤Γ = ≤-refl} = refl
+≤-trans-refl {Γ′≤Γ = ≤-, pf} = refl
 
--- TODO: need a rename-subst-commute lemma
+-- Substitution / renaming lemmas
+
+-- Renaming a lookup judgement is equivalent to applying the
+-- renaming to a variable with that lookup judgement
+rename≡[x]ᵨ : ∀ {Γ Δ : Γ} {T : Type} {x : Δ ∋ T} {σᵨ : Γ ⊩ᵨ Δ}
+            → ` (rename x σᵨ) ≡ ` x [ σᵨ ]ᵨ
+rename≡[x]ᵨ {x = `Z} {σᵨ , y} = refl
+rename≡[x]ᵨ {x = `S x} {σᵨ , y} = rename≡[x]ᵨ {x = x} {σᵨ}
+
+-- Applying a shifted renaming to a variable is equivalent
+-- to incrementing the original renaming of the variable's
+-- lookup judgemnet:
+--   ` x [ σ ↑ ] ≡ `S (rename x σ) (where σ is a renaming substitution)
+shift-var : ∀ {Γ Δ : Γ} {S T : Type} {x : Γ ∋ T} {σᵨ : Δ ⊩ᵨ Γ}
+          → ` x [ substᵨ (_↑ᵨ {T = S} σᵨ) ] ≡ ` (`S (rename x σᵨ))
+shift-var {x = `Z} {_ , _} = refl
+shift-var {x = `S x} {σᵨ , _} = shift-var {x = x} {σᵨ}
+
+-- Specialized version of the previous lemma
+shift-rename : ∀ {Γ Δ : Γ} {S T : Type} {x : Γ ∋ T} {σᵨ : Δ ⊩ᵨ Γ}
+            → rename x (_↑ᵨ {T = S} σᵨ) ≡ `S (rename x σᵨ)
+shift-rename {x = `Z} {_ , _} = refl
+shift-rename {x = `S x} {σᵨ , _} = shift-rename {x = x} {σᵨ}
+
+-- Renaming with the identity renaming has no effect
+rename-id : ∀ {Γ : Γ} {T : Type} {x : Γ ∋ T}
+          → rename x idᵨ ≡ x
+rename-id {x = `Z} = refl
+rename-id {x = (`S_ {_} {S} x)}
+  rewrite shift-rename {S = S} {x = x} {σᵨ = idᵨ} | rename-id {x = x} = refl
+
+-- Shifting is commutative between renaming/substitution: a shifted
+-- renaming substitution is equivalent to a substitution created from
+-- a shifted renaming
+shift-rename-subst : ∀ {Γ Δ : Γ} {T : Type} {σᵨ : Γ ⊩ᵨ Δ}
+                   → substᵨ (_↑ᵨ {T = T} σᵨ) ≡ _↑ {T = T} (substᵨ σᵨ)
+shift-rename-subst {σᵨ = ∅} = refl
+shift-rename-subst {T = T} {σᵨ = _,_ {S = S} σᵨ x}
+  rewrite shift-rename-subst {T = T} {σᵨ = σᵨ}
+        | ≡-sym (rename≡[x]ᵨ {x = x} {σᵨ = _↑ᵨ {T = T} idᵨ})
+        | shift-rename {S = T} {x = x} {σᵨ = idᵨ}
+        | rename-id {x = x}                                 = refl
+
+-- Lemma for expanding an identity substitution once
+id≡↑id,x : ∀ {Γ : Γ} {T : Type} → id {Γ , T} ≡ (_↑ {T = T} id , ` `Z)
+id≡↑id,x {∅} = refl
+id≡↑id,x {Γ , T} {S}
+  rewrite id≡↑id,x {Γ} {T}
+        | shift-rename-subst {Γ , T} {Γ} {S} {σᵨ = idᵨ ↑ᵨ} = refl
+
+-- The identity substititon has no effect
+id-≡ : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
+     → t [ id ] ≡ t
+id-≡ {t = zero} = refl
+id-≡ {t = suc} = refl
+id-≡ {t = rec} = refl
+id-≡ {t = ` `Z} = refl
+id-≡ {t = ` (`S_ {_} {S} x)}
+  rewrite shift-var {S = S} {x = x} {σᵨ = idᵨ} | rename-id {x = x} = refl
+id-≡ {Γ} {T} {ƛ_ {S} t} rewrite ≡-sym (id≡↑id,x {Γ} {S}) | id-≡ {t = t} = refl
+id-≡ {t = r · s} rewrite id-≡ {t = r} | id-≡ {t = s} = refl
+
+-- TODO: need a rename-subst-commute lemma ?
 
 postulate
-  -- TODO: prove ?
+  -- Weakening substitutions are transitive
+  weaken-trans : ∀ {Γ₃ Γ₂ Γ₁ : Γ} {T : Type}
+    → (Γ₃≤Γ₂ : Γ₃ ≤ Γ₂)
+    → (Γ₂≤Γ₁ : Γ₂ ≤ Γ₁)
+    → (t : Γ₁ ⊢ T)
+    → t [ weaken Γ₂≤Γ₁ ] [ weaken Γ₃≤Γ₂ ] ≡ t [ weaken (≤-trans Γ₃≤Γ₂ Γ₂≤Γ₁) ]
+
+  -- TODO: not sure if this lemma will be necessary
   ==-rename : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T}
               {ρ : Δ ⊩ᵨ Γ}
             → t == t′

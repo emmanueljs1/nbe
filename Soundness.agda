@@ -1,11 +1,12 @@
 module Soundness where
 
+import Relation.Binary.PropositionalEquality as Eq
 open import Data.Unit using (⊤; tt)
 open import Data.Empty using (⊥)
 open import Data.Sum using (inj₁; inj₂)
 open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
 open import Relation.Nullary using (yes; no)
-open import Relation.Binary.PropositionalEquality using (refl)
+open Eq using (refl; _≡_) renaming (sym to ≡-sym; trans to ≡-trans)
 
 open import SystemT
 open import NbE
@@ -36,16 +37,7 @@ open import NbE
 _ext-⊢_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ ≤ Γ → Γ ⊢ T → Γ′ ⊢ T
 pf ext-⊢ t = t [ weaken pf ]
 
-infix 4 _ext-⊢_
-
--- A term extended twice can be "collapsed" to
--- a single extension
-ext-⊢-collapse : ∀ {Γ₃ Γ₂ Γ₁ : Γ} {T : Type}
-  → (Γ₃≤Γ₂ : Γ₃ ≤ Γ₂)
-  → (Γ₂≤Γ₁ : Γ₂ ≤ Γ₁)
-  → (t : Γ₁ ⊢ T)
-  → Γ₃≤Γ₂ ext-⊢ (Γ₂≤Γ₁ ext-⊢ t) == (≤-trans Γ₃≤Γ₂ Γ₂≤Γ₁) ext-⊢ t
-ext-⊢-collapse = {!!}
+infix 5 _ext-⊢_
 
 -- The next function we define "lifts"
 -- definitional equality over liftable neutrals
@@ -176,7 +168,7 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
         -- definitional equality to prove the desired goal
         begin
           Γ″≤Γ′ ext-⊢ (Γ′≤Γ ext-⊢ 𝓊) · s
-        ==⟨ app-compatible (ext-⊢-collapse Γ″≤Γ′ Γ′≤Γ 𝓊) refl ⟩
+        ==⟨ app-compatible (≡→== (weaken-trans Γ″≤Γ′ Γ′≤Γ 𝓊)) refl ⟩
           (Γ″≤Γ ext-⊢ 𝓊) · (Γ″≤Γ′ ext-⊢ s)
         ==⟨ app-compatible 𝓊==𝓊″ refl ⟩
           𝓊″ · (Γ″≤Γ′ ext-⊢ s)
@@ -327,14 +319,54 @@ _⊨_ {T} Γ t =
 -- relations
 fundamental-lemma : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
                   → Γ ⊨ t
-fundamental-lemma = {!!}
+fundamental-lemma {t = zero} σ∥Ⓡ∥ρ _ = refl
+fundamental-lemma {t = suc} σ∥Ⓡ∥ρ {s = s} Γ′≤Γ pf Γ″≤Γ′
+  with pf Γ″≤Γ′
+... | s==a = ⟨ Γ″≤Γ′ ext-⊢ s , ⟨ refl , s==a ⟩ ⟩
+fundamental-lemma {t = rec} σ∥Ⓡ∥ρ = {!!}
+fundamental-lemma {t = ` `Z} {σ = _ , _ } {⟨ _ , _ ⟩} ⟨ _ , xⓇa ⟩ = xⓇa
+fundamental-lemma {t = ` (`S x)} {σ = _ , _} {⟨ _ , _ ⟩} ⟨ σ∥Ⓡ∥ρ , _ ⟩ =
+  fundamental-lemma {t = ` x} σ∥Ⓡ∥ρ
+fundamental-lemma {t = ƛ t} σ∥Ⓡ∥ρ Γ′≤Γ sⓇa = {!!}
+fundamental-lemma {t = r · s} {σ = σ} σ∥Ⓡ∥ρ
+  with fundamental-lemma {t = r} σ∥Ⓡ∥ρ | fundamental-lemma {t = s} σ∥Ⓡ∥ρ
+... | Γ⊨r                              | Γ⊨s
+  with Γ⊨r ≤-refl Γ⊨s
+... | pf
+  rewrite id-≡ {t = r [ σ ]} = pf
 
 -- For the identity substitution we have that Γ ⊢ id : Γ,
--- which we prove using our lemma that Γ,x:T ⊢ x : T Ⓡ ↑ᵀ (𝓍ᵀ Γ)
+-- which we prove using our lemma that Γ,x:T ⊢ x : T Ⓡ ↑ᵀ (𝓍ᵀ Γ),
+-- and a few other lemmas
+
+-- If the logical relation Γ ⊢ t : T Ⓡ a holds, then for all Γ′ ≤ Γ,
+-- Γ′ ⊢ t : T Ⓡ a holds as well
+Ⓡ-ext : ∀ {Γ′ Γ : Γ} {T : Type} {Γ′≤Γ : Γ′ ≤ Γ} {t : Γ ⊢ T} {a : ⟦ T ⟧}
+      → t Ⓡ a
+      → Γ′≤Γ ext-⊢ t Ⓡ a
+Ⓡ-ext {T = nat} {Γ′≤Γ} {t} pf Γ″≤Γ′
+  rewrite weaken-trans Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ)
+Ⓡ-ext {T = S ⇒ T} {Γ′≤Γ} {t} pf Γ″≤Γ′ sⓇa
+  rewrite weaken-trans Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ) sⓇa
+
+-- A logical relation for a shifted substitution holds
+-- if the logical relation holds for the original substitution
+∥Ⓡ∥-↑ : ∀ {Γ Δ : Γ} {T : Type} {σᵨ : Γ ⊩ᵨ Δ} {ρ : ⟦ Δ ⟧}
+      → substᵨ σᵨ ∥Ⓡ∥ ρ
+      → substᵨ (_↑ᵨ {T = T} σᵨ) ∥Ⓡ∥ ρ
+∥Ⓡ∥-↑ {σᵨ = ∅} pf = tt
+∥Ⓡ∥-↑ {T = T} {σᵨ = _ , x} {⟨ _ , a ⟩} ⟨ pf , `xⓇa ⟩ = ⟨ ∥Ⓡ∥-↑ pf , lemma ⟩
+  where
+    lemma : ` (`S x) Ⓡ a
+    lemma
+      with Ⓡ-ext {Γ′≤Γ = ≤-, {T = T} ≤-refl} {t = ` x} `xⓇa
+    ... | `SxⓇa
+      rewrite shift-var {S = T} {x = x} {σᵨ = idᵨ} | rename-id {x = x} = `SxⓇa
+
 idⓇ↑Γ : ∀ {Γ : Γ}
        → id ∥Ⓡ∥ (↑Γ Γ)
 idⓇ↑Γ {∅} = tt
-idⓇ↑Γ {Γ , T} = {!!}
+idⓇ↑Γ {Γ , T} = ⟨ ∥Ⓡ∥-↑ {T = T} idⓇ↑Γ , xⓇ↑ᵀ𝓍̂ ⟩
 
 -- With this fact, we arrive at the soundness of NbE:
 soundness : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
@@ -344,4 +376,4 @@ soundness {Γ} {T} {t}
 ... | pf
   with Ⓡ→== pf ≤-refl
 ... | pf                  =
-  trans {!!} pf
+  trans (≡→== (≡-trans (≡-sym id-≡) (≡-sym id-≡))) pf
