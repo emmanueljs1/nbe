@@ -199,12 +199,12 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
   ∎
   where
     -- For this case, we additionally need a lemma showing
-    -- that if a term of type nat is logically related
-    -- to an object a of type ℕ̂ (i.e. a natural with
-    -- embedded liftable neutrals), then it is
+    -- that if a term of type nat is definitionally
+    -- equal to an object a of type ℕ̂ (i.e. a natural
+    -- with embedded liftable neutrals), then it is
     -- definitionally equal to the reification of
     -- the object a. We can prove this by induction
-    -- on the object of type ℕ̂
+    -- on a
     lemma : ∀ {Γ : Γ} {n : Γ ⊢ nat} {a : ⟦ nat ⟧}
           → n ==ℕ̂ a
             ----------
