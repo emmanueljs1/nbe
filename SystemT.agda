@@ -611,7 +611,10 @@ postulate
     → t [ weaken Γ₂≤Γ₁ ] [ weaken Γ₃≤Γ₂ ] ≡ t [ weaken (≤-trans Γ₃≤Γ₂ Γ₂≤Γ₁) ]
 
   -- TODO: not sure if this lemma will be necessary
-  ==-rename : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T}
-              {ρ : Δ ⊩ᵨ Γ}
+  ==-rename : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T} {σᵨ : Δ ⊩ᵨ Γ}
             → t == t′
-            → t [ ρ ]ᵨ == t′ [ ρ ]ᵨ
+            → t [ σᵨ ]ᵨ == t′ [ σᵨ ]ᵨ
+
+  ==-subst : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T} {σ : Δ ⊩ Γ}
+           → t == t′
+           → t [ σ ] == t′ [ σ ]

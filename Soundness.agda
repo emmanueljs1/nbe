@@ -34,10 +34,10 @@ open import NbE
 --
 -- Really, this is just notation for applying a weakening
 -- substitution
-_ext-⊢_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ ≤ Γ → Γ ⊢ T → Γ′ ⊢ T
-pf ext-⊢ t = t [ weaken pf ]
+_≤⊢_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ ≤ Γ → Γ ⊢ T → Γ′ ⊢ T
+pf ≤⊢ t = t [ weaken pf ]
 
-infix 5 _ext-⊢_
+infix 5 _≤⊢_
 
 -- The next function we define "lifts"
 -- definitional equality over liftable neutrals
@@ -90,7 +90,8 @@ _Ⓡ_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
 _Ⓡ_ {Γ} {nat} t 𝓋̂ =
   ∀ {Γ′ : SystemT.Γ}
   → (Γ′≤Γ : Γ′ ≤ Γ)
-  → Γ′≤Γ ext-⊢ t ==ℕ̂ 𝓋̂
+    ---------------
+  → Γ′≤Γ ≤⊢ t ==ℕ̂ 𝓋̂
 
 -- The relation defined over functions:
 --   Γ ⊢ r : S → T Ⓡ f =
@@ -99,10 +100,42 @@ _Ⓡ_ {Γ} {S ⇒ T} r f =
   ∀ {Γ′ : SystemT.Γ} {s : Γ′ ⊢ S} {a : ⟦ S ⟧}
   → (Γ′≤Γ : Γ′ ≤ Γ)
   → s Ⓡ a
-    -------------------------
-  → (Γ′≤Γ ext-⊢ r) · s Ⓡ f a
+    ----------------------
+  → (Γ′≤Γ ≤⊢ r) · s Ⓡ f a
 
 infix 4 _Ⓡ_
+
+-- Some lemmas about Kripe logical relations
+
+-- Kripe logical relations are transitive with respect to
+-- definitional equality
+==-Ⓡ : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T} {a : ⟦ T ⟧}
+     → t == t′
+     → t Ⓡ a
+       -------
+     → t′ Ⓡ a
+==-Ⓡ {T = nat} {a = zero} t==t′ pf Γ′≤Γ =
+  trans (sym (==-subst t==t′)) (pf Γ′≤Γ)
+==-Ⓡ {T = nat} {a = suc a} t==t′ pf Γ′≤Γ
+  with pf Γ′≤Γ
+... | ⟨ n , ⟨ t==sn , n==a ⟩ ⟩ =
+  ⟨ n , ⟨ trans (sym (==-subst t==t′)) t==sn , n==a ⟩ ⟩
+==-Ⓡ {T = nat} {a = ne 𝓊̂} t==t′ pf {Γ′} Γ′≤Γ
+  with 𝓊̂ Γ′          | pf Γ′≤Γ
+... | inj₁ ⟨ 𝓊 , _ ⟩ | t==𝓊 =
+  trans (sym (==-subst t==t′)) t==𝓊
+==-Ⓡ {T = S ⇒ T} t==t′ pf Γ′≤Γ sⓇa =
+  ==-Ⓡ (app-compatible (==-subst t==t′) refl) (pf Γ′≤Γ sⓇa)
+
+-- If the logical relation Γ ⊢ t : T Ⓡ a holds, then for all Γ′ ≤ Γ,
+-- Γ′ ⊢ t : T Ⓡ a holds as well
+Ⓡ-ext : ∀ {Γ′ Γ : Γ} {T : Type} {Γ′≤Γ : Γ′ ≤ Γ} {t : Γ ⊢ T} {a : ⟦ T ⟧}
+      → t Ⓡ a
+      → Γ′≤Γ ≤⊢ t Ⓡ a
+Ⓡ-ext {T = nat} {Γ′≤Γ} {t} pf Γ″≤Γ′
+  rewrite weaken-trans Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ)
+Ⓡ-ext {T = S ⇒ T} {Γ′≤Γ} {t} pf Γ″≤Γ′ sⓇa
+  rewrite weaken-trans Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ) sⓇa
 
 -- The Kripke logical relation is "sandwiched" between
 -- reflection and reification. This means that we should
@@ -110,19 +143,19 @@ infix 4 _Ⓡ_
 -- on types:
 
 -- (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : T) ⇒ Γ ⊢ 𝓊 : T Ⓡ ↑ᵀ 𝓊̂
-==→Ⓡ : ∀ {Γ : Γ} {T : Type} {𝓊 : Γ ⊢ T} {𝓊̂ : Ne↑ T}
+==↑-Ⓡ : ∀ {Γ : Γ} {T : Type} {𝓊 : Γ ⊢ T} {𝓊̂ : Ne↑ T}
       → (∀ {Γ′ : SystemT.Γ}
          → (Γ′≤Γ : Γ′ ≤ Γ)
-         → Γ′≤Γ ext-⊢ 𝓊 ==↑ 𝓊̂)
-        ----------------------
+         → Γ′≤Γ ≤⊢ 𝓊 ==↑ 𝓊̂)
+        -------------------
       → 𝓊 Ⓡ (↑ᵀ 𝓊̂)
 
 -- Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ′ : T
-Ⓡ→== : ∀ {Γ′ Γ : Γ} {T : Type} {t : Γ ⊢ T} {a : ⟦ T ⟧}
-     → t Ⓡ a
-       ---------------------
-     → (Γ′≤Γ : Γ′ ≤ Γ)
-     → Γ′≤Γ ext-⊢ t == ↓ᵀᵧ a
+Ⓡ-==↓ : ∀ {Γ′ Γ : Γ} {T : Type} {t : Γ ⊢ T} {a : ⟦ T ⟧}
+      → t Ⓡ a
+        ---------------------
+      → (Γ′≤Γ : Γ′ ≤ Γ)
+      → Γ′≤Γ ≤⊢ t == ↓ᵀᵧ a
 
 -- A consequence of the first implication is that
 -- Γ , x:T ⊢ x Ⓡ ↑ᵀ (𝓍̂ Γ), which will be helpful for proving the
@@ -133,20 +166,20 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
 
 -- To prove the first implication, first we show that it always
 -- holds for liftable neutral terms of type nat
-==→Ⓡ {T = nat} pf Γ′≤Γ = pf Γ′≤Γ
+==↑-Ⓡ {T = nat} pf Γ′≤Γ = pf Γ′≤Γ
 -- Now, for liftable neutral terms of type S → T, we prove that
 -- the relation holds for ↑ᵀ (𝓊̂ · ↓ˢ a)
-==→Ⓡ {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ sⓇa =
+==↑-Ⓡ {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} {s} {a} Γ′≤Γ sⓇa =
   -- We prove the relation holds by using our induction
   -- hypothesis, so that our new goal is to prove that
   -- Γ″ ⊢ 𝓊 s  = (𝓊̂ · (↓ˢ a)) Γ″ : T
   -- for any Γ″ that is an extension of Γ′ (which itself
   -- extends Γ).
-  ==→Ⓡ 𝓊·s==𝓊̂·↓ˢa
+  ==↑-Ⓡ 𝓊·s==𝓊̂·↓ˢa
     where
       𝓊·s==𝓊̂·↓ˢa : ∀ {Γ″ : Γ}
-        → (Γ″≤Γ′ : Γ″ ≤ Γ′)
-        → Γ″≤Γ′ ext-⊢ (Γ′≤Γ ext-⊢ 𝓊) · s ==↑ 𝓊̂ ·↑ (↓ᵀ a)
+                 → (Γ″≤Γ′ : Γ″ ≤ Γ′)
+                 → Γ″≤Γ′ ≤⊢ (Γ′≤Γ ≤⊢ 𝓊) · s ==↑ 𝓊̂ ·↑ (↓ᵀ a)
       𝓊·s==𝓊̂·↓ˢa  {Γ″} Γ″≤Γ′
         -- Note that (𝓊̂ · (↓ˢ a)) Γ″ is equivalent to
         -- 𝓊̂(Γ″) · (↓ˢ a)(Γ″). First, we deconstruct 𝓊̂ (Γ″),
@@ -162,16 +195,16 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
         -- alongside the fact that s Ⓡ a, to have evidence
         -- that Γ″ ⊢ s : S is definitionally equal to
         -- ↓ˢ a Γ″
-        with Ⓡ→== sⓇa Γ″≤Γ′
+        with Ⓡ-==↓ sⓇa Γ″≤Γ′
       ... | s==↓ᵀᵧa =
         -- We can now use equational reasoning for
         -- definitional equality to prove the desired goal
         begin
-          Γ″≤Γ′ ext-⊢ (Γ′≤Γ ext-⊢ 𝓊) · s
+          Γ″≤Γ′ ≤⊢ (Γ′≤Γ ≤⊢ 𝓊) · s
         ==⟨ app-compatible (≡→== (weaken-trans Γ″≤Γ′ Γ′≤Γ 𝓊)) refl ⟩
-          (Γ″≤Γ ext-⊢ 𝓊) · (Γ″≤Γ′ ext-⊢ s)
+          (Γ″≤Γ ≤⊢ 𝓊) · (Γ″≤Γ′ ≤⊢ s)
         ==⟨ app-compatible 𝓊==𝓊″ refl ⟩
-          𝓊″ · (Γ″≤Γ′ ext-⊢ s)
+          𝓊″ · (Γ″≤Γ′ ≤⊢ s)
         ==⟨ app-compatible refl s==↓ᵀᵧa ⟩
           𝓊″ · ↓ᵀᵧ a
         ∎
@@ -182,16 +215,16 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
 -- and first prove it for type nat. If the term is logically
 -- related to zero, the implication holds immediately from
 -- our given proof
-Ⓡ→== {T = nat} {a = zero} pf Γ′≤Γ with ↓ᵀ {nat} zero
+Ⓡ-==↓ {T = nat} {a = zero} pf Γ′≤Γ with ↓ᵀ {nat} zero
 ... | _ = pf Γ′≤Γ
 -- Otherwise, if the term is logically related to
 -- a successor of a natural, our given proof
 -- similarly leads to the implication
-Ⓡ→== {T = nat} {t} {suc a} pf Γ′≤Γ
+Ⓡ-==↓ {T = nat} {t} {suc a} pf Γ′≤Γ
   with pf Γ′≤Γ
 ... | ⟨ n , ⟨ t≡sn , n≡a ⟩ ⟩ =
   begin
-    Γ′≤Γ ext-⊢ t
+    Γ′≤Γ ≤⊢ t
   ==⟨ t≡sn ⟩
     suc · n
   ==⟨ app-compatible refl (lemma {a = a} n≡a) ⟩
@@ -221,7 +254,7 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
 -- Lastly, if the term is logically related to an
 -- embedded liftable neutral, the implication also
 -- holds immediately from our given proof
-Ⓡ→== {Γ′} {T = nat} {a = ne 𝓊̂} pf Γ′≤Γ
+Ⓡ-==↓ {Γ′} {T = nat} {a = ne 𝓊̂} pf Γ′≤Γ
   with 𝓊̂ Γ′           | pf Γ′≤Γ
 ... | inj₁ ⟨ 𝓊 , _ ⟩  | t≡𝓊     = t≡𝓊
 -- For our inductive step, we prove the implication
@@ -231,7 +264,7 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
 -- which, by definition, expands to:
 --   Γ′ ⊢ t = λx. ↓ᵀ f a (Γ′ , x:S) : T
 --     (where a = ↑ᵀ 𝓍̂ˢ Γ′)
-Ⓡ→== {Γ′} {T = S ⇒ _} pf Γ′≤Γ
+Ⓡ-==↓ {Γ′} {T = S ⇒ _} pf Γ′≤Γ
   with ↑ᵀ {S} (𝓍̂ S Γ′) | xⓇ↑ᵀ𝓍̂ {Γ′} {S}
 ... | a                | xⓇa =
   -- We prove this by η expanding t to λx. t x and
@@ -259,14 +292,14 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
     (abs-compatible
       (trans
         (app-compatible {!!} refl)
-        (Ⓡ→== (pf (≤-, {T = S} Γ′≤Γ) xⓇa) ≤-refl)))
+        (Ⓡ-==↓ (pf (≤-, {T = S} Γ′≤Γ) xⓇa) ≤-refl)))
 
 -- Using our first implication, we
 -- prove Γ , x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂
-xⓇ↑ᵀ𝓍̂ {_} {T} = ==→Ⓡ x==𝓍̂ where
+xⓇ↑ᵀ𝓍̂ {_} {T} = ==↑-Ⓡ x==𝓍̂ where
   x==𝓍̂ : ∀ {Γ Γ′ : Γ}
        → (Γ′≤Γ,T : Γ′ ≤ (Γ , T))
-       → Γ′≤Γ,T ext-⊢ ` `Z ==↑ 𝓍̂ T Γ
+       → Γ′≤Γ,T ≤⊢ ` `Z ==↑ 𝓍̂ T Γ
   x==𝓍̂ {Γ} {Γ′} pf
     with Γ′ ≤? (Γ , T)
   ... | no ¬pf = ¬pf pf
@@ -304,6 +337,20 @@ _∥Ⓡ∥_ : ∀ {Γ Δ : Γ}
 
 infix 4 _∥Ⓡ∥_
 
+-- A logical relation for a shifted substitution holds
+-- if the logical relation holds for the original substitution
+∥Ⓡ∥-↑ : ∀ {Γ Δ : Γ} {T : Type} {σᵨ : Γ ⊩ᵨ Δ} {ρ : ⟦ Δ ⟧}
+      → substᵨ σᵨ ∥Ⓡ∥ ρ
+      → substᵨ (_↑ᵨ {T = T} σᵨ) ∥Ⓡ∥ ρ
+∥Ⓡ∥-↑ {σᵨ = ∅} pf = tt
+∥Ⓡ∥-↑ {T = T} {σᵨ = _ , x} {⟨ _ , a ⟩} ⟨ pf , `xⓇa ⟩ = ⟨ ∥Ⓡ∥-↑ pf , lemma ⟩
+  where
+    lemma : ` (`S x) Ⓡ a
+    lemma
+      with Ⓡ-ext {Γ′≤Γ = ≤-, {T = T} ≤-refl} {t = ` x} `xⓇa
+    ... | `SxⓇa
+      rewrite shift-var {S = T} {x = x} {σᵨ = idᵨ} | rename-id {x = x} = `SxⓇa
+
 -- We introduce the semantic typing judgement
 -- Γ ⊨ t : T as follows
 _⊨_ : ∀ {T : Type} → (Γ : Γ) → Γ ⊢ T → Set
@@ -320,10 +367,47 @@ _⊨_ {T} Γ t =
 fundamental-lemma : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
                   → Γ ⊨ t
 fundamental-lemma {t = zero} σ∥Ⓡ∥ρ _ = refl
-fundamental-lemma {t = suc} σ∥Ⓡ∥ρ {s = s} Γ′≤Γ pf Γ″≤Γ′
-  with pf Γ″≤Γ′
-... | s==a = ⟨ Γ″≤Γ′ ext-⊢ s , ⟨ refl , s==a ⟩ ⟩
-fundamental-lemma {t = rec} σ∥Ⓡ∥ρ = {!!}
+fundamental-lemma {t = suc} σ∥Ⓡ∥ρ {s = s} Δ′≤Δ pf Δ″≤Δ′
+  with pf Δ″≤Δ′
+... | s==a = ⟨ Δ″≤Δ′ ≤⊢ s , ⟨ refl , s==a ⟩ ⟩
+fundamental-lemma {t = rec} _ {s = s} _ pf Δ″≤Δ′ _ {s = sz} {zero} Δ‴≤Δ″ pf″
+  with pf″ ≤-refl
+... | sz==zero rewrite id-≡ {t = sz} =
+  ==-Ⓡ (app-compatible refl (sym sz==zero))
+    (==-Ⓡ (sym β-rec-z)
+      (==-Ⓡ (≡→== (≡-sym (weaken-trans Δ‴≤Δ″ Δ″≤Δ′ s)))
+        (Ⓡ-ext {Γ′≤Γ = ≤-trans Δ‴≤Δ″ Δ″≤Δ′} pf)))
+fundamental-lemma {t = rec} σ∥Ⓡ∥ρ Δ′≤Δ pf Δ″≤Δ′ pf′ {s = s} {suc a} Δ‴≤Δ″ pf″
+  with pf″ ≤-refl
+... | ⟨ n , ⟨ s==sn , n==a ⟩ ⟩ rewrite id-≡ {t = s} | id-≡ {t = n} =
+  ==-Ⓡ (app-compatible refl (sym s==sn))
+    (==-Ⓡ (sym β-rec-s) {!!})
+fundamental-lemma {t = rec} {σ = σ} _ {s = z} {az} Δ′≤Δ pf {s = s} {as} Δ″≤Δ′
+  pf′ {Δ‴} {n} {ne 𝓊̂} Δ‴≤Δ″ pf″ = ==↑-Ⓡ rec==↑rec↑
+  where
+    rec==↑rec↑ : ∀ {Δ⁗ : Γ}
+      → (Δ⁗≤Δ‴ : Δ⁗ ≤ Δ‴)
+      → Δ⁗≤Δ‴ ≤⊢ (Δ‴≤Δ″ ≤⊢ (Δ″≤Δ′ ≤⊢ (Δ′≤Δ ≤⊢ rec [ σ ]) · z) · s) · n ==↑
+          rec↑ (↓ᵀ az) (↓ᵀ as) 𝓊̂
+    rec==↑rec↑ {Δ⁗} Δ⁗≤Δ‴
+      with 𝓊̂ Δ⁗          | pf″ Δ⁗≤Δ‴
+    ... | inj₁ ⟨ 𝓊 , _ ⟩ | n==𝓊 rewrite id-≡ {t = n}
+      with Ⓡ-==↓ {Δ⁗} pf
+    ... | z==↓ᵀaz =
+      app-compatible
+        (app-compatible
+          (app-compatible
+            refl
+            (trans
+              (≡→== (≡-trans
+                      (weaken-trans Δ⁗≤Δ‴ Δ‴≤Δ″ (Δ″≤Δ′ ≤⊢ z))
+                      (weaken-trans Δ⁗≤Δ″ Δ″≤Δ′ z)))
+              (z==↓ᵀaz Δ⁗≤Δ′)))
+          {!!})
+      n==𝓊
+      where
+        Δ⁗≤Δ″ = ≤-trans Δ⁗≤Δ‴ Δ‴≤Δ″
+        Δ⁗≤Δ′ = ≤-trans Δ⁗≤Δ″ Δ″≤Δ′
 fundamental-lemma {t = ` `Z} {σ = _ , _ } {⟨ _ , _ ⟩} ⟨ _ , xⓇa ⟩ = xⓇa
 fundamental-lemma {t = ` (`S x)} {σ = _ , _} {⟨ _ , _ ⟩} ⟨ σ∥Ⓡ∥ρ , _ ⟩ =
   fundamental-lemma {t = ` x} σ∥Ⓡ∥ρ
@@ -339,29 +423,6 @@ fundamental-lemma {t = r · s} {σ = σ} σ∥Ⓡ∥ρ
 -- which we prove using our lemma that Γ,x:T ⊢ x : T Ⓡ ↑ᵀ (𝓍ᵀ Γ),
 -- and a few other lemmas
 
--- If the logical relation Γ ⊢ t : T Ⓡ a holds, then for all Γ′ ≤ Γ,
--- Γ′ ⊢ t : T Ⓡ a holds as well
-Ⓡ-ext : ∀ {Γ′ Γ : Γ} {T : Type} {Γ′≤Γ : Γ′ ≤ Γ} {t : Γ ⊢ T} {a : ⟦ T ⟧}
-      → t Ⓡ a
-      → Γ′≤Γ ext-⊢ t Ⓡ a
-Ⓡ-ext {T = nat} {Γ′≤Γ} {t} pf Γ″≤Γ′
-  rewrite weaken-trans Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ)
-Ⓡ-ext {T = S ⇒ T} {Γ′≤Γ} {t} pf Γ″≤Γ′ sⓇa
-  rewrite weaken-trans Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ) sⓇa
-
--- A logical relation for a shifted substitution holds
--- if the logical relation holds for the original substitution
-∥Ⓡ∥-↑ : ∀ {Γ Δ : Γ} {T : Type} {σᵨ : Γ ⊩ᵨ Δ} {ρ : ⟦ Δ ⟧}
-      → substᵨ σᵨ ∥Ⓡ∥ ρ
-      → substᵨ (_↑ᵨ {T = T} σᵨ) ∥Ⓡ∥ ρ
-∥Ⓡ∥-↑ {σᵨ = ∅} pf = tt
-∥Ⓡ∥-↑ {T = T} {σᵨ = _ , x} {⟨ _ , a ⟩} ⟨ pf , `xⓇa ⟩ = ⟨ ∥Ⓡ∥-↑ pf , lemma ⟩
-  where
-    lemma : ` (`S x) Ⓡ a
-    lemma
-      with Ⓡ-ext {Γ′≤Γ = ≤-, {T = T} ≤-refl} {t = ` x} `xⓇa
-    ... | `SxⓇa
-      rewrite shift-var {S = T} {x = x} {σᵨ = idᵨ} | rename-id {x = x} = `SxⓇa
 
 idⓇ↑Γ : ∀ {Γ : Γ}
        → id ∥Ⓡ∥ (↑Γ Γ)
@@ -374,6 +435,6 @@ soundness : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
 soundness {Γ} {T} {t}
   with fundamental-lemma {t = t} (idⓇ↑Γ {Γ})
 ... | pf
-  with Ⓡ→== pf ≤-refl
+  with Ⓡ-==↓ pf ≤-refl
 ... | pf                  =
   trans (≡→== (≡-trans (≡-sym id-≡) (≡-sym id-≡))) pf
