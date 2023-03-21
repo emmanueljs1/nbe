@@ -494,14 +494,14 @@ invert-≤ (≤-, x) = ≤-, (invert-≤ x)
   with ≤-antisym Γ≤Γ,T Γ,T≤Γ
 ... | ()
 
-≤-uniq : ∀ {Γ′ Γ : Γ}
+≤-pf-irrelevance : ∀ {Γ′ Γ : Γ}
        → (pf₁ : Γ′ ≤ Γ)
        → (pf₂ : Γ′ ≤ Γ)
        → pf₁ ≡ pf₂
-≤-uniq ≤-refl ≤-refl = refl
-≤-uniq ≤-refl (≤-, pf) = ⊥-elim (Γ≰Γ,T pf)
-≤-uniq (≤-, pf) ≤-refl = ⊥-elim (Γ≰Γ,T pf)
-≤-uniq (≤-, pf₁) (≤-, pf₂) rewrite ≤-uniq pf₁ pf₂ = refl
+≤-pf-irrelevance ≤-refl ≤-refl = refl
+≤-pf-irrelevance ≤-refl (≤-, pf) = ⊥-elim (Γ≰Γ,T pf)
+≤-pf-irrelevance (≤-, pf) ≤-refl = ⊥-elim (Γ≰Γ,T pf)
+≤-pf-irrelevance (≤-, pf₁) (≤-, pf₂) rewrite ≤-pf-irrelevance pf₁ pf₂ = refl
 
 Γ≤∅ : ∀ {Γ : Γ} → Γ ≤ ∅
 Γ≤∅ {∅} = ≤-refl
@@ -603,8 +603,8 @@ id-≡ {t = r · s} rewrite id-≡ {t = r} | id-≡ {t = s} = refl
 -- TODO: need a rename-subst-commute lemma ?
 
 postulate
-  -- Weakening substitutions are transitive
-  weaken-trans : ∀ {Γ₃ Γ₂ Γ₁ : Γ} {T : Type}
+  -- Weakening substitutions can be composed
+  weaken-compose : ∀ {Γ₃ Γ₂ Γ₁ : Γ} {T : Type}
     → (Γ₃≤Γ₂ : Γ₃ ≤ Γ₂)
     → (Γ₂≤Γ₁ : Γ₂ ≤ Γ₁)
     → (t : Γ₁ ⊢ T)

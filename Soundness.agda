@@ -85,8 +85,8 @@ infix 3 _==ℕ̂_
 _Ⓡ_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
 
 -- The relation defined over nats:
---   (t : Γ ⊢ nat) Ⓡ 𝓋̂ =
---     ∀ (Γ′ : Γ). Γ′ ≤ Γ → Γ′ ⊢ t = 𝓋̂(Γ) : nat
+--   Γ ⊢ t : nat Ⓡ 𝓋̂ =
+--     ∀ Γ′ ≤ Γ. Γ′ ⊢ t = 𝓋̂(Γ′) : nat
 _Ⓡ_ {Γ} {nat} t 𝓋̂ =
   ∀ {Γ′ : SystemT.Γ}
   → (Γ′≤Γ : Γ′ ≤ Γ)
@@ -95,7 +95,7 @@ _Ⓡ_ {Γ} {nat} t 𝓋̂ =
 
 -- The relation defined over functions:
 --   Γ ⊢ r : S → T Ⓡ f =
---     ∀ (Γ′ : Γ). s : Γ′ ⊢ s : S Ⓡ a ⇒ Γ′ ⊢ r s : T Ⓡ f(a)
+--     ∀ Γ′ ≤ Γ. Γ′ ⊢ s : S Ⓡ a ⇒ Γ′ ⊢ r s : T Ⓡ f(a)
 _Ⓡ_ {Γ} {S ⇒ T} r f =
   ∀ {Γ′ : SystemT.Γ} {s : Γ′ ⊢ S} {a : ⟦ S ⟧}
   → (Γ′≤Γ : Γ′ ≤ Γ)
@@ -133,9 +133,9 @@ infix 4 _Ⓡ_
       → t Ⓡ a
       → Γ′≤Γ ≤⊢ t Ⓡ a
 Ⓡ-ext {T = nat} {Γ′≤Γ} {t} pf Γ″≤Γ′
-  rewrite weaken-trans Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ)
+  rewrite weaken-compose Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ)
 Ⓡ-ext {T = S ⇒ T} {Γ′≤Γ} {t} pf Γ″≤Γ′ sⓇa
-  rewrite weaken-trans Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ) sⓇa
+  rewrite weaken-compose Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ) sⓇa
 
 -- The Kripke logical relation is "sandwiched" between
 -- reflection and reification. This means that we should
@@ -201,7 +201,7 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
         -- definitional equality to prove the desired goal
         begin
           Γ″≤Γ′ ≤⊢ (Γ′≤Γ ≤⊢ 𝓊) · s
-        ==⟨ app-compatible (≡→== (weaken-trans Γ″≤Γ′ Γ′≤Γ 𝓊)) refl ⟩
+        ==⟨ app-compatible (≡→== (weaken-compose Γ″≤Γ′ Γ′≤Γ 𝓊)) refl ⟩
           (Γ″≤Γ ≤⊢ 𝓊) · (Γ″≤Γ′ ≤⊢ s)
         ==⟨ app-compatible 𝓊==𝓊″ refl ⟩
           𝓊″ · (Γ″≤Γ′ ≤⊢ s)
@@ -304,7 +304,7 @@ xⓇ↑ᵀ𝓍̂ {_} {T} = ==↑-Ⓡ x==𝓍̂ where
     with Γ′ ≤? (Γ , T)
   ... | no ¬pf = ¬pf pf
   ... | yes pf′
-    with 𝓍̂ T Γ | ≤-uniq pf pf′
+    with 𝓍̂ T Γ | ≤-pf-irrelevance pf pf′
   ... | _      | refl
     with ≤ᵨ pf′
   ...| _ , x  = refl
@@ -375,7 +375,7 @@ fundamental-lemma {t = rec} _ {s = s} _ pf Δ″≤Δ′ _ {s = sz} {zero} Δ‴
 ... | sz==zero rewrite id-≡ {t = sz} =
   ==-Ⓡ (app-compatible refl (sym sz==zero))
     (==-Ⓡ (sym β-rec-z)
-      (==-Ⓡ (≡→== (≡-sym (weaken-trans Δ‴≤Δ″ Δ″≤Δ′ s)))
+      (==-Ⓡ (≡→== (≡-sym (weaken-compose Δ‴≤Δ″ Δ″≤Δ′ s)))
         (Ⓡ-ext {Γ′≤Γ = ≤-trans Δ‴≤Δ″ Δ″≤Δ′} pf)))
 fundamental-lemma {t = rec} σ∥Ⓡ∥ρ Δ′≤Δ pf Δ″≤Δ′ pf′ {s = s} {suc a} Δ‴≤Δ″ pf″
   with pf″ ≤-refl
@@ -400,8 +400,8 @@ fundamental-lemma {t = rec} {σ = σ} _ {s = z} {az} Δ′≤Δ pf {s = s} {as} 
             refl
             (trans
               (≡→== (≡-trans
-                      (weaken-trans Δ⁗≤Δ‴ Δ‴≤Δ″ (Δ″≤Δ′ ≤⊢ z))
-                      (weaken-trans Δ⁗≤Δ″ Δ″≤Δ′ z)))
+                      (weaken-compose Δ⁗≤Δ‴ Δ‴≤Δ″ (Δ″≤Δ′ ≤⊢ z))
+                      (weaken-compose Δ⁗≤Δ″ Δ″≤Δ′ z)))
               (z==↓ᵀaz Δ⁗≤Δ′)))
           {!!})
       n==𝓊
