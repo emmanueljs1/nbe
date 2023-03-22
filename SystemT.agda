@@ -589,20 +589,26 @@ id≡↑id,x {Γ , T} {S}
         | shift-rename-subst {Γ , T} {Γ} {S} {σᵨ = idᵨ ↑ᵨ} = refl
 
 -- The identity substititon has no effect
-id-≡ : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
-     → t [ id ] ≡ t
-id-≡ {t = zero} = refl
-id-≡ {t = suc} = refl
-id-≡ {t = rec} = refl
-id-≡ {t = ` `Z} = refl
-id-≡ {t = ` (`S_ {_} {S} x)}
+[id]-identity : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
+              → t [ id ] ≡ t
+[id]-identity {t = zero} = refl
+[id]-identity {t = suc} = refl
+[id]-identity {t = rec} = refl
+[id]-identity {t = ` `Z} = refl
+[id]-identity {t = ` (`S_ {_} {S} x)}
   rewrite shift-var {S = S} {x = x} {σᵨ = idᵨ} | rename-id {x = x} = refl
-id-≡ {Γ} {T} {ƛ_ {S} t} rewrite ≡-sym (id≡↑id,x {Γ} {S}) | id-≡ {t = t} = refl
-id-≡ {t = r · s} rewrite id-≡ {t = r} | id-≡ {t = s} = refl
+[id]-identity {Γ} {T} {ƛ_ {S} t} rewrite ≡-sym (id≡↑id,x {Γ} {S}) | [id]-identity {t = t} = refl
+[id]-identity {t = r · s} rewrite [id]-identity {t = r} | [id]-identity {t = s} = refl
 
 -- TODO: need a rename-subst-commute lemma ?
 
 postulate
+  -- Applying an increment renaming substitution to a term that already
+  -- has a renaming substitution applied to it is equivalent to shifting
+  -- the original substitution
+  incr-↑-≡ : ∀ {Γ Δ : Γ} {S T : Type} {σᵨ : Γ ⊩ᵨ Δ} {t : Δ ⊢ T}
+           → t [ substᵨ σᵨ ] [ incrᵨ {T = S} ]ᵨ ≡ t [ substᵨ (σᵨ ↑ᵨ) ]
+
   -- Weakening substitutions can be composed
   weaken-compose : ∀ {Γ₃ Γ₂ Γ₁ : Γ} {T : Type}
     → (Γ₃≤Γ₂ : Γ₃ ≤ Γ₂)
