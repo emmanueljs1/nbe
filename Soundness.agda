@@ -465,16 +465,25 @@ infix 4 _∥Ⓡ∥_
       → substᵨ σᵨ ∥Ⓡ∥ ρ
       → substᵨ (_↑ᵨ {T = T} σᵨ) ∥Ⓡ∥ ρ
 ∥Ⓡ∥-↑ {σᵨ = ∅} pf = tt
-∥Ⓡ∥-↑ {T = T} {σᵨ = _ , x} {⟨ _ , a ⟩} ⟨ pf , xⓇa ⟩ = ⟨ ∥Ⓡ∥-↑ pf , x↑Ⓡa ⟩
+∥Ⓡ∥-↑ {T = T} {σᵨ = _ , x} {⟨ _ , a ⟩} ⟨ pf , xⓇa ⟩ = ⟨ ∥Ⓡ∥-↑ pf , ↑⊢xⓇa ⟩
   where
     subst-lemma₁ = shift-var {S = T} {x = x} {σᵨ = idᵨ}
     subst-lemma₂ = rename-id {x = x}
 
-    x↑Ⓡa : ` (`S x) Ⓡ a
-    x↑Ⓡa
-      with Ⓡ-ext {Γ′≤Γ = ≤-, {T = T} ≤-refl} {t = ` x} xⓇa
+    Γ,T≤Γ = ≤-, {T = T} ≤-refl
+
+    ↑⊢xⓇa : ` (`S x) Ⓡ a
+    ↑⊢xⓇa
+      with Ⓡ-ext {Γ′≤Γ = Γ,T≤Γ} {t = ` x} xⓇa
     ... | pf
       rewrite subst-lemma₁ | subst-lemma₂ = pf
+
+∥Ⓡ∥-ext : ∀ {Γ′ Γ Δ : Γ} {Γ′≤Γ : Γ′ ≤ Γ} {σ : Γ ⊩ Δ} {ρ : ⟦ Δ ⟧}
+        → σ ∥Ⓡ∥ ρ
+        → σ ∘ (weaken Γ′≤Γ) ∥Ⓡ∥ ρ
+∥Ⓡ∥-ext {σ = ∅} x = tt
+∥Ⓡ∥-ext {Γ′≤Γ = Γ′≤Γ} {σ , s} ⟨ σ∥Ⓡ∥ρ , sⓇa ⟩ =
+  ⟨ ∥Ⓡ∥-ext {Γ′≤Γ = Γ′≤Γ} σ∥Ⓡ∥ρ , Ⓡ-ext {Γ′≤Γ = Γ′≤Γ} sⓇa ⟩
 
 -- We introduce the semantic typing judgement
 -- Γ ⊨ t : T as follows
@@ -504,7 +513,29 @@ fundamental-lemma {t = rec {T}} _ = recⓇ⟦rec⟧
 fundamental-lemma {t = ` `Z} {σ = _ , _ } {⟨ _ , _ ⟩} ⟨ _ , xⓇa ⟩ = xⓇa
 fundamental-lemma {t = ` (`S x)} {σ = _ , _} {⟨ _ , _ ⟩} ⟨ σ∥Ⓡ∥ρ , _ ⟩ =
   fundamental-lemma {t = ` x} σ∥Ⓡ∥ρ
-fundamental-lemma {t = ƛ t} σ∥Ⓡ∥ρ Γ′≤Γ sⓇa = {!!}
+fundamental-lemma {t = ƛ t} {σ = σ} {ρ} σ∥Ⓡ∥ρ Γ′≤Γ {s} {a} sⓇa =
+  ==-Ⓡ (sym β-ƛ) t[σ′][s/x]Ⓡ⟦t⟧⟨ρ,a⟩
+  where
+    subst-lemma₁ =
+      subst-compose {τ = id , s} {weaken Γ′≤Γ ↑ , ` `Z} {t [ σ ↑ , ` `Z ]}
+    subst-lemma₂ =
+     subst-compose {τ = ((weaken Γ′≤Γ ↑) ∘ (id , s)) , s} {σ ↑ , ` `Z} {t}
+
+    t[σ′] = t [ σ ↑ , ` `Z ] [ weaken Γ′≤Γ ↑ , ` `Z ]
+
+    subst-lemma₃ = subst-compose-↑ {τ = id} {weaken Γ′≤Γ} {s}
+    subst-lemma₄ = subst-compose-↑ {τ = weaken Γ′≤Γ ∘ id} {σ} {s}
+    subst-lemma₅ = id-compose-identity {σ = weaken Γ′≤Γ}
+
+    σ″ = ((σ ↑) ∘ (((weaken Γ′≤Γ ↑) ∘ (id , s)) , s))
+
+    σ″Ⓡρ : σ″  ∥Ⓡ∥ ρ
+    σ″Ⓡρ rewrite subst-lemma₃ | subst-lemma₄ | subst-lemma₅ =
+      ∥Ⓡ∥-ext {Γ′≤Γ = Γ′≤Γ} σ∥Ⓡ∥ρ
+
+    t[σ′][s/x]Ⓡ⟦t⟧⟨ρ,a⟩ : t[σ′] [ s /x] Ⓡ ⟦⊢ t ⟧ ⟨ ρ , a ⟩
+    t[σ′][s/x]Ⓡ⟦t⟧⟨ρ,a⟩ rewrite subst-lemma₁ | subst-lemma₂ =
+        fundamental-lemma {t = t} ⟨ σ″Ⓡρ , sⓇa ⟩
 fundamental-lemma {t = r · s} {σ = σ} σ∥Ⓡ∥ρ
   with fundamental-lemma {t = r} σ∥Ⓡ∥ρ | fundamental-lemma {t = s} σ∥Ⓡ∥ρ
 ... | Γ⊨r                              | Γ⊨s

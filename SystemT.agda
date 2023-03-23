@@ -304,6 +304,13 @@ rec [ σ ] = rec
 
 infix 8 _[_]
 
+-- Substitutions can also be composed, by applying
+-- a substitution Γ₁ ⊢ τ : Γ₂ to every term in a
+-- substitution Γ₂ ⊢ σ : Γ₃
+_∘_ : ∀ {Γ₁ Γ₂ Γ₃ : Γ} → Γ₂ ⊩ Γ₃ → Γ₁ ⊩ Γ₂ → Γ₁ ⊩ Γ₃
+∅ ∘ _ = ∅
+(σ , s) ∘ τ = (σ ∘ τ) , s [ τ ]
+
 -- We define a substitution that shifts
 -- indices an arbitrary amount of times
 -- to turn a context which extends
@@ -608,9 +615,21 @@ id≡↑id,x {Γ , T} {S}
 [id]-identity {t = r · s}
   rewrite [id]-identity {t = r} | [id]-identity {t = s} = refl
 
--- TODO: need a rename-subst-commute lemma ?
+id-compose-identity : ∀ {Γ Δ : Γ} {σ : Γ ⊩ Δ}
+                    → σ ∘ id ≡ σ
+id-compose-identity {σ = ∅} = refl
+id-compose-identity {σ = σ , s}
+  rewrite id-compose-identity {σ = σ} | [id]-identity {t = s} = refl
 
 postulate
+  subst-compose : ∀ {Γ₁ Γ₂ Γ₃ : Γ} {T : Type} {τ : Γ₁ ⊩ Γ₂} {σ : Γ₂ ⊩ Γ₃}
+                    {t : Γ₃ ⊢ T}
+                → t [ σ ] [ τ ] ≡ t [ σ ∘ τ ]
+
+  subst-compose-↑ : ∀ {Γ₁ Γ₂ Γ₃ : Γ} {S : Type} {τ : Γ₁ ⊩ Γ₂}
+                      {σ : Γ₂ ⊩ Γ₃} {s : Γ₁ ⊢ S}
+                  → (σ ↑) ∘ (τ , s) ≡ σ ∘ τ
+
   -- Applying an increment renaming substitution to a term that already
   -- has a renaming substitution applied to it is equivalent to shifting
   -- the original substitution
