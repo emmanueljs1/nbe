@@ -203,6 +203,12 @@ rename : ∀ {Γ Δ : Γ} {T : Type}
 rename `Z (σᵨ , x) = x
 rename (`S x) (σᵨ , _) = rename x σᵨ
 
+
+
+_∘ᵨ_ : ∀ {Γ₁ Γ₂ Γ₃ : Γ} → Γ₂ ⊩ᵨ Γ₃ → Γ₁ ⊩ᵨ Γ₂ → Γ₁ ⊩ᵨ Γ₃
+∅ ∘ᵨ _ = ∅
+(σᵨ , x) ∘ᵨ τᵨ = (σᵨ ∘ᵨ τᵨ) , rename x τᵨ
+
 -- Our first renaming substitution will shift
 -- the indices in a renaming by 1, in other words,
 -- given a renaming between Γ and Δ, we can create
@@ -622,11 +628,7 @@ id-compose-identity {σ = σ , s}
   rewrite id-compose-identity {σ = σ} | [id]-identity {t = s} = refl
 
 postulate
-  subst-compose : ∀ {Γ₁ Γ₂ Γ₃ : Γ} {T : Type} {τ : Γ₁ ⊩ Γ₂} {σ : Γ₂ ⊩ Γ₃}
-                    {t : Γ₃ ⊢ T}
-                → t [ σ ] [ τ ] ≡ t [ σ ∘ τ ]
-
-  subst-compose-↑ : ∀ {Γ₁ Γ₂ Γ₃ : Γ} {S : Type} {τ : Γ₁ ⊩ Γ₂}
+  subst-↑-compose : ∀ {Γ₁ Γ₂ Γ₃ : Γ} {S : Type} {τ : Γ₁ ⊩ Γ₂}
                       {σ : Γ₂ ⊩ Γ₃} {s : Γ₁ ⊢ S}
                   → (σ ↑) ∘ (τ , s) ≡ σ ∘ τ
 
@@ -645,6 +647,60 @@ postulate
   ==-subst : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T} {σ : Δ ⊩ Γ}
            → t == t′
            → t [ σ ] == t′ [ σ ]
+
+↑≡incrᵨ : ∀ {Γ Δ : Γ} {S T : Type} {σ : Γ ⊩ Δ} {t : Δ ⊢ T}
+       → t [ σ ↑  ] ≡ t [ σ ] [ incrᵨ {T = S} ]ᵨ
+↑≡incrᵨ {t = zero} = refl
+↑≡incrᵨ {t = suc} = refl
+↑≡incrᵨ {t = rec} = refl
+↑≡incrᵨ {σ = _ , _} {` `Z} = refl
+↑≡incrᵨ {σ = σ , _} {` (`S x)} = ↑≡incrᵨ {σ = σ} {t = ` x}
+↑≡incrᵨ {S = S} {σ = σ} {t = ƛ t}
+-- ƛ t [ (σ ↑) ↑ , ` `Z ] ≡
+--      ƛ (t [ σ ↑ , ` `Z ] [ incrᵨ ↑ᵨ , ` `Z ]
+
+  rewrite ↑≡incrᵨ {σ = _↑ {T = S} σ} {t = {!t!}} = {!!}
+↑≡incrᵨ {S = S} {σ = σ} {r · s}
+  rewrite ↑≡incrᵨ {S = S} {σ = σ} {r} | ↑≡incrᵨ {S = S} {σ = σ} {s} = refl
+
+
+subst-compose-↑ : ∀ {Γ₁ Γ₂ Γ₃ : Γ} {S : Type} {τ : Γ₁ ⊩ Γ₂} {σ : Γ₂ ⊩ Γ₃}
+                → σ ∘ (τ ↑) ≡ _↑ {T = S} (σ ∘ τ)
+subst-compose-↑ {σ = ∅} = refl
+subst-compose-↑ {S = S} {τ = τ} {σ , s}
+  rewrite subst-compose-↑ {S = S} {τ} {σ} = {!!} --↑≡incrᵨ {S = S} {_} {τ} {s} = refl
+
+rename-compose : ∀ {Γ₁ Γ₂ Γ₃ : Γ} {T : Type} {τᵨ : Γ₁ ⊩ᵨ Γ₂} {σᵨ : Γ₂ ⊩ᵨ Γ₃}
+                   { t : Γ₃ ⊢ T}
+               → t [ σᵨ ]ᵨ [ τᵨ ]ᵨ ≡ t [ σᵨ ∘ᵨ τᵨ ]ᵨ
+rename-compose {t = zero} = refl
+rename-compose {t = suc} = refl
+rename-compose {t = rec} = refl
+rename-compose {σᵨ = σᵨ , x} {` `Z} = ≡-sym (rename≡[x]ᵨ {x = x})
+rename-compose {σᵨ = σᵨ , x₁} {` (`S x)} = rename-compose {σᵨ = σᵨ} {` x}
+rename-compose {τᵨ = τᵨ} {σᵨ} {ƛ t}
+  rewrite rename-compose {τᵨ = τᵨ ↑ᵨ , `Z} {σᵨ ↑ᵨ , `Z} {t} = {!!}
+
+rename-compose {τᵨ = τᵨ} {σᵨ} {r · s}
+  rewrite rename-compose {τᵨ = τᵨ} {σᵨ} {r}
+        | rename-compose {τᵨ = τᵨ} {σᵨ} {s} = refl
+
+subst-compose : ∀ {Γ₁ Γ₂ Γ₃ : Γ} {T : Type} {τ : Γ₁ ⊩ Γ₂} {σ : Γ₂ ⊩ Γ₃}
+                  {t : Γ₃ ⊢ T}
+              → t [ σ ] [ τ ] ≡ t [ σ ∘ τ ]
+subst-compose {t = zero} = refl
+subst-compose {t = suc} = refl
+subst-compose {t = rec} = refl
+subst-compose {σ = σ , s} {` `Z} = refl
+subst-compose {σ = σ , s} {` (`S x)} = subst-compose {σ = σ} {` x}
+subst-compose {τ = τ} {σ} {ƛ_ {S = S} t}
+  rewrite subst-compose {τ = τ ↑ , ` `Z} {σ ↑ , ` `Z} {t} = {!!}
+{-
+        | subst-↑-compose {S = S} {τ ↑} {σ} {` `Z}
+        | subst-compose-↑ {S = S} {τ = τ} {σ} = refl
+-}
+subst-compose {τ = τ} {σ} {r · s}
+  rewrite subst-compose {τ = τ} {σ} {r} | subst-compose {τ = τ} {σ} {s} = refl
 
 -- Applying an increment renaming substitution to a term that already
 -- has a weakening substitution applied to it is equivalent to shifting
