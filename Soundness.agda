@@ -295,11 +295,11 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
   begin
     Γ′≤Γ ≤⊢ t
   ==⟨ η ⟩
-    ƛ ((Γ′≤Γ ≤⊢ t) [ incrᵨ ]ᵨ) · ` `Z
+    ƛ (S ↑⊢ Γ′≤Γ ≤⊢ t) · ` `Z
   ==⟨
     abs-compatible (
       begin
-        ((Γ′≤Γ ≤⊢ t) [ incrᵨ ]ᵨ) · ` `Z
+        (S ↑⊢ Γ′≤Γ ≤⊢ t) · ` `Z
       ==⟨ app-compatible subst-lemma refl ⟩
         (≤-, Γ′≤Γ ≤⊢ t) [ id ] · ` `Z
       ==⟨ Ⓡ-==↓ (pf (≤-, Γ′≤Γ) xⓇa) ≤-refl ⟩
@@ -395,11 +395,7 @@ recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ {�
           ≡-sym (incr-↑-≡ {S = nat} {σᵨ = ≤ᵨ Γ⁗≤Γ″} {t = s})
         subst-lemma₃ =
           ≡-sym (weaken-compose Γ⁗≤Γ‴ Γ‴≤Γ″ s)
-        subst-lemma₄ =
-          [id]-identity {t = (Γ⁗≤Γ‴ ≤⊢ Γ‴≤Γ″ ≤⊢ s) [ incrᵨ {T = nat} ]ᵨ
-            [ substᵨ (incrᵨ {T = T}) ]}
-        subst-lemma₅ =
-          shift-incr-≡ {S′ = T} {t = (Γ⁗≤Γ‴ ≤⊢ Γ‴≤Γ″ ≤⊢ s) [ incrᵨ {T = nat} ]ᵨ }
+        subst-lemma₄ = [id]-identity {t = T ↑⊢ nat ↑⊢ Γ⁗≤Γ‴ ≤⊢ Γ‴≤Γ″ ≤⊢ s}
 
         𝓍̂₁ = 𝓍̂ nat Γ⁗
         𝓍̂₂ = 𝓍̂ T (Γ⁗ , nat)
@@ -409,7 +405,7 @@ recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ {�
             Γ⁗,nat,T≤Γ⁗,nat xⓇ↑ᵀ𝓍̂
 
         s·x₁·x₂==↓ᵀas·↑ᵀ𝓍̂₁·↑ᵀ𝓍̂₂ :
-          (Γ⁗≤Γ‴ ≤⊢ Γ‴≤Γ″ ≤⊢ s) [ incrᵨ ]ᵨ [ incrᵨ ]ᵨ · ` (`S `Z) · ` `Z ==
+          (T ↑⊢ nat ↑⊢ Γ⁗≤Γ‴ ≤⊢ Γ‴≤Γ″ ≤⊢ s) · ` (`S `Z) · ` `Z ==
             proj₁ (↓ᵀ (aₛ (↑ᵀ 𝓍̂₁) (↑ᵀ 𝓍̂₂)) (Γ⁗ , nat , T))
         s·x₁·x₂==↓ᵀas·↑ᵀ𝓍̂₁·↑ᵀ𝓍̂₂
           with s·x₁·x₂Ⓡaₛ·↑ᵀ𝓍̂₁↑ᵀ𝓍̂₂
@@ -417,16 +413,16 @@ recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ {�
           rewrite subst-lemma₁ | subst-lemma₂ | subst-lemma₃
           with Ⓡ-==↓ pf-Ⓡ ≤-refl
         ... | pf-==↓
-          rewrite subst-lemma₄ | subst-lemma₅ = pf-==↓
+          rewrite subst-lemma₄ = pf-==↓
 
-        subst-lemma₆ = ≡-sym (weaken-compose Γ⁗≤Γ‴ Γ‴≤Γ′ z)
-        subst-lemma₇ = ≡-sym (weaken-compose Γ‴≤Γ″ Γ″≤Γ′ z)
+        subst-lemma₅ = ≡-sym (weaken-compose Γ⁗≤Γ‴ Γ‴≤Γ′ z)
+        subst-lemma₆ = ≡-sym (weaken-compose Γ‴≤Γ″ Γ″≤Γ′ z)
 
         z==↓ᵀaz : Γ⁗≤Γ‴ ≤⊢ Γ‴≤Γ″ ≤⊢ Γ″≤Γ′ ≤⊢ z == proj₁ (↓ᵀ az Γ⁗)
         z==↓ᵀaz
           with Ⓡ-==↓ {Γ⁗} pf (≤-trans Γ⁗≤Γ‴ Γ‴≤Γ′)
         ... | pf
-          rewrite subst-lemma₆ | subst-lemma₇ = pf
+          rewrite subst-lemma₅ | subst-lemma₆ = pf
 
 -- With that out of the way, having proved the lemma that
 -- Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ : T, we have:
@@ -469,13 +465,16 @@ infix 4 _∥Ⓡ∥_
       → substᵨ σᵨ ∥Ⓡ∥ ρ
       → substᵨ (_↑ᵨ {T = T} σᵨ) ∥Ⓡ∥ ρ
 ∥Ⓡ∥-↑ {σᵨ = ∅} pf = tt
-∥Ⓡ∥-↑ {T = T} {σᵨ = _ , x} {⟨ _ , a ⟩} ⟨ pf , `xⓇa ⟩ = ⟨ ∥Ⓡ∥-↑ pf , lemma ⟩
+∥Ⓡ∥-↑ {T = T} {σᵨ = _ , x} {⟨ _ , a ⟩} ⟨ pf , xⓇa ⟩ = ⟨ ∥Ⓡ∥-↑ pf , x↑Ⓡa ⟩
   where
-    lemma : ` (`S x) Ⓡ a
-    lemma
-      with Ⓡ-ext {Γ′≤Γ = ≤-, {T = T} ≤-refl} {t = ` x} `xⓇa
-    ... | `SxⓇa
-      rewrite shift-var {S = T} {x = x} {σᵨ = idᵨ} | rename-id {x = x} = `SxⓇa
+    subst-lemma₁ = shift-var {S = T} {x = x} {σᵨ = idᵨ}
+    subst-lemma₂ = rename-id {x = x}
+
+    x↑Ⓡa : ` (`S x) Ⓡ a
+    x↑Ⓡa
+      with Ⓡ-ext {Γ′≤Γ = ≤-, {T = T} ≤-refl} {t = ` x} xⓇa
+    ... | pf
+      rewrite subst-lemma₁ | subst-lemma₂ = pf
 
 -- We introduce the semantic typing judgement
 -- Γ ⊨ t : T as follows

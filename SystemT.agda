@@ -252,7 +252,6 @@ incrᵨ : ∀ {Γ : Γ} {T : Type} → (Γ , T) ⊩ᵨ Γ
 idᵨ {∅} = ∅
 idᵨ {Γ , T} = incrᵨ , `Z
 
--- We will use this to establish η-equivalence
 incrᵨ = idᵨ ↑ᵨ
 
 -- A renaming between a context Γ′ and Γ,
@@ -324,6 +323,13 @@ weaken pf = substᵨ (≤ᵨ pf)
 id : ∀ {Γ : Γ} → Γ ⊩ Γ
 id = substᵨ idᵨ
 
+-- To establish η-equivalence, we also define an operation
+-- for applying an increment renaming substitution
+_↑⊢_ : ∀ {Γ : Γ} {T : Type} → (S : Type) → Γ ⊢ T → Γ , S ⊢ T
+_ ↑⊢ t = t [ substᵨ incrᵨ ]
+
+infixr 5 _↑⊢_
+
 -- And now, to finally establish β-equivalence,
 -- we define an operation for substituting the first
 -- free variable in a term Γ , S ⊢ t : T with a
@@ -379,7 +385,7 @@ data _==_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
   η : ∀ {Γ : Γ} {S T : Type}
         {t : Γ ⊢ S ⇒ T}
         ----------------------------
-      → t == ƛ t [ incrᵨ ]ᵨ · ` `Z
+      → t == ƛ (S ↑⊢ t) · ` `Z
 
   -- Compatibility rules
   --
@@ -605,14 +611,11 @@ id≡↑id,x {Γ , T} {S}
 -- TODO: need a rename-subst-commute lemma ?
 
 postulate
-  shift-incr-≡ : ∀ {Γ : Γ} {S T S′ : Type} {t : Γ , S ⊢ T}
-    → t [ substᵨ (_↑ᵨ {T = S′} incrᵨ) , ` (`S `Z) ] ≡ t [ incrᵨ ]ᵨ
-
   -- Applying an increment renaming substitution to a term that already
   -- has a renaming substitution applied to it is equivalent to shifting
   -- the original substitution
   incr-↑-≡ : ∀ {Γ Δ : Γ} {S T : Type} {σᵨ : Γ ⊩ᵨ Δ} {t : Δ ⊢ T}
-           → t [ substᵨ σᵨ ] [ incrᵨ {T = S} ]ᵨ ≡ t [ substᵨ (σᵨ ↑ᵨ) ]
+           → S ↑⊢ (t [ substᵨ σᵨ ]) ≡ t [ substᵨ (σᵨ ↑ᵨ) ]
 
   -- Weakening substitutions can be composed
   weaken-compose : ∀ {Γ₃ Γ₂ Γ₁ : Γ} {T : Type}
