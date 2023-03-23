@@ -597,12 +597,17 @@ id≡↑id,x {Γ , T} {S}
 [id]-identity {t = ` `Z} = refl
 [id]-identity {t = ` (`S_ {_} {S} x)}
   rewrite shift-var {S = S} {x = x} {σᵨ = idᵨ} | rename-id {x = x} = refl
-[id]-identity {Γ} {T} {ƛ_ {S} t} rewrite ≡-sym (id≡↑id,x {Γ} {S}) | [id]-identity {t = t} = refl
-[id]-identity {t = r · s} rewrite [id]-identity {t = r} | [id]-identity {t = s} = refl
+[id]-identity {Γ} {T} {ƛ_ {S} t}
+  rewrite ≡-sym (id≡↑id,x {Γ} {S}) | [id]-identity {t = t} = refl
+[id]-identity {t = r · s}
+  rewrite [id]-identity {t = r} | [id]-identity {t = s} = refl
 
 -- TODO: need a rename-subst-commute lemma ?
 
 postulate
+  shift-incr-≡ : ∀ {Γ : Γ} {S T S′ : Type} {t : Γ , S ⊢ T}
+    → t [ substᵨ (_↑ᵨ {T = S′} incrᵨ) , ` (`S `Z) ] ≡ t [ incrᵨ ]ᵨ
+
   -- Applying an increment renaming substitution to a term that already
   -- has a renaming substitution applied to it is equivalent to shifting
   -- the original substitution
