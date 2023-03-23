@@ -630,12 +630,6 @@ postulate
                       {σ : Γ₂ ⊩ Γ₃} {s : Γ₁ ⊢ S}
                   → (σ ↑) ∘ (τ , s) ≡ σ ∘ τ
 
-  -- Applying an increment renaming substitution to a term that already
-  -- has a renaming substitution applied to it is equivalent to shifting
-  -- the original substitution
-  incr-↑-≡ : ∀ {Γ Δ : Γ} {S T : Type} {σᵨ : Γ ⊩ᵨ Δ} {t : Δ ⊢ T}
-           → S ↑⊢ (t [ substᵨ σᵨ ]) ≡ t [ substᵨ (σᵨ ↑ᵨ) ]
-
   -- Weakening substitutions can be composed
   weaken-compose : ∀ {Γ₃ Γ₂ Γ₁ : Γ} {T : Type}
     → (Γ₃≤Γ₂ : Γ₃ ≤ Γ₂)
@@ -651,3 +645,20 @@ postulate
   ==-subst : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T} {σ : Δ ⊩ Γ}
            → t == t′
            → t [ σ ] == t′ [ σ ]
+
+-- Applying an increment renaming substitution to a term that already
+-- has a weakening substitution applied to it is equivalent to shifting
+-- the weakening substitution
+incr-↑-≡ : ∀ {Γ Γ′ : Γ} {Γ′≤Γ : Γ′ ≤ Γ} {S T : Type} {t : Γ ⊢ T}
+         → S ↑⊢ (t [ weaken Γ′≤Γ ]) ≡ t [ substᵨ (≤ᵨ Γ′≤Γ ↑ᵨ) ]
+incr-↑-≡ {Γ′≤Γ = ≤-refl} {t = t} rewrite [id]-identity {t = t} = refl
+incr-↑-≡ {Γ′≤Γ = ≤-, {T = S₁} Γ′≤Γ} {S₂} {t = t}
+  rewrite ≡-sym (incr-↑-≡ {Γ′≤Γ = Γ′≤Γ} {S₁} {t = t})
+        | weaken-compose (≤-, {T = S₁} ≤-refl) Γ′≤Γ t
+        | weaken-compose
+            (≤-, {T = S₂} ≤-refl)
+            (≤-trans (≤-, {T = S₁} ≤-refl) Γ′≤Γ)
+            t
+        | ≤-pf-irrelevance
+            (≤-trans (≤-, ≤-refl) (≤-trans (≤-, ≤-refl) Γ′≤Γ))
+            (≤-, {T = S₂} (≤-, {T = S₁} Γ′≤Γ))                 = refl

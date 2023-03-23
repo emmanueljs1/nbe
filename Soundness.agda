@@ -309,7 +309,8 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
     proj₁ (↓ᵀ f Γ′)
   ∎
   where
-    subst-lemma = ≡→== (≡-trans (incr-↑-≡ {t = t}) (≡-sym [id]-identity))
+    subst-lemma =
+      ≡→== (≡-trans (incr-↑-≡ {Γ′≤Γ = Γ′≤Γ} {t = t}) (≡-sym [id]-identity))
     a = ↑ᵀ {S} (𝓍̂ S Γ′)
     xⓇa = xⓇ↑ᵀ𝓍̂ {Γ′} {S}
 
@@ -389,13 +390,10 @@ recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ {�
         Γ⁗,nat,T≤Γ⁗ = ≤-, {T = T} Γ⁗,nat≤Γ⁗
         Γ⁗,nat,T≤Γ⁗,nat = ≤-, {T = T} (≤-refl {Γ⁗ , nat})
 
-        subst-lemma₁ =
-          ≡-sym (incr-↑-≡ {S = T} {σᵨ = _↑ᵨ {T = nat} (≤ᵨ Γ⁗≤Γ″)} {t = s})
+        subst-lemma₁ = ≡-sym (incr-↑-≡ {Γ′≤Γ = Γ⁗≤Γ″} {S = nat} {t = s})
         subst-lemma₂ =
-          ≡-sym (incr-↑-≡ {S = nat} {σᵨ = ≤ᵨ Γ⁗≤Γ″} {t = s})
-        subst-lemma₃ =
           ≡-sym (weaken-compose Γ⁗≤Γ‴ Γ‴≤Γ″ s)
-        subst-lemma₄ = [id]-identity {t = T ↑⊢ nat ↑⊢ Γ⁗≤Γ‴ ≤⊢ Γ‴≤Γ″ ≤⊢ s}
+        subst-lemma₃ = [id]-identity {t = T ↑⊢ nat ↑⊢ Γ⁗≤Γ‴ ≤⊢ Γ‴≤Γ″ ≤⊢ s}
 
         𝓍̂₁ = 𝓍̂ nat Γ⁗
         𝓍̂₂ = 𝓍̂ T (Γ⁗ , nat)
@@ -410,19 +408,19 @@ recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ {�
         s·x₁·x₂==↓ᵀas·↑ᵀ𝓍̂₁·↑ᵀ𝓍̂₂
           with s·x₁·x₂Ⓡaₛ·↑ᵀ𝓍̂₁↑ᵀ𝓍̂₂
         ... | pf-Ⓡ
-          rewrite subst-lemma₁ | subst-lemma₂ | subst-lemma₃
+--          rewrite subst-lemma₁ | subst-lemma₂ | subst-lemma₃
           with Ⓡ-==↓ pf-Ⓡ ≤-refl
         ... | pf-==↓
-          rewrite subst-lemma₄ = pf-==↓
+          rewrite subst-lemma₁ | subst-lemma₂ | subst-lemma₃ = pf-==↓
 
-        subst-lemma₅ = ≡-sym (weaken-compose Γ⁗≤Γ‴ Γ‴≤Γ′ z)
-        subst-lemma₆ = ≡-sym (weaken-compose Γ‴≤Γ″ Γ″≤Γ′ z)
+        subst-lemma₄ = ≡-sym (weaken-compose Γ⁗≤Γ‴ Γ‴≤Γ′ z)
+        subst-lemma₅  = ≡-sym (weaken-compose Γ‴≤Γ″ Γ″≤Γ′ z)
 
         z==↓ᵀaz : Γ⁗≤Γ‴ ≤⊢ Γ‴≤Γ″ ≤⊢ Γ″≤Γ′ ≤⊢ z == proj₁ (↓ᵀ az Γ⁗)
         z==↓ᵀaz
           with Ⓡ-==↓ {Γ⁗} pf (≤-trans Γ⁗≤Γ‴ Γ‴≤Γ′)
         ... | pf
-          rewrite subst-lemma₅ | subst-lemma₆ = pf
+          rewrite subst-lemma₄ | subst-lemma₅ = pf
 
 -- With that out of the way, having proved the lemma that
 -- Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ : T, we have:
