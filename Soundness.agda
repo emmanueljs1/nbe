@@ -249,7 +249,7 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
 Ⓡ-==↓ {Γ} {T = nat} {t} {suc a} pf Γ′≤Γ
   with pf Γ′≤Γ
 ... | ⟨ n , ⟨ t==sn , nⓇa ⟩ ⟩
-  with nⓇa ≤-refl
+  with nⓇa ≤-id
 ... | n==ℕ̂a rewrite [id]-identity {t = n} =
   begin
     Γ′≤Γ ≤⊢ t
@@ -273,7 +273,7 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
     ==ℕ̂→==↓ᵀ {a = zero} pf with ↓ᵀ {nat} zero
     ... | _ = pf
     ==ℕ̂→==↓ᵀ {Γ} {a = suc a} ⟨ n , ⟨ m==sn , n==a ⟩ ⟩
-      with ↓ᵀ {nat} (suc a) | ==ℕ̂→==↓ᵀ {a = a} (n==a ≤-refl)
+      with ↓ᵀ {nat} (suc a) | ==ℕ̂→==↓ᵀ {a = a} (n==a ≤-id)
     ... | _                 | pf
       rewrite [id]-identity {t = n} = trans m==sn (app-compatible refl pf)
     ==ℕ̂→==↓ᵀ {Γ} {t} {ne 𝓊̂} pf
@@ -322,8 +322,8 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
       begin
         (S ↑⊢ Γ′≤Γ ≤⊢ t) · ` `Z
       ==⟨ app-compatible subst-lemma refl ⟩
-        (≤-, Γ′≤Γ ≤⊢ t) [ id ] · ` `Z
-      ==⟨ Ⓡ-==↓ (pf (≤-, Γ′≤Γ) xⓇa) ≤-refl ⟩
+        (≤-ext Γ′≤Γ ≤⊢ t) [ id ] · ` `Z
+      ==⟨ Ⓡ-==↓ (pf (≤-ext Γ′≤Γ) xⓇa) ≤-id ⟩
         proj₁ (↓ᵀ (f a) (Γ′ , S))
       ∎
   )⟩
@@ -358,7 +358,7 @@ xⓇ↑ᵀ𝓍̂ {_} {T} = ==↑-Ⓡ x==𝓍̂ where
 -- soundness of NbE
 recⓇ⟦rec⟧ : ∀ {Γ : Γ} {T : Type} → rec {Γ} {T} Ⓡ ⟦rec⟧
 recⓇ⟦rec⟧ Γ′≤Γ {z} pf Γ″≤Γ′ pf′ Γ‴≤Γ″ {s = n} {zero} pf″
-  with pf″ ≤-refl
+  with pf″ ≤-id
 ... | n==zero
   rewrite [id]-identity {t = n} =
   ==-Ⓡ-trans (app-compatible refl (sym n==zero))
@@ -369,7 +369,7 @@ recⓇ⟦rec⟧ Γ′≤Γ {z} pf Γ″≤Γ′ pf′ Γ‴≤Γ″ {s = n} {zer
       zⓇa = ==-Ⓡ-trans subst-lemma (Ⓡ-weaken {Γ′≤Γ = Γ‴≤Γ′} pf)
 
 recⓇ⟦rec⟧ Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ Γ‴≤Γ″ {m} {suc aₙ} pf″
-  with pf″ ≤-refl
+  with pf″ ≤-id
 ... | ⟨ n , ⟨ m==saₙ , nⓇaₙ ⟩ ⟩
   rewrite [id]-identity {t = m} =
     ==-Ⓡ-trans (app-compatible refl (sym m==saₙ))
@@ -384,7 +384,7 @@ recⓇ⟦rec⟧ Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ Γ‴≤Γ
     ih = recⓇ⟦rec⟧ Γ′≤Γ pf Γ″≤Γ′ {s = s} pf′ Γ‴≤Γ″ {s = n} {aₙ} nⓇaₙ
 
     s·n·recⓇaₛ·aₙ·⟦rec⟧ : (Γ‴≤Γ″ ≤⊢ s) · n · rec·z·s·n Ⓡ aₛ aₙ (⟦rec⟧ az aₛ aₙ)
-    s·n·recⓇaₛ·aₙ·⟦rec⟧ with pf′ Γ‴≤Γ″ {n} nⓇaₙ ≤-refl ih
+    s·n·recⓇaₛ·aₙ·⟦rec⟧ with pf′ Γ‴≤Γ″ {n} nⓇaₙ ≤-id ih
     ... | pf
       rewrite subst-lemma₁ | subst-lemma₂ = pf
 
@@ -411,9 +411,9 @@ recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ {�
       where
         Γ‴≤Γ′ = ≤-trans Γ‴≤Γ″ Γ″≤Γ′
         Γ⁗≤Γ″ = ≤-trans Γ⁗≤Γ‴ Γ‴≤Γ″
-        Γ⁗,nat≤Γ⁗ = ≤-, {T = nat} Γ⁗≤Γ″
-        Γ⁗,nat,T≤Γ⁗ = ≤-, {T = T} Γ⁗,nat≤Γ⁗
-        Γ⁗,nat,T≤Γ⁗,nat = ≤-, {T = T} (≤-refl {Γ⁗ , nat})
+        Γ⁗,nat≤Γ⁗ = ≤-ext {T = nat} Γ⁗≤Γ″
+        Γ⁗,nat,T≤Γ⁗ = ≤-ext {T = T} Γ⁗,nat≤Γ⁗
+        Γ⁗,nat,T≤Γ⁗,nat = ≤-ext {T = T} (≤-id {Γ⁗ , nat})
 
         subst-lemma₁ = ≡-sym (incr-↑-≡ {Γ′≤Γ = Γ⁗≤Γ″} {S = nat} {t = s})
         subst-lemma₂ =
@@ -434,7 +434,7 @@ recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ {�
           with s·x₁·x₂Ⓡaₛ·↑ᵀ𝓍̂₁↑ᵀ𝓍̂₂
         ... | pf-Ⓡ
 --          rewrite subst-lemma₁ | subst-lemma₂ | subst-lemma₃
-          with Ⓡ-==↓ pf-Ⓡ ≤-refl
+          with Ⓡ-==↓ pf-Ⓡ ≤-id
         ... | pf-==↓
           rewrite subst-lemma₁ | subst-lemma₂ | subst-lemma₃ = pf-==↓
 
@@ -495,7 +495,7 @@ infix 4 _∥Ⓡ∥_
     subst-lemma₁ = shift-var {S = T} {x = x} {σᵨ = idᵨ}
     subst-lemma₂ = rename-id {x = x}
 
-    Γ,T≤Γ = ≤-, {T = T} ≤-refl
+    Γ,T≤Γ = ≤-ext {T = T} ≤-id
 
     ↑⊢xⓇa : ` (`S x) Ⓡ a
     ↑⊢xⓇa
@@ -570,7 +570,7 @@ fundamental-lemma {t = ƛ t} {σ = σ} {ρ} σ∥Ⓡ∥ρ Γ′≤Γ {s} {a} s�
 fundamental-lemma {t = r · s} {σ = σ} σ∥Ⓡ∥ρ
   with fundamental-lemma {t = r} σ∥Ⓡ∥ρ | fundamental-lemma {t = s} σ∥Ⓡ∥ρ
 ... | Γ⊨r                              | Γ⊨s
-  with Γ⊨r ≤-refl Γ⊨s
+  with Γ⊨r ≤-id Γ⊨s
 ... | pf
   rewrite [id]-identity {t = r [ σ ]} = pf
 
@@ -603,6 +603,6 @@ soundness {Γ} {T} {t}
   -- equality to the reified semantic object, we arrive at
   -- Γ ⊢ t = ↓ᵀᵧ ⟦ t ⟧ ↑Γ : T, which is what we want to show
   -- (i.e. Γ ⊢ t = nf(t) : T)
-  with Ⓡ-==↓ tⓇ⟦t⟧↑Γ ≤-refl
+  with Ⓡ-==↓ tⓇ⟦t⟧↑Γ ≤-id
 ... | t==↓ᵀᵧ⟦t⟧↑Γ
   rewrite [id]-identity {t = t [ id ]} | [id]-identity {t = t} = t==↓ᵀᵧ⟦t⟧↑Γ

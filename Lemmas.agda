@@ -22,10 +22,10 @@ invert-≤ : ∀ {Γ Γ′ : Γ} {T : Type}
          → Γ′ ≤ Γ , T
            ----------
          → Γ′ ≤ Γ
-invert-≤ ≤-refl = ≤-, ≤-refl
-invert-≤ (≤-, x) = ≤-, (invert-≤ x)
+invert-≤ ≤-id = ≤-ext ≤-id
+invert-≤ (≤-ext x) = ≤-ext (invert-≤ x)
 
-≤-,-uniq-T : ∀ {Γ Γ′ : Γ} {S T : Type}
+≤-ext-uniq-T : ∀ {Γ Γ′ : Γ} {S T : Type}
            → Γ′ ≤ Γ , T
            → Γ′ ≤ Γ , S
              ----------
@@ -39,22 +39,22 @@ invert-≤ (≤-, x) = ≤-, (invert-≤ x)
 
 Γ≰Γ,T : ∀ {Γ : Γ} {T : Type} → ¬ (Γ ≤ Γ , T)
 
-≤-,-uniq-T ≤-refl ≤-refl = refl
-≤-,-uniq-T ≤-refl (≤-, c) = ⊥-elim (Γ≰Γ,T c)
-≤-,-uniq-T (≤-, c) ≤-refl = ⊥-elim (Γ≰Γ,T c)
-≤-,-uniq-T (≤-, p₁) (≤-, p₂)
-  rewrite ≤-,-uniq-T p₁ p₂ = refl
+≤-ext-uniq-T ≤-id ≤-id = refl
+≤-ext-uniq-T ≤-id (≤-ext c) = ⊥-elim (Γ≰Γ,T c)
+≤-ext-uniq-T (≤-ext c) ≤-id = ⊥-elim (Γ≰Γ,T c)
+≤-ext-uniq-T (≤-ext p₁) (≤-ext p₂)
+  rewrite ≤-ext-uniq-T p₁ p₂ = refl
 
-≤-antisym ≤-refl Γ′≤Γ = refl
-≤-antisym (≤-, Γ≤Γ′) ≤-refl = refl
-≤-antisym (≤-, {T = T₁} p₁) (≤-, {T = T₂} p₂)
+≤-antisym ≤-id Γ′≤Γ = refl
+≤-antisym (≤-ext Γ≤Γ′) ≤-id = refl
+≤-antisym (≤-ext {T = T₁} p₁) (≤-ext {T = T₂} p₂)
   with invert-≤ p₁ | invert-≤ p₂
 ... | ≤→         | ≤←
   with ≤-antisym ≤→ ≤←
 ... | refl
-  rewrite ≤-,-uniq-T p₁ p₂ = refl
+  rewrite ≤-ext-uniq-T p₁ p₂ = refl
 
-Γ≰Γ,T {Γ} {T} Γ≤Γ,T with ≤-, {T = T} (≤-refl {Γ})
+Γ≰Γ,T {Γ} {T} Γ≤Γ,T with ≤-ext {T = T} (≤-id {Γ})
 ... | Γ,T≤Γ
   with ≤-antisym Γ≤Γ,T Γ,T≤Γ
 ... | ()
@@ -66,10 +66,10 @@ invert-≤ (≤-, x) = ≤-, (invert-≤ x)
        → (pf₁ : Γ′ ≤ Γ)
        → (pf₂ : Γ′ ≤ Γ)
        → pf₁ ≡ pf₂
-≤-pf-irrelevance ≤-refl ≤-refl = refl
-≤-pf-irrelevance ≤-refl (≤-, pf) = ⊥-elim (Γ≰Γ,T pf)
-≤-pf-irrelevance (≤-, pf) ≤-refl = ⊥-elim (Γ≰Γ,T pf)
-≤-pf-irrelevance (≤-, pf₁) (≤-, pf₂) rewrite ≤-pf-irrelevance pf₁ pf₂ = refl
+≤-pf-irrelevance ≤-id ≤-id = refl
+≤-pf-irrelevance ≤-id (≤-ext pf) = ⊥-elim (Γ≰Γ,T pf)
+≤-pf-irrelevance (≤-ext pf) ≤-id = ⊥-elim (Γ≰Γ,T pf)
+≤-pf-irrelevance (≤-ext pf₁) (≤-ext pf₂) rewrite ≤-pf-irrelevance pf₁ pf₂ = refl
 
 -- Context extension is transitive
 ≤-trans : ∀ {Γ₃ Γ₂ Γ₁ : Γ}
@@ -77,10 +77,10 @@ invert-≤ (≤-, x) = ≤-, (invert-≤ x)
         → Γ₂ ≤ Γ₁
           -------
         → Γ₃ ≤ Γ₁
-≤-trans ≤-refl ≤-refl = ≤-refl
-≤-trans ≤-refl (≤-, pf) = ≤-, pf
-≤-trans (≤-, pf) ≤-refl = ≤-, pf
-≤-trans (≤-, pf₁) (≤-, pf₂) = ≤-, (≤-trans pf₁ (≤-, pf₂))
+≤-trans ≤-id ≤-id = ≤-id
+≤-trans ≤-id (≤-ext pf) = ≤-ext pf
+≤-trans (≤-ext pf) ≤-id = ≤-ext pf
+≤-trans (≤-ext pf₁) (≤-ext pf₂) = ≤-ext (≤-trans pf₁ (≤-ext pf₂))
 
 -- Substitution / renaming lemmas
 
@@ -182,14 +182,14 @@ postulate
 -- the weakening substitution
 incr-↑-≡ : ∀ {Γ Γ′ : Γ} {Γ′≤Γ : Γ′ ≤ Γ} {S T : Type} {t : Γ ⊢ T}
          → S ↑⊢ (t [ weaken Γ′≤Γ ]) ≡ t [ substᵨ (≤ᵨ Γ′≤Γ ↑ᵨ) ]
-incr-↑-≡ {Γ′≤Γ = ≤-refl} {t = t} rewrite [id]-identity {t = t} = refl
-incr-↑-≡ {Γ′≤Γ = ≤-, {T = S₁} Γ′≤Γ} {S₂} {t = t}
+incr-↑-≡ {Γ′≤Γ = ≤-id} {t = t} rewrite [id]-identity {t = t} = refl
+incr-↑-≡ {Γ′≤Γ = ≤-ext {T = S₁} Γ′≤Γ} {S₂} {t = t}
   rewrite ≡-sym (incr-↑-≡ {Γ′≤Γ = Γ′≤Γ} {S₁} {t = t})
-        | weaken-compose (≤-, {T = S₁} ≤-refl) Γ′≤Γ t
+        | weaken-compose (≤-ext {T = S₁} ≤-id) Γ′≤Γ t
         | weaken-compose
-            (≤-, {T = S₂} ≤-refl)
-            (≤-trans (≤-, {T = S₁} ≤-refl) Γ′≤Γ)
+            (≤-ext {T = S₂} ≤-id)
+            (≤-trans (≤-ext {T = S₁} ≤-id) Γ′≤Γ)
             t
         | ≤-pf-irrelevance
-            (≤-trans (≤-, ≤-refl) (≤-trans (≤-, ≤-refl) Γ′≤Γ))
-            (≤-, {T = S₂} (≤-, {T = S₁} Γ′≤Γ))                 = refl
+            (≤-trans (≤-ext ≤-id) (≤-trans (≤-ext ≤-id) Γ′≤Γ))
+            (≤-ext {T = S₂} (≤-ext {T = S₁} Γ′≤Γ))             = refl
