@@ -1,5 +1,3 @@
-module NbE where
-
 import Relation.Binary.PropositionalEquality as Eq
 open import Data.Empty using (⊥)
 open import Data.Unit using (⊤; tt)
@@ -9,6 +7,8 @@ open import Relation.Nullary using (Dec; yes; no)
 open Eq using (_≡_; refl)
 
 open import SystemT
+
+module NbE where
 
 -- The normalization of terms in System T will involve dealing
 -- with the interpretations of the types, terms, and contexts
@@ -363,6 +363,7 @@ nf-ex3 with ex3
 -- paired with the definitional equality of two
 -- terms impliying they are semantically equal
 -- (included as a postulate for now)
+
 postulate
   ==→⟦≡⟧ : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T} {ρ : ⟦ Γ ⟧}
          → t == t′

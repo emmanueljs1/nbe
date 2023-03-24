@@ -1,5 +1,3 @@
-module Soundness where
-
 import Relation.Binary.PropositionalEquality as Eq
 open import Data.Unit using (⊤; tt)
 open import Data.Empty using (⊥)
@@ -10,6 +8,9 @@ open Eq using (refl; _≡_) renaming (sym to ≡-sym; trans to ≡-trans)
 
 open import SystemT
 open import NbE
+open import Lemmas
+
+module Soundness where
 
 {- Section 2.6 -- Soundness -}
 
@@ -28,12 +29,12 @@ open import NbE
 -- The first extends a well typed term in context Γ to its
 -- corresponding well typed term in Γ′, an extension of Γ.
 --
--- Formally, this represents the changing of contexts
--- used in the Kripe logical relation, e.g.
+-- Formally, this will represent the implicit changing
+-- of contexts used in the Kripe logical relation, e.g.
 -- Γ ⊢ t : T --> Γ′ ⊢ t : T
 --
--- Really, this is just notation for applying a weakening
--- substitution
+-- Really, this is just a convenient notation for applying a
+-- weakening substitution
 _≤⊢_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ ≤ Γ → Γ ⊢ T → Γ′ ⊢ T
 pf ≤⊢ t = t [ weaken pf ]
 
@@ -75,7 +76,7 @@ _==ℕ̂_ t (ne 𝓊̂) = t ==↑ 𝓊̂
 
 infix 3 _==ℕ̂_
 
--- The next function provides a shorthand for reifying
+-- The last function provides a shorthand for reifying
 -- an interpretation of T then immediately applying a
 -- context Γ, as is done in some implications (we use lowercase
 -- γ as our subscript as Γ is not an option).
@@ -110,42 +111,52 @@ _Ⓡ_ {Γ} {S ⇒ T} r f =
 
 infix 4 _Ⓡ_
 
--- Some lemmas about Kripe logical relations
-
--- Kripe logical relations are transitive with respect to
--- definitional equality
-==-Ⓡ : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T} {a : ⟦ T ⟧}
+-- A result of defining our Kripe logical relation in terms
+-- of definitional equality is that the relation is transitive
+-- with respect to definitional equality
+==-Ⓡ-trans : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T} {a : ⟦ T ⟧}
      → t == t′
      → t Ⓡ a
        -------
      → t′ Ⓡ a
-==-Ⓡ {T = nat} {a = zero} t==t′ pf Γ′≤Γ =
+==-Ⓡ-trans {T = nat} {a = zero} t==t′ pf Γ′≤Γ =
   trans (sym (==-subst t==t′)) (pf Γ′≤Γ)
-==-Ⓡ {T = nat} {a = suc a} t==t′ pf Γ′≤Γ
+==-Ⓡ-trans {T = nat} {a = suc a} t==t′ pf Γ′≤Γ
   with pf Γ′≤Γ
 ... | ⟨ n , ⟨ t==sn , n==a ⟩ ⟩ =
   ⟨ n , ⟨ trans (sym (==-subst t==t′)) t==sn , n==a ⟩ ⟩
-==-Ⓡ {T = nat} {a = ne 𝓊̂} t==t′ pf {Γ′} Γ′≤Γ
+==-Ⓡ-trans {T = nat} {a = ne 𝓊̂} t==t′ pf {Γ′} Γ′≤Γ
   with 𝓊̂ Γ′          | pf Γ′≤Γ
 ... | inj₁ ⟨ 𝓊 , _ ⟩ | t==𝓊 =
   trans (sym (==-subst t==t′)) t==𝓊
-==-Ⓡ {T = S ⇒ T} t==t′ pf Γ′≤Γ sⓇa =
-  ==-Ⓡ (app-compatible (==-subst t==t′) refl) (pf Γ′≤Γ sⓇa)
+==-Ⓡ-trans {T = S ⇒ T} t==t′ pf Γ′≤Γ sⓇa =
+  ==-Ⓡ-trans (app-compatible (==-subst t==t′) refl) (pf Γ′≤Γ sⓇa)
 
--- If the logical relation Γ ⊢ t : T Ⓡ a holds, then for all Γ′ ≤ Γ,
--- Γ′ ⊢ t : T Ⓡ a holds as well
-Ⓡ-ext : ∀ {Γ′ Γ : Γ} {T : Type} {Γ′≤Γ : Γ′ ≤ Γ} {t : Γ ⊢ T} {a : ⟦ T ⟧}
+-- Additionally, because we have defined the relation so that its implication
+-- holds for all extensions of a context, we can "weaken" the logical relation
+-- Γ ⊢ t : T Ⓡ a for all Γ′ ≤ Γ, having that Γ′ ⊢ t : T Ⓡ a holds as well
+Ⓡ-weaken : ∀ {Γ′ Γ : Γ} {T : Type} {Γ′≤Γ : Γ′ ≤ Γ} {t : Γ ⊢ T} {a : ⟦ T ⟧}
       → t Ⓡ a
       → Γ′≤Γ ≤⊢ t Ⓡ a
-Ⓡ-ext {T = nat} {Γ′≤Γ} {t} pf Γ″≤Γ′
+Ⓡ-weaken {T = nat} {Γ′≤Γ} {t} pf Γ″≤Γ′
   rewrite weaken-compose Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ)
-Ⓡ-ext {T = S ⇒ T} {Γ′≤Γ} {t} pf Γ″≤Γ′ sⓇa
+Ⓡ-weaken {T = S ⇒ T} {Γ′≤Γ} {t} pf Γ″≤Γ′ sⓇa
   rewrite weaken-compose Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ) sⓇa
 
 -- The Kripke logical relation is "sandwiched" between
--- reflection and reification. This means that we should
--- be able to prove the following implications by induction
--- on types:
+-- reflection and reification -- to arrive at the logical
+-- relation between a term and a semantic object, the
+-- semantic object must be a reflection of a liftable neutral
+-- that is definitionally equal to the term. Likewise,
+-- if a logical relation holds between a term and a semantic
+-- object, then the term must be definitionally equal
+-- to the reification of that semantic object.
+--
+-- This is intentional, as these results will be exactly
+-- what we will need to prove the soundness of NbE. We
+-- formalize them with the following implications, which
+-- we will prove mutually (as reflection and reification
+-- are themselves defined mutually) by induction on types.
 
 -- (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : T) ⇒ Γ ⊢ 𝓊 : T Ⓡ ↑ᵀ 𝓊̂
 ==↑-Ⓡ : ∀ {Γ : Γ} {T : Type} {𝓊 : Γ ⊢ T} {𝓊̂ : Ne↑ T}
@@ -163,7 +174,8 @@ infix 4 _Ⓡ_
       → Γ′≤Γ ≤⊢ t == ↓ᵀᵧ a
 
 -- A consequence of the first implication is that
--- Γ , x:T ⊢ x Ⓡ ↑ᵀ (𝓍̂ Γ), which will be helpful for proving the
+-- Γ , x:T ⊢ x Ⓡ ↑ᵀ (𝓍̂ Γ), which we define now
+-- as it will be the lemma we will need for proving the
 -- second implication
 xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
         -------------------------
@@ -227,14 +239,14 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
 -- similarly leads to the implication
 Ⓡ-==↓ {Γ} {T = nat} {t} {suc a} pf Γ′≤Γ
   with pf Γ′≤Γ
-... | ⟨ n , ⟨ t==sn , n==a ⟩ ⟩
-  with n==a ≤-refl
-... | h rewrite [id]-identity {t = n} =
+... | ⟨ n , ⟨ t==sn , nⓇa ⟩ ⟩
+  with nⓇa ≤-refl
+... | n==ℕ̂a rewrite [id]-identity {t = n} =
   begin
     Γ′≤Γ ≤⊢ t
   ==⟨ t==sn ⟩
     suc · n
-  ==⟨ app-compatible refl (lemma {a = a} h) ⟩
+  ==⟨ app-compatible refl (==ℕ̂→==↓ᵀ {a = a} n==ℕ̂a) ⟩
     suc · ↓ᵀᵧ a
   ∎
   where
@@ -245,25 +257,25 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
     -- definitionally equal to the reification of
     -- the object a. We can prove this by induction
     -- on a
-    lemma : ∀ {Γ : SystemT.Γ} {n : Γ ⊢ nat} {a : ⟦ nat ⟧}
-          → n ==ℕ̂ a
-            ----------
-          → n == ↓ᵀᵧ a
-    lemma {a = zero} pf with ↓ᵀ {nat} zero
+    ==ℕ̂→==↓ᵀ : ∀ {Γ : SystemT.Γ} {n : Γ ⊢ nat} {a : ⟦ nat ⟧}
+             → n ==ℕ̂ a
+               ----------
+             → n == ↓ᵀᵧ a
+    ==ℕ̂→==↓ᵀ {a = zero} pf with ↓ᵀ {nat} zero
     ... | _ = pf
-    lemma {Γ} {a = suc a} ⟨ n , ⟨ m==sn , n==a ⟩ ⟩
-      with ↓ᵀ {nat} (suc a) | lemma {a = a} (n==a ≤-refl)
+    ==ℕ̂→==↓ᵀ {Γ} {a = suc a} ⟨ n , ⟨ m==sn , n==a ⟩ ⟩
+      with ↓ᵀ {nat} (suc a) | ==ℕ̂→==↓ᵀ {a = a} (n==a ≤-refl)
     ... | _                 | pf
       rewrite [id]-identity {t = n} = trans m==sn (app-compatible refl pf)
-    lemma {Γ} {t} {ne 𝓊̂} pf
-      with 𝓊̂ Γ | pf
-    ... | inj₁ ⟨ 𝓊 , _ ⟩ | t≡𝓊 = t≡𝓊
+    ==ℕ̂→==↓ᵀ {Γ} {t} {ne 𝓊̂} pf
+      with 𝓊̂ Γ           | pf
+    ... | inj₁ ⟨ 𝓊 , _ ⟩ | t==𝓊 = t==𝓊
 -- Lastly, if the term is logically related to an
 -- embedded liftable neutral, the implication also
 -- holds immediately from our given proof
 Ⓡ-==↓ {Γ′} {T = nat} {a = ne 𝓊̂} pf Γ′≤Γ
   with 𝓊̂ Γ′           | pf Γ′≤Γ
-... | inj₁ ⟨ 𝓊 , _ ⟩  | t≡𝓊     = t≡𝓊
+... | inj₁ ⟨ 𝓊 , _ ⟩  | t==𝓊     = t==𝓊
 -- For our inductive step, we prove the implication
 -- for terms of type S → T. Our desired implication
 -- is now:
@@ -314,8 +326,9 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
     a = ↑ᵀ {S} (𝓍̂ S Γ′)
     xⓇa = xⓇ↑ᵀ𝓍̂ {Γ′} {S}
 
--- Using our first implication, we
--- prove Γ , x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂
+-- Using our first implication, we can quickly
+-- prove that Γ , x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂, as
+-- Γ′ ⊢ x = 𝓍̂ Γ′ : T for all Γ′ ≤ Γ , x:T
 xⓇ↑ᵀ𝓍̂ {_} {T} = ==↑-Ⓡ x==𝓍̂ where
   x==𝓍̂ : ∀ {Γ Γ′ : Γ}
        → (Γ′≤Γ,T : Γ′ ≤ (Γ , T))
@@ -329,26 +342,29 @@ xⓇ↑ᵀ𝓍̂ {_} {T} = ==↑-Ⓡ x==𝓍̂ where
     with ≤ᵨ pf′
   ...| _ , _  = refl
 
--- Before moving forward, we also want to show that rec Ⓡ ⟦rec⟧
--- (in other words, that our interpretation of rec is sound).
+-- Before moving forward, we also want to show that rec Ⓡ ⟦rec⟧.
+-- This will be necessary for proving soundness, as we will need
+-- proof that Γ ⊢ rec = ↓ᵀ ⟦rec⟧ Γ : (T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T)
+-- (i.e. proof that our interpretation of rec is sound) to prove the
+-- soundness of NbE
 recⓇ⟦rec⟧ : ∀ {Γ : Γ} {T : Type} → rec {Γ} {T} Ⓡ ⟦rec⟧
 recⓇ⟦rec⟧ Γ′≤Γ {z} pf Γ″≤Γ′ pf′ Γ‴≤Γ″ {s = n} {zero} pf″
   with pf″ ≤-refl
 ... | n==zero
   rewrite [id]-identity {t = n} =
-  ==-Ⓡ (app-compatible refl (sym n==zero))
-    (==-Ⓡ (sym β-rec-z) zⓇa)
+  ==-Ⓡ-trans (app-compatible refl (sym n==zero))
+    (==-Ⓡ-trans (sym β-rec-z) zⓇa)
     where
       Γ‴≤Γ′ = ≤-trans Γ‴≤Γ″ Γ″≤Γ′
       subst-lemma = ≡→== (≡-sym (weaken-compose Γ‴≤Γ″ Γ″≤Γ′ z))
-      zⓇa = ==-Ⓡ subst-lemma (Ⓡ-ext {Γ′≤Γ = Γ‴≤Γ′} pf)
+      zⓇa = ==-Ⓡ-trans subst-lemma (Ⓡ-weaken {Γ′≤Γ = Γ‴≤Γ′} pf)
 
 recⓇ⟦rec⟧ Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ Γ‴≤Γ″ {m} {suc aₙ} pf″
   with pf″ ≤-refl
 ... | ⟨ n , ⟨ m==saₙ , nⓇaₙ ⟩ ⟩
   rewrite [id]-identity {t = m} =
-    ==-Ⓡ (app-compatible refl (sym m==saₙ))
-      (==-Ⓡ (sym β-rec-s) s·n·recⓇaₛ·aₙ·⟦rec⟧)
+    ==-Ⓡ-trans (app-compatible refl (sym m==saₙ))
+      (==-Ⓡ-trans (sym β-rec-s) s·n·recⓇaₛ·aₙ·⟦rec⟧)
   where
     subst-lemma₁ = [id]-identity {t = Γ‴≤Γ″ ≤⊢ s}
     subst-lemma₂ = [id]-identity {t = n}
@@ -431,7 +447,9 @@ recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ {�
 -- For this, we will establish that Γ ⊢ t : T Ⓡ ⟦t⟧ (↑ Γ)
 -- using the fundamental lemma of logical relations. First,
 -- we will need to extend logical relations to include
--- substitutions and environments
+-- substitutions and environments. We again use ∥Ⓡ∥ for
+-- the "parallel" in parallel substitutions, as Ⓡ is
+-- already defined for terms and semantic objects
 _∥Ⓡ∥_ : ∀ {Γ Δ : Γ}
       → Γ ⊩ Δ
       → ⟦ Δ ⟧
@@ -443,8 +461,8 @@ _∥Ⓡ∥_ : ∀ {Γ Δ : Γ}
 -- by induction on the rules for parallel substitutions
 -- instead of by induction on types
 
--- An empty substitution is always logically related to
--- an empty environment
+-- A substitution from the empty context is always
+-- logically related to an empty environment
 ∅ ∥Ⓡ∥ tt = ⊤
 
 -- An extension to a substition (σ , s / x) is logically
@@ -472,19 +490,25 @@ infix 4 _∥Ⓡ∥_
 
     ↑⊢xⓇa : ` (`S x) Ⓡ a
     ↑⊢xⓇa
-      with Ⓡ-ext {Γ′≤Γ = Γ,T≤Γ} {t = ` x} xⓇa
+      with Ⓡ-weaken {Γ′≤Γ = Γ,T≤Γ} {t = ` x} xⓇa
     ... | pf
       rewrite subst-lemma₁ | subst-lemma₂ = pf
 
-∥Ⓡ∥-ext : ∀ {Γ′ Γ Δ : Γ} {Γ′≤Γ : Γ′ ≤ Γ} {σ : Γ ⊩ Δ} {ρ : ⟦ Δ ⟧}
+-- A generalization of this is, similarly as for logical relations
+-- between terms and semantic objects, that if a logical relation
+-- holds between a substitution and an environment, it holds for any
+-- weakening of the substitution (as weakening is really a series
+-- of shifts)
+∥Ⓡ∥-weaken : ∀ {Γ′ Γ Δ : Γ} {Γ′≤Γ : Γ′ ≤ Γ} {σ : Γ ⊩ Δ} {ρ : ⟦ Δ ⟧}
         → σ ∥Ⓡ∥ ρ
         → σ ∘ (weaken Γ′≤Γ) ∥Ⓡ∥ ρ
-∥Ⓡ∥-ext {σ = ∅} x = tt
-∥Ⓡ∥-ext {Γ′≤Γ = Γ′≤Γ} {σ , s} ⟨ σ∥Ⓡ∥ρ , sⓇa ⟩ =
-  ⟨ ∥Ⓡ∥-ext {Γ′≤Γ = Γ′≤Γ} σ∥Ⓡ∥ρ , Ⓡ-ext {Γ′≤Γ = Γ′≤Γ} sⓇa ⟩
+∥Ⓡ∥-weaken {σ = ∅} x = tt
+∥Ⓡ∥-weaken {Γ′≤Γ = Γ′≤Γ} {σ , s} ⟨ σ∥Ⓡ∥ρ , sⓇa ⟩ =
+  ⟨ ∥Ⓡ∥-weaken {Γ′≤Γ = Γ′≤Γ} σ∥Ⓡ∥ρ , Ⓡ-weaken {Γ′≤Γ = Γ′≤Γ} sⓇa ⟩
 
--- We introduce the semantic typing judgement
--- Γ ⊨ t : T as follows
+-- We are now ready to introduce the semantic typing judgement
+-- Γ ⊨ t : T, which will be the what we will use to arrive
+-- at Γ ⊢ t : T Ⓡ ⟦ t ⟧ ↑Γ Γ
 _⊨_ : ∀ {T : Type} → (Γ : Γ) → Γ ⊢ T → Set
 _⊨_ {T} Γ t =
   ∀ {Δ : SystemT.Γ} {σ : Δ ⊩ Γ} {ρ : ⟦ Γ ⟧}
@@ -512,7 +536,7 @@ fundamental-lemma {t = ` `Z} {σ = _ , _ } {⟨ _ , _ ⟩} ⟨ _ , xⓇa ⟩ = x
 fundamental-lemma {t = ` (`S x)} {σ = _ , _} {⟨ _ , _ ⟩} ⟨ σ∥Ⓡ∥ρ , _ ⟩ =
   fundamental-lemma {t = ` x} σ∥Ⓡ∥ρ
 fundamental-lemma {t = ƛ t} {σ = σ} {ρ} σ∥Ⓡ∥ρ Γ′≤Γ {s} {a} sⓇa =
-  ==-Ⓡ (sym β-ƛ) t[σ′][s/x]Ⓡ⟦t⟧⟨ρ,a⟩
+  ==-Ⓡ-trans (sym β-ƛ) t[σ′][s/x]Ⓡ⟦t⟧⟨ρ,a⟩
   where
     subst-lemma₁ =
       subst-compose {τ = id , s} {weaken Γ′≤Γ ↑ , ` `Z} {t [ σ ↑ , ` `Z ]}
@@ -529,7 +553,7 @@ fundamental-lemma {t = ƛ t} {σ = σ} {ρ} σ∥Ⓡ∥ρ Γ′≤Γ {s} {a} s�
 
     σ″Ⓡρ : σ″  ∥Ⓡ∥ ρ
     σ″Ⓡρ rewrite subst-lemma₃ | subst-lemma₄ | subst-lemma₅ =
-      ∥Ⓡ∥-ext {Γ′≤Γ = Γ′≤Γ} σ∥Ⓡ∥ρ
+      ∥Ⓡ∥-weaken {Γ′≤Γ = Γ′≤Γ} σ∥Ⓡ∥ρ
 
     t[σ′][s/x]Ⓡ⟦t⟧⟨ρ,a⟩ : t[σ′] [ s /x] Ⓡ ⟦⊢ t ⟧ ⟨ ρ , a ⟩
     t[σ′][s/x]Ⓡ⟦t⟧⟨ρ,a⟩ rewrite subst-lemma₁ | subst-lemma₂ =
@@ -542,8 +566,17 @@ fundamental-lemma {t = r · s} {σ = σ} σ∥Ⓡ∥ρ
   rewrite [id]-identity {t = r [ σ ]} = pf
 
 -- For the identity substitution we have that Γ ⊢ id : Γ Ⓡ ↑Γ ,
--- which we prove using our lemma that Γ,x:T ⊢ x : T Ⓡ ↑ᵀ (𝓍ᵀ Γ),
--- and a few other lemmas
+-- which we prove by induction using our lemma that
+-- Γ,x:T ⊢ x : T Ⓡ ↑ᵀ (𝓍ᵀ Γ) for every variable that we
+-- are substituting for itself.
+--
+-- For our inductive step, our IH will give us that
+-- Γ ⊢ id : Γ Ⓡ ↑Γ Γ, but we want proof that Γ , x:T ⊢ id ↑ : Γ Ⓡ Γ
+-- (because the identity substitution is unwrapped to (id ↑ , x / x)
+-- for the context Γ , x:T). Here, we use our lemma that if a
+-- logical relation holds for a substitution and an environment
+-- it holds for a shifting of the substition, allowing us to
+-- transform our IH into our goal
 idⓇ↑Γ : ∀ {Γ : Γ}
        → id ∥Ⓡ∥ (↑Γ Γ)
 idⓇ↑Γ {∅} = tt
