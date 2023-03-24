@@ -5,13 +5,13 @@ This repository contains a formalization of Chapter 2 of Andreas Abel's habilita
 
 It can be read in the following order:
 
-1) [SystemT.agda](./SystemT.lagda.md)
+1) [SystemT](./SystemT.lagda.md)
     * Basic language constructs
     * Parallel substitutions
     * Definitional equality
     * Context extensions
 
-2) [NbE.agda](./NbE.agda)
+2) [NbE](./NbE.lagda.md)
     * Normal terms / neutral terms
     * Liftable terms
     * Interpretation of types, terms, and contexts
@@ -22,5 +22,5 @@ It can be read in the following order:
     * Kripe logical relation between substitutions and environments
     * Fundamental lemma
     * Proof of soundness of NbE
-    
+
 * The file [Lemmas.agda](./Lemmas.agda) contains a number of lemmas useful for proving soundness

@@ -117,6 +117,10 @@ typed represenation, such that a term t of type Γ ⊢ T is
 the term `Γ ⊢ t : T` itself. The language has the constants `zero`,
 `suc` (as a curried constant),`rec` (a curried constant
 as well), variables, abstractions, and application.
+
+For clarity we will not use an intrinsically typed de Brujin
+representation when talking about terms (e.g. the variable ` `Z
+will be talked about as `Γ , x:T ⊢ x : T`)
 ```agda
 data _⊢_ (Γ : Γ) : Type → Set where
   zero : Γ ⊢ nat
@@ -544,4 +548,4 @@ open ==-Reasoning public
 ```
 
 Now, we are ready to start defining the algorithm for Normalization by
-Evaluation in [Nbe.agda](NbE.agda).
+Evaluation in [NbE](./NbE.lagda.md).
