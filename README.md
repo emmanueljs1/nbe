@@ -7,12 +7,13 @@ It can be read in the following order:
 
 1) [SystemT.agda](./SystemT.agda)
     * Basic language constructs
+    * Parallel substitutions
     * Definitional equality
     * Context extensions
 
 2) [NbE.agda](./NbE.agda)
     * Normal terms / neutral terms
-    * Lifted terms
+    * Liftable terms
     * Interpretation of types, terms, and contexts
     * NbE algorithm
 
@@ -21,3 +22,5 @@ It can be read in the following order:
     * Kripe logical relation between substitutions and environments
     * Fundamental lemma
     * Proof of soundness of NbE
+    
+* The file [Lemmas.agda](./Lemmas.agda) contains a number of lemmas useful for proving soundness
