@@ -17,7 +17,7 @@ It can be read in the following order:
     * Interpretation of types, terms, and contexts
     * NbE algorithm
 
-3) [Soundness.agda](./Soundness.agda)
+3) [Soundness](./Soundness.lagda.md)
     * Kripke logical relation between terms and semantic objects
     * Kripe logical relation between substitutions and environments
     * Fundamental lemma

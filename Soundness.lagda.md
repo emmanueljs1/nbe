@@ -1,3 +1,6 @@
+# Soundness
+
+```agda
 import Relation.Binary.PropositionalEquality as Eq
 open import Data.Unit using (⊤; tt)
 open import Data.Empty using (⊥)
@@ -11,28 +14,24 @@ open import NbE
 open import Lemmas
 
 module Soundness where
+```
 
-{- Section 2.6 -- Soundness -}
+We prove the soundness property of preservation of meaning of NbE
+(i.e. `⟦ nf(t) ⟧ = ⟦ t ⟧`), which we just call soundness here for brevity,
+by proving the definitional equality of a term and its normal form:
 
--- We prove the soundness of normalization by proving
--- the definitional equality of a term and its normal form
--- i.e. Γ ⊢ t = nf(t) : T, which expands to:
---
---   Γ ⊢ t = ↓ᵀ a Γ where a = ⟦ t ⟧
---
--- For this, a logical relation t Ⓡ a is defined such that
--- it implies Γ ⊢ t = ↓ᵀ a Γ : T
+    Γ ⊢ t = nf(t) : T
 
--- We start by defining a few functions for the convenience of
--- defining the relation
+which expands to:
 
--- The first "lifts" definitional equality over
--- liftable neutrals
---
--- Formally, this represents the condition seen
--- in the Kripke logical relation:
---   Γ ⊢ 𝓊 = 𝓊̂(Γ) : T
--- or, equivalently in our syntax:
+    Γ ⊢ t = ↓ᵀ a Γ, where a = ⟦ t ⟧ ↑Γ
+
+For this, a logical relation `t Ⓡ a` is defined such that
+it implies `Γ ⊢ t = ↓ᵀ a Γ : T`.
+
+For defining the relation in Agda, we will need some functions first. The first
+"lifts" definitional equality over liftable neutrals. Formally, this represents the condition `Γ ⊢ 𝓊 = 𝓊̂(Γ) : T`, or equivalently in Agda:
+```agda
 _==↑_ : {Γ : Γ} {T : Type} → Γ ⊢ T → Ne↑ T → Set
 _==↑_ {Γ} t 𝓊̂ with 𝓊̂ Γ
 ... | inj₁ ⟨ 𝓊 , _ ⟩ =
@@ -46,32 +45,36 @@ _==↑_ {Γ} t 𝓊̂ with 𝓊̂ Γ
       ⊥
 
 infix 3 _==↑_
+```
 
--- The last function provides a shorthand for reifying
--- an interpretation of T then immediately applying a
--- context Γ, as is done in some implications (we use lowercase
--- γ as our subscript as Γ is not an option).
+We also provide shorthand for reifying the interpretation of a term t
+and then immediately applying a context Γ (we use lowercase γ as our
+subscript as Γ is not a valid subscript)
+```agda
 ↓ᵀᵧ : ∀ {Γ : Γ} {T : Type} → (a : ⟦ T ⟧) → Γ ⊢ T
 ↓ᵀᵧ {Γ} a with ↓ᵀ a
 ... | a↑ = proj₁ (a↑ Γ)
+```
 
--- We now introduce the Kripe logical relation Γ ⊢ t : T Ⓡ a
--- between a typed term Γ ⊢ t : T and a value a ∈ ⟦T⟧
---
--- For Agda's termination checking, we have to define the
--- logical relation at type nat separately, which we do so
---  in the form of Ⓝ
+With these, we can begin to introduce the Kripe logical relation `Γ ⊢ t : T Ⓡ a`
+between a typed term `Γ ⊢ t : T` and a value `a ∈ ⟦ T ⟧`. The logical relation
+will be defined inductively on types. At type nat, the relation is defined as:
+
+    Γ : nat Ⓡ 𝓋̂ ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = 𝓋̂(Γ′) : nat
+
+For Agda's termination checking, we have to define the logical relation at type
+nat separately, which we do so in the form of Ⓝ:
+```agda
 _Ⓝ_ : ∀ {Γ : Γ} → Γ ⊢ nat → ⟦ nat ⟧ → Set
+```
 
+We define Ⓝ mutually with ==ℕ̂, a relation representing
+the condition `Γ′ ⊢ t = 𝓋̂(Γ′) : nat`, which lifts definitional equality to
+be over naturals with embedded liftable neutrals
+
+```agda
 _==ℕ̂_ : ∀ {Γ : Γ} → Γ ⊢ nat → ⟦ nat ⟧ → Set
 
--- The relation defined over nats:
--- Γ : nat Ⓡ 𝓋̂ ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = 𝓋̂(Γ′) : nat
---
--- We define Ⓝ mutually with ==ℕ̂, a relation representing
--- the condition Γ′ ⊢ t = 𝓋̂(Γ′) : nat, which lifts
--- definitional equality to be over naturals with embedded
--- liftable neutrals
 _Ⓝ_ {Γ} n 𝓋̂ =
   ∀ {Γ′ : SystemT.Γ}
   → (Γ′≤Γ : Γ′ ≤ Γ)
@@ -79,37 +82,42 @@ _Ⓝ_ {Γ} n 𝓋̂ =
   → Γ′≤Γ ≤⊢ n ==ℕ̂ 𝓋̂
 
 infix 4 _Ⓝ_
+```
 
--- Definitional equality lifted to naturals with embedded
--- liftable neutrals, this represents the condition
---   Γ ⊢ t = 𝓋̂(Γ) : nat
---
--- For zero, the relation is a simple definitional equality
--- judgement
+For `zero`, the ==ℕ̂ relation is a simple definitional equality
+judgement:
+```agda
 _==ℕ̂_ {Γ} t zero = t == zero
--- For our recursive case (suc 𝓋̂), we want the term to be
--- definitionally equal to suc · n such that n is logically
--- related to 𝓋̂, a condition stronger than ==ℕ̂, as it holds
--- for all extensions of the context -- this is why we need
--- to define ==ℕ̂ mutually with Ⓝ. We want our recursive
--- condition to be stronger to have an easier time with
--- the embedded liftable neutrals
+```
+However, for our recursive case (suc 𝓋̂), the definition is a bit
+more involved. We want the term to be definitionally equal to `suc · n`
+such that n is logically related to 𝓋̂, a condition stronger than ==ℕ̂,
+as it holds for all extensions of the context -- this is why we need
+to define ==ℕ̂ mutually with Ⓝ. We want our recursive condition to be
+stronger to have an easier time with the embedded liftable neutrals
+```agda
 _==ℕ̂_ {Γ} t (suc 𝓋̂) = ∃[ n ] t == suc · n × n Ⓝ 𝓋̂
--- For an embedded liftable neutral, the relation is the
--- lifted definitional equality defined earlier
+```
+For an embedded liftable neutral, the relation is the
+lifted definitional equality defined earlier
+```agda
 _==ℕ̂_ {Γ} t (ne 𝓊̂) = t ==↑ 𝓊̂
 
 infix 3 _==ℕ̂_
+```
 
--- With these in place, we can start defining the logical
--- relation Ⓡ itself by induction on types, using Ⓝ for
--- the base type nat
+With these in place, we can start defining the logical
+relation Ⓡ itself by induction on types, using Ⓝ for
+the base type nat
+```agda
 _Ⓡ_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
 
 _Ⓡ_ {Γ} {nat} t 𝓋̂ = t Ⓝ 𝓋̂
+```
 
--- The relation defined over functions:
---   Γ ⊢ r : S → T Ⓡ f ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ s : S Ⓡ a ⇒ Γ′ ⊢ r s : T Ⓡ f(a)
+For function types, the relation is defined as:
+    Γ ⊢ r : S → T Ⓡ f ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ s : S Ⓡ a ⇒ Γ′ ⊢ r s : T Ⓡ f(a)
+```agda
 _Ⓡ_ {Γ} {S ⇒ T} r f =
   ∀ {Γ′ : SystemT.Γ}
   → (Γ′≤Γ : Γ′ ≤ Γ)
@@ -119,10 +127,12 @@ _Ⓡ_ {Γ} {S ⇒ T} r f =
   → (Γ′≤Γ ≤⊢ r) · s Ⓡ f a
 
 infix 4 _Ⓡ_
+```
 
--- A result of defining our Kripe logical relation in terms
--- of definitional equality is that the relation is transitive
--- with respect to definitional equality
+A result of defining our Kripe logical relation in terms
+of definitional equality is that the relation is transitive
+with respect to definitional equality
+```agda
 ==-Ⓡ-trans : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T} {a : ⟦ T ⟧}
            → t == t′
            → t Ⓡ a
@@ -140,10 +150,12 @@ infix 4 _Ⓡ_
   trans (sym (==-subst t==t′)) t==𝓊
 ==-Ⓡ-trans {T = S ⇒ T} t==t′ pf Γ′≤Γ sⓇa =
   ==-Ⓡ-trans (app-compatible (==-subst t==t′) refl) (pf Γ′≤Γ sⓇa)
+```
 
--- Additionally, because we have defined the relation so that its implication
--- holds for all extensions of a context, we can "weaken" the logical relation
--- Γ ⊢ t : T Ⓡ a for all Γ′ ≤ Γ, having that Γ′ ⊢ t : T Ⓡ a holds as well
+Additionally, because we have defined the relation so that its implication
+holds for all extensions of a context, we can "weaken" the logical relation
+`Γ ⊢ t : T Ⓡ a` for all `Γ′ ≤ Γ`, having that `Γ′ ⊢ t : T Ⓡ a` holds as well
+```agda
 Ⓡ-weaken : ∀ {Γ′ Γ : Γ} {T : Type} {Γ′≤Γ : Γ′ ≤ Γ} {t : Γ ⊢ T} {a : ⟦ T ⟧}
       → t Ⓡ a
       → Γ′≤Γ ≤⊢ t Ⓡ a
@@ -151,80 +163,106 @@ infix 4 _Ⓡ_
   rewrite weaken-compose Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ)
 Ⓡ-weaken {T = S ⇒ T} {Γ′≤Γ} {t} pf Γ″≤Γ′ sⓇa
   rewrite weaken-compose Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ) sⓇa
+```
 
--- The Kripke logical relation is "sandwiched" between
--- reflection and reification -- to arrive at the logical
--- relation between a term and a semantic object, the
--- semantic object must be a reflection of a liftable neutral
--- that is definitionally equal to the term. Likewise,
--- if a logical relation holds between a term and a semantic
--- object, then the term must be definitionally equal
--- to the reification of that semantic object.
---
--- This is intentional, as these results will be exactly
--- what we will need to prove the soundness of NbE. We
--- formalize them with the following implications, which
--- we will prove mutually (as reflection and reification
--- are themselves defined mutually) by induction on types.
+The Kripke logical relation is "sandwiched" between
+reflection and reification -- to arrive at the logical
+relation between a term and a semantic object, the
+semantic object must be a reflection of a liftable neutral
+that is definitionally equal to the term. Likewise,
+if a logical relation holds between a term and a semantic
+object, then the term must be definitionally equal
+to the reification of that semantic object.
 
--- (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : T) ⇒ Γ ⊢ 𝓊 : T Ⓡ ↑ᵀ 𝓊̂
+This is intentional, as these results will be exactly
+what we will need to prove the soundness of NbE. We
+formalize them with the following implications, which
+we will prove mutually (as reflection and reification
+are themselves defined mutually) by induction on types.
+
+Our first implication is:
+
+    (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : T) ⇒ Γ ⊢ 𝓊 : T Ⓡ ↑ᵀ 𝓊̂
+
+which we can now formalize in Agda with our definitions
+```agda
 ==↑-Ⓡ : ∀ {Γ : Γ} {T : Type} {𝓊 : Γ ⊢ T} {𝓊̂ : Ne↑ T}
       → (∀ {Γ′ : SystemT.Γ}
          → (Γ′≤Γ : Γ′ ≤ Γ)
          → Γ′≤Γ ≤⊢ 𝓊 ==↑ 𝓊̂)
         -------------------
       → 𝓊 Ⓡ (↑ᵀ 𝓊̂)
+```
 
--- Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ′ : T
+The second implication is:
+
+    Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ′ : T
+
+```agda
 Ⓡ-==↓ : ∀ {Γ′ Γ : Γ} {T : Type} {t : Γ ⊢ T} {a : ⟦ T ⟧}
       → t Ⓡ a
         ---------------------
       → (Γ′≤Γ : Γ′ ≤ Γ)
       → Γ′≤Γ ≤⊢ t == ↓ᵀᵧ a
+```
 
--- A consequence of the first implication is that
--- Γ , x:T ⊢ x Ⓡ ↑ᵀ (𝓍̂ Γ), which we define now
--- as it will be the lemma we will need for proving the
--- second implication
+A consequence of the first implication is that
+`Γ , x:T ⊢ x Ⓡ ↑ᵀ (𝓍̂ Γ)`, which we define now
+as it will be the lemma we will need for proving the
+second implication
+```agda
 xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
         -------------------------
       → ` `Z {Γ} {T} Ⓡ ↑ᵀ (𝓍̂ T Γ)
+```
 
--- To prove the first implication, first we show that it always
--- holds for liftable neutral terms of type nat
+To prove the first implication, first we show that it always
+holds for liftable neutral terms of type nat. This is simply
+the given proof, so this case follows immediately.
+```agda
 ==↑-Ⓡ {T = nat} pf Γ′≤Γ = pf Γ′≤Γ
--- Now, for liftable neutral terms of type S → T, we prove that
--- the relation holds for ↑ᵀ (𝓊̂ · ↓ˢ a)
+```
+Now, for liftable neutral terms of type S → T, we prove that
+the relation holds for `↑ᵀ (𝓊̂ · ↓ˢ a)`
+
+We prove the relation holds by using our induction
+hypothesis, so that our new goal is to prove that
+
+    Γ″ ⊢ 𝓊 s = (𝓊̂ · (↓ˢ a)) Γ″ : T
+
+for any Γ″ that is an extension of Γ′ (which itself
+extends Γ).
+
+Note that `(𝓊̂ · (↓ˢ a)) Γ″` is equivalent to
+`𝓊̂(Γ″) · (↓ˢ a)(Γ″)` (application of liftable neutrals is overloaded.
+
+First, we deconstruct `𝓊̂ (Γ″)`,
+using our given proof that it's definitionally
+equal to `Γ″ ⊢ 𝓊 : S → T` to both discard the case
+where `𝓊̂ (Γ″)` is undefined and simplify our goal
+to proving that:
+
+    Γ″ ⊢ 𝓊 · s = 𝓊″ · ↓ˢ a Γ″ : T (𝓊″ is 𝓊̂ lifted to the context Γ″)
+
+We also use the other implication we will prove,
+alongside the fact that `s Ⓡ a`, to have evidence
+that `Γ″ ⊢ s : S` is definitionally equal to
+`↓ˢ a Γ″`.
+
+With these pieces in place, we can use equational reasoning for definitional
+equality to prove the desired goal.
+```agda
 ==↑-Ⓡ {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} Γ′≤Γ {s} {a} sⓇa =
-  -- We prove the relation holds by using our induction
-  -- hypothesis, so that our new goal is to prove that
-  -- Γ″ ⊢ 𝓊 s = (𝓊̂ · (↓ˢ a)) Γ″ : T
-  -- for any Γ″ that is an extension of Γ′ (which itself
-  -- extends Γ).
   ==↑-Ⓡ 𝓊·s==𝓊̂·↓ˢa
     where
       𝓊·s==𝓊̂·↓ˢa : ∀ {Γ″ : Γ}
                  → (Γ″≤Γ′ : Γ″ ≤ Γ′)
                  → Γ″≤Γ′ ≤⊢ (Γ′≤Γ ≤⊢ 𝓊) · s ==↑ 𝓊̂ ·↑ (↓ᵀ a)
       𝓊·s==𝓊̂·↓ˢa  {Γ″} Γ″≤Γ′
-        -- Note that (𝓊̂ · (↓ˢ a)) Γ″ is equivalent to
-        -- 𝓊̂(Γ″) · (↓ˢ a)(Γ″). First, we deconstruct 𝓊̂ (Γ″),
-        -- using our given proof that it's definitionally
-        -- equal to Γ″ ⊢ 𝓊 : S → T to both discard the case
-        -- where 𝓊̂ (Γ″) is undefined and simplify our goal
-        -- to proving that:
-        --   Γ″ ⊢ 𝓊 · s = 𝓊″ · ↓ˢ a Γ″ : T
-        -- (where 𝓊″ is 𝓊̂ lifted to the context Γ″)
         with 𝓊̂ Γ″           | pf (≤-trans Γ″≤Γ′ Γ′≤Γ)
       ... | inj₁ ⟨ 𝓊″ , _ ⟩ | 𝓊==𝓊″
-        -- We also use the other implication we will prove,
-        -- alongside the fact that s Ⓡ a, to have evidence
-        -- that Γ″ ⊢ s : S is definitionally equal to
-        -- ↓ˢ a Γ″
         with Ⓡ-==↓ sⓇa Γ″≤Γ′
       ... | s==↓ᵀᵧa =
-        -- We can now use equational reasoning for
-        -- definitional equality to prove the desired goal
         begin
           Γ″≤Γ′ ≤⊢ (Γ′≤Γ ≤⊢ 𝓊) · s
         ==⟨ app-compatible (≡→== (weaken-compose Γ″≤Γ′ Γ′≤Γ 𝓊)) refl ⟩
@@ -236,16 +274,27 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
         ∎
         where
           Γ″≤Γ = ≤-trans Γ″≤Γ′ Γ′≤Γ
+```
 
--- To prove the second implication, we proceed similarly
--- and first prove it for type nat. If the term is logically
--- related to zero, the implication holds immediately from
--- our given proof
+To prove the second implication, we proceed similarly
+and first prove it for type nat. If the term is logically
+related to zero, the implication holds immediately from
+our given proof
+```agda
 Ⓡ-==↓ {T = nat} {a = zero} pf Γ′≤Γ with ↓ᵀ {nat} zero
 ... | _ = pf Γ′≤Γ
--- Otherwise, if the term is logically related to
--- a successor of a natural, our given proof
--- similarly leads to the implication
+```
+Otherwise, if the term is logically related to
+a successor of a natural, our given proof
+similarly leads to the implication, though for this case,
+we additionally need a lemma showing
+that if a term of type nat is definitionally
+equal to an object a of type ℕ̂ (i.e. a natural
+with embedded liftable neutrals), then it is
+definitionally equal to the reification of
+the object a. We can prove this by induction
+on a.
+```agda
 Ⓡ-==↓ {Γ} {T = nat} {t} {suc a} pf Γ′≤Γ
   with pf Γ′≤Γ
 ... | ⟨ n , ⟨ t==sn , nⓇa ⟩ ⟩
@@ -259,13 +308,6 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
     suc · ↓ᵀᵧ a
   ∎
   where
-    -- For this case, we additionally need a lemma showing
-    -- that if a term of type nat is definitionally
-    -- equal to an object a of type ℕ̂ (i.e. a natural
-    -- with embedded liftable neutrals), then it is
-    -- definitionally equal to the reification of
-    -- the object a. We can prove this by induction
-    -- on a
     ==ℕ̂→==↓ᵀ : ∀ {Γ : SystemT.Γ} {n : Γ ⊢ nat} {a : ⟦ nat ⟧}
              → n ==ℕ̂ a
                ----------
@@ -279,40 +321,49 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
     ==ℕ̂→==↓ᵀ {Γ} {t} {ne 𝓊̂} pf
       with 𝓊̂ Γ           | pf
     ... | inj₁ ⟨ 𝓊 , _ ⟩ | t==𝓊 = t==𝓊
--- Lastly, if the term is logically related to an
--- embedded liftable neutral, the implication also
--- holds immediately from our given proof
+```
+Lastly for type nat, if the term is logically related to an
+embedded liftable neutral, the implication also
+holds immediately from our given proof
+```agda
 Ⓡ-==↓ {Γ′} {T = nat} {a = ne 𝓊̂} pf Γ′≤Γ
   with 𝓊̂ Γ′           | pf Γ′≤Γ
 ... | inj₁ ⟨ 𝓊 , _ ⟩  | t==𝓊     = t==𝓊
--- For our inductive step, we prove the implication
--- for terms of type S → T. Our desired implication
--- is now:
---   Γ′ ⊢ t = ↓ᵀ f Γ′ : T
--- which, by definition, expands to:
---   Γ′ ⊢ t = λx. ↓ᵀ f a (Γ′ , x:S) : T
---     (where a = ↑ᵀ 𝓍̂ˢ Γ′)
+```
+For our inductive step, we prove the implication
+for terms of type S → T. Our desired implication
+is now:
+
+    Γ′ ⊢ t = ↓ᵀ f Γ′ : T
+
+which, by definition, expands to:
+
+    Γ′ ⊢ t = λx. ↓ᵀ f a (Γ′ , x:S) : T (where a = ↑ᵀ 𝓍̂ˢ Γ′)
+
+We prove this by η expanding t to `λx. t x` and
+then using the compatibility rule for abstractions
+of definitional equality to simplify our goal to
+proving:
+
+    Γ′ , x:S ⊢ t x = ↓ᵀ f a (Γ′, x:S)
+
+Note that our inductive hypothesis is:
+
+    t x Ⓡ f a implies t x = ↓ᵀ f a
+
+This is exactly what we want to show, so now
+all we need is to prove that `t x Ⓡ f a`.
+
+Luckily, our given proof holds that t and f
+are logically related, which is equivalent
+to saying that if `x Ⓡ a` , then `t x Ⓡ f a`,
+reducing what we have to prove only to
+`x Ⓡ a`. We have been using "a" for simplicity,
+but `a = ↑ᵀ 𝓍̂ˢ Γ′`, and we are mutually proving
+that `x Ⓡ ↑ᵀ 𝓍̂`, so we use this lemma here
+to finish our proof.
+```agda
 Ⓡ-==↓ {Γ′} {T = S ⇒ _} {t} {f} pf Γ′≤Γ =
-  -- We prove this by η expanding t to λx. t x and
-  -- then using the compatibility rule for abstractions
-  -- of definitional equality to simplify our goal to
-  -- proving:
-  --   Γ′ , x:S ⊢ t x = ↓ᵀ f a (Γ′, x:S)
-  --
-  -- Note that our inductive hypothesis is:
-  --   t x Ⓡ f a implies t x = ↓ᵀ f a
-  --
-  -- This is exactly what we want to show, so now
-  -- all we need is to prove that t x Ⓡ f a
-  --
-  -- Luckily, our given proof holds that t and f
-  -- are logically related, which is equivalent
-  -- to saying that if x Ⓡ a , then t x Ⓡ f a,
-  -- reducing what we have to prove only to
-  -- x Ⓡ a. We have been using "a" for simplicity,
-  -- but a = ↑ᵀ 𝓍̂ˢ Γ′, and we are mutually proving
-  -- that x Ⓡ ↑ᵀ 𝓍̂, so we use this lemma here
-  -- to finish our proof.
   begin
     Γ′≤Γ ≤⊢ t
   ==⟨ η ⟩
@@ -334,10 +385,12 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
       ≡→== (≡-trans (incr-↑-≡ {Γ′≤Γ = Γ′≤Γ} {t = t}) (≡-sym [id]-identity))
     a = ↑ᵀ {S} (𝓍̂ S Γ′)
     xⓇa = xⓇ↑ᵀ𝓍̂ {Γ′} {S}
+```
 
--- Using our first implication, we can quickly
--- prove that Γ , x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂, as
--- Γ′ ⊢ x = 𝓍̂ Γ′ : T for all Γ′ ≤ Γ , x:T
+Using our first implication, we can quickly
+prove that `Γ , x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂`, as `Γ′ ⊢ x = 𝓍̂ Γ′ : T` for all
+`Γ′ ≤ Γ , x:T`
+```agda
 xⓇ↑ᵀ𝓍̂ {_} {T} = ==↑-Ⓡ x==𝓍̂ where
   x==𝓍̂ : ∀ {Γ Γ′ : Γ}
        → (Γ′≤Γ,T : Γ′ ≤ (Γ , T))
@@ -350,12 +403,14 @@ xⓇ↑ᵀ𝓍̂ {_} {T} = ==↑-Ⓡ x==𝓍̂ where
   ... | _      | refl
     with ≤ᵨ pf′
   ...| _ , _  = refl
+```
 
--- Before moving forward, we also want to show that rec Ⓡ ⟦rec⟧.
--- This will be necessary for proving soundness, as we will need
--- proof that Γ ⊢ rec = ↓ᵀ ⟦rec⟧ Γ : (T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T)
--- (i.e. proof that our interpretation of rec is sound) to prove the
--- soundness of NbE
+Before moving forward, we also want to show that rec Ⓡ ⟦rec⟧.
+This will be necessary for proving soundness, as we will need
+proof that `Γ ⊢ rec = ↓ᵀ ⟦rec⟧ Γ : (T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T)`
+(i.e. proof that our interpretation of rec is sound) to prove the
+soundness of NbE
+```agda
 recⓇ⟦rec⟧ : ∀ {Γ : Γ} {T : Type} → rec {Γ} {T} Ⓡ ⟦rec⟧
 recⓇ⟦rec⟧ Γ′≤Γ {z} pf Γ″≤Γ′ pf′ Γ‴≤Γ″ {s = n} {zero} pf″
   with pf″ ≤-id
@@ -433,7 +488,6 @@ recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ {�
         s·x₁·x₂==↓ᵀas·↑ᵀ𝓍̂₁·↑ᵀ𝓍̂₂
           with s·x₁·x₂Ⓡaₛ·↑ᵀ𝓍̂₁↑ᵀ𝓍̂₂
         ... | pf-Ⓡ
---          rewrite subst-lemma₁ | subst-lemma₂ | subst-lemma₃
           with Ⓡ-==↓ pf-Ⓡ ≤-id
         ... | pf-==↓
           rewrite subst-lemma₁ | subst-lemma₂ | subst-lemma₃ = pf-==↓
@@ -446,46 +500,54 @@ recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ {�
           with Ⓡ-==↓ {Γ⁗} pf (≤-trans Γ⁗≤Γ‴ Γ‴≤Γ′)
         ... | pf
           rewrite subst-lemma₄ | subst-lemma₅ = pf
+```
 
--- With that out of the way, having proved the lemma that
--- Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ : T, we have:
---   Γ ⊢ t : T Ⓡ a ⇒ Γ ⊢ t = ↓ᵀ a Γ : T
--- which is what we wanted our logical relation to imply,
--- so that we can then show that Γ ⊢ t : T Ⓡ a for a = ⟦t⟧ (↑ Γ)
---
--- For this, we will establish that Γ ⊢ t : T Ⓡ ⟦t⟧ (↑ Γ)
--- using the fundamental lemma of logical relations. First,
--- we will need to extend logical relations to include
--- substitutions and environments. We again use ∥Ⓡ∥ for
--- the "parallel" in parallel substitutions, as Ⓡ is
--- already defined for terms and semantic objects
+With that out of the way, having proved the lemma that
+`Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ : T`, we have:
+    Γ ⊢ t : T Ⓡ a ⇒ Γ ⊢ t = ↓ᵀ a Γ : T
+which is what we wanted our logical relation to imply,
+so that we can then show that `Γ ⊢ t : T Ⓡ a` for `a = ⟦t⟧ (↑ Γ)`
+
+For this, we will establish that `Γ ⊢ t : T Ⓡ ⟦t⟧ (↑ Γ)`
+using the fundamental lemma of logical relations. First,
+we will need to extend logical relations to include
+substitutions and environments. We again use ∥Ⓡ∥ for
+the "parallel" in parallel substitutions, as Ⓡ is
+already defined for terms and semantic objects
+```agda
 _∥Ⓡ∥_ : ∀ {Γ Δ : Γ}
       → Γ ⊩ Δ
       → ⟦ Δ ⟧
       → Set
+```
 
--- Similarly as for terms and values, a Kripe logical
--- relation between a parallel substitution and an
--- environment is defined inductively, though this time
--- by induction on the rules for parallel substitutions
--- instead of by induction on types
+Similarly as for terms and values, a Kripe logical
+relation between a parallel substitution and an
+environment is defined inductively, though this time
+by induction on the rules for parallel substitutions
+instead of by induction on types
 
--- A substitution from the empty context is always
--- logically related to an empty environment
+A substitution from the empty context is always
+logically related to an empty environment
+```agda
 ∅ ∥Ⓡ∥ tt = ⊤
+```
 
--- An extension to a substition (σ , s / x) is logically
--- related to an environment (ρ , a) if σ is logically
--- related to ρ and s is logically related to a
+An extension to a substition (σ , s / x) is logically
+related to an environment (ρ , a) if σ is logically
+related to ρ and s is logically related to a
+```agda
 (σ , s) ∥Ⓡ∥ ⟨ ρ , a ⟩ = σ ∥Ⓡ∥ ρ × s Ⓡ a
 
 infix 4 _∥Ⓡ∥_
+```
 
--- A consequence of how substitutions and their logical
--- relation with environments are defined is that we
--- have that a logical relation for a shifted substitution
--- holds if the logical relation holds for the original
--- substitution (as the shifted terms will be irrelevant)
+A consequence of how substitutions and their logical
+relation with environments are defined is that we
+have that a logical relation for a shifted substitution
+holds if the logical relation holds for the original
+substitution (as the shifted terms will be irrelevant)
+```agda
 ∥Ⓡ∥-↑ : ∀ {Γ Δ : Γ} {T : Type} {σᵨ : Γ ⊩ᵨ Δ} {ρ : ⟦ Δ ⟧}
       → substᵨ σᵨ ∥Ⓡ∥ ρ
       → substᵨ (_↑ᵨ {T = T} σᵨ) ∥Ⓡ∥ ρ
@@ -502,33 +564,39 @@ infix 4 _∥Ⓡ∥_
       with Ⓡ-weaken {Γ′≤Γ = Γ,T≤Γ} {t = ` x} xⓇa
     ... | pf
       rewrite subst-lemma₁ | subst-lemma₂ = pf
+```
 
--- A generalization of this is, similarly as for logical relations
--- between terms and semantic objects, that if a logical relation
--- holds between a substitution and an environment, it holds for any
--- weakening of the substitution (as weakening is really a series
--- of shifts)
+A generalization of this is, similarly as for logical relations
+between terms and semantic objects, that if a logical relation
+holds between a substitution and an environment, it holds for any
+weakening of the substitution (as weakening is really a series
+of shifts)
+```agda
 ∥Ⓡ∥-weaken : ∀ {Γ′ Γ Δ : Γ} {Γ′≤Γ : Γ′ ≤ Γ} {σ : Γ ⊩ Δ} {ρ : ⟦ Δ ⟧}
         → σ ∥Ⓡ∥ ρ
         → σ ∘ (weaken Γ′≤Γ) ∥Ⓡ∥ ρ
 ∥Ⓡ∥-weaken {σ = ∅} x = tt
 ∥Ⓡ∥-weaken {Γ′≤Γ = Γ′≤Γ} {σ , s} ⟨ σ∥Ⓡ∥ρ , sⓇa ⟩ =
   ⟨ ∥Ⓡ∥-weaken {Γ′≤Γ = Γ′≤Γ} σ∥Ⓡ∥ρ , Ⓡ-weaken {Γ′≤Γ = Γ′≤Γ} sⓇa ⟩
+```
 
--- We are now ready to introduce the semantic typing judgement
--- Γ ⊨ t : T, which will be the what we will use to arrive
--- at Γ ⊢ t : T Ⓡ ⟦ t ⟧ ↑Γ Γ
+We are now ready to introduce the semantic typing judgement
+`Γ ⊨ t : T`, which will be the what we will use to arrive
+at `Γ ⊢ t : T Ⓡ ⟦ t ⟧ ↑Γ Γ`
+```agda
 _⊨_ : ∀ {T : Type} → (Γ : Γ) → Γ ⊢ T → Set
 _⊨_ {T} Γ t =
   ∀ {Δ : SystemT.Γ} {σ : Δ ⊩ Γ} {ρ : ⟦ Γ ⟧}
   → σ ∥Ⓡ∥ ρ
     -------
   → t [ σ ] Ⓡ ⟦⊢ t ⟧ ρ
+```
 
--- By induction on the typing judgement Γ ⊢ t : T,
--- we prove the semantic typing judgement Γ ⊨ t : T,
--- this is called the fundamental lemma of logical
--- relations
+By induction on the typing judgement `Γ ⊢ t : T`,
+we prove the semantic typing judgement `Γ ⊨ t : T`,
+this is called the fundamental lemma of logical
+relations
+```agda
 fundamental-lemma : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
                   → Γ ⊨ t
 fundamental-lemma {t = zero} σ∥Ⓡ∥ρ _ = refl
@@ -573,36 +641,44 @@ fundamental-lemma {t = r · s} {σ = σ} σ∥Ⓡ∥ρ
   with Γ⊨r ≤-id Γ⊨s
 ... | pf
   rewrite [id]-identity {t = r [ σ ]} = pf
+```
 
--- For the identity substitution we have that Γ ⊢ id : Γ Ⓡ ↑Γ ,
--- which we prove by induction using our lemma that
--- Γ,x:T ⊢ x : T Ⓡ ↑ᵀ (𝓍ᵀ Γ) for every variable that we
--- are substituting for itself.
---
--- For our inductive step, our IH will give us that
--- Γ ⊢ id : Γ Ⓡ ↑Γ Γ, but we want proof that Γ , x:T ⊢ id ↑ : Γ Ⓡ Γ
--- (because the identity substitution is unwrapped to (id ↑ , x / x)
--- for the context Γ , x:T). Here, we use our lemma that if a
--- logical relation holds for a substitution and an environment
--- it holds for a shifting of the substition, allowing us to
--- transform our IH into our goal
+For the identity substitution we have that `Γ ⊢ id : Γ Ⓡ ↑Γ` ,
+which we prove by induction using our lemma that
+`Γ,x:T ⊢ x : T Ⓡ ↑ᵀ (𝓍ᵀ Γ)` for every variable that we
+are substituting for itself.
+
+```agda
 idⓇ↑Γ : ∀ {Γ : Γ}
        → id ∥Ⓡ∥ (↑Γ Γ)
 idⓇ↑Γ {∅} = tt
+```
+For our inductive step, our IH will give us that
+`Γ ⊢ id : Γ Ⓡ ↑Γ Γ`, but we want proof that `Γ , x:T ⊢ id ↑ : Γ Ⓡ Γ`
+(because the identity substitution is unwrapped to `(id ↑ , x / x)`
+for the context` Γ , x:T`). Here, we use our lemma that if a
+logical relation holds for a substitution and an environment
+it holds for a shifting of the substition, allowing us to
+transform our IH into our goal
+```agda
 idⓇ↑Γ {Γ , T} = ⟨ ∥Ⓡ∥-↑ {T = T} idⓇ↑Γ , xⓇ↑ᵀ𝓍̂ ⟩
+```
 
--- With this fact, we arrive at the soundness of NbE:
+With this fact, we arrive at the soundness of NbE. By the fundamental lemma,
+given `Γ ⊢ id : Γ Ⓡ ↑Γ`, we have that `Γ ⊢ t [ id ] Ⓡ ⟦ t ⟧ ↑Γ` -- and
+`t [ id ] ≡ t`.
+
+Using the lemma that logical relation implies definitional
+equality to the reified semantic object, we arrive at
+`Γ ⊢ t = ↓ᵀᵧ ⟦ t ⟧ ↑Γ : T`, which is what we want to show
+(i.e. `Γ ⊢ t = nf(t) : T`)
+```agda
 soundness : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
           → t == nf t
 soundness {Γ} {T} {t}
-  -- Since the identity substition has that Γ ⊢ id : Γ Ⓡ ↑Γ,
-  -- by the fundamental lemma we have that Γ ⊢ t Ⓡ ⟦t⟧ ↑Γ
   with fundamental-lemma {t = t} (idⓇ↑Γ {Γ})
 ... | tⓇ⟦t⟧↑Γ
-  -- Using the lemma that logical relation implies definitional
-  -- equality to the reified semantic object, we arrive at
-  -- Γ ⊢ t = ↓ᵀᵧ ⟦ t ⟧ ↑Γ : T, which is what we want to show
-  -- (i.e. Γ ⊢ t = nf(t) : T)
   with Ⓡ-==↓ tⓇ⟦t⟧↑Γ ≤-id
 ... | t==↓ᵀᵧ⟦t⟧↑Γ
   rewrite [id]-identity {t = t [ id ]} | [id]-identity {t = t} = t==↓ᵀᵧ⟦t⟧↑Γ
+```
