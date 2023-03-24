@@ -302,9 +302,10 @@ infix 8 _[_]ᵨ
 We also define a few "primitive" renamings that will be convenient for general
 substitutions:
 
-- The identity and incrementing renaming, defined mutually. The identity
+The identity and incrementing renaming, defined mutually. The identity
 renaming leaves all variables unchanged, while the incrementing renaming
 increments all variables (which are really just indices) by 1
+
 ```agda
 idᵨ : ∀ {Γ : Γ} → Γ ⊩ᵨ Γ
 incrᵨ : ∀ {Γ : Γ} {T : Type} → (Γ , T) ⊩ᵨ Γ
@@ -315,11 +316,12 @@ idᵨ {Γ , T} = incrᵨ , `Z
 incrᵨ = idᵨ ↑ᵨ
 ```
 
-- A renaming between a context Γ′ and Γ,
+A renaming between a context Γ′ and Γ,
 where Γ′ is an extension of Γ. This renaming
 is really a series of shifts based on
 how many extensions to Γ the context Γ′
-contains
+contains.
+
 ```agda
 ≤ᵨ : ∀ {Γ′ Γ : Γ} → Γ′ ≤ Γ → Γ′ ⊩ᵨ Γ
 ≤ᵨ ≤-id = idᵨ
