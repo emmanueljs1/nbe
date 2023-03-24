@@ -343,24 +343,34 @@ weaken : ∀ {Γ′ Γ : Γ}
        → Γ′ ⊩ Γ
 weaken pf = substᵨ (≤ᵨ pf)
 
--- Additionally, we define an identity substitution,
--- which is simply the identity renaming
+-- For convenience, we define some shorthand for
+-- applying a weakening substitution to a term
+_≤⊢_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ ≤ Γ → Γ ⊢ T → Γ′ ⊢ T
+pf ≤⊢ t = t [ weaken pf ]
+
+infixr 5 _≤⊢_
+
+-- Additionally, we define an identity and incrementing
+-- substitution, which are simply the identity and
+-- incrementing renaming substitutions
 id : ∀ {Γ : Γ} → Γ ⊩ Γ
 id = substᵨ idᵨ
 
--- To establish η-equivalence, we also define an operation
--- for applying an increment renaming substitution
+incr : ∀ {Γ : Γ} {T : Type} → Γ , T ⊩ Γ
+incr = substᵨ incrᵨ
+
+-- The incrementing substitution will be used to establish
+-- η-equivalence, we also define some shorthand for its
+-- application to a term
 _↑⊢_ : ∀ {Γ : Γ} {T : Type} → (S : Type) → Γ ⊢ T → Γ , S ⊢ T
-_ ↑⊢ t = t [ substᵨ incrᵨ ]
+_ ↑⊢ t = t [ incr ]
 
 infixr 5 _↑⊢_
 
--- And now, to finally establish β-equivalence,
--- we define an operation for substituting the first
--- free variable in a term Γ , S ⊢ t : T with a
--- term Γ ⊢ s : S
---
--- t [ s / x ] is really shorthand for t [ id , s / x ]
+-- TO establish β-equivalence, we define an operation for
+-- substituting the first free variable in a term Γ , x:S ⊢ t : T
+-- with a term Γ ⊢ s : S (i.e. t [ s / x ]), which is really
+-- shorthand for t [ id , s / x ]
 _[_/x] : ∀ {Γ : Γ} {S T : Type}
   → Γ , T ⊢ S
   → Γ ⊢ T
@@ -402,14 +412,14 @@ data _==_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
   β-ƛ : ∀ {Γ : Γ} {S T : Type}
           {t : Γ , S ⊢ T}
           {s : Γ ⊢ S}
-          --------------------
+          ----------------------
         → (ƛ t) · s == t [ s /x]
 
   -- Function extensionality, i.e. Γ ⊢ t = Γ ⊢ λx. t x : S ⇒ T
 
   η : ∀ {Γ : Γ} {S T : Type}
         {t : Γ ⊢ S ⇒ T}
-        ----------------------------
+        ----------------------
       → t == ƛ (S ↑⊢ t) · ` `Z
 
   -- Compatibility rules
@@ -448,13 +458,6 @@ data _==_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
           → t₁ == t₃
 
 infix 3 _==_
-
--- Equivalent terms are definitionally equal
-≡→== : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
-     → t ≡ t′
-       -------
-     → t == t′
-≡→== pf rewrite pf = refl
 
 module ==-Reasoning where
   infix  1 begin_

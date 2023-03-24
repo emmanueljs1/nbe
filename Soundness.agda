@@ -26,22 +26,8 @@ module Soundness where
 -- We start by defining a few functions for the convenience of
 -- defining the relation
 
--- The first extends a well typed term in context Γ to its
--- corresponding well typed term in Γ′, an extension of Γ.
---
--- Formally, this will represent the implicit changing
--- of contexts used in the Kripe logical relation, e.g.
--- Γ ⊢ t : T --> Γ′ ⊢ t : T
---
--- Really, this is just a convenient notation for applying a
--- weakening substitution
-_≤⊢_ : ∀ {Γ′ Γ : Γ} {T : Type} → Γ′ ≤ Γ → Γ ⊢ T → Γ′ ⊢ T
-pf ≤⊢ t = t [ weaken pf ]
-
-infixr 5 _≤⊢_
-
--- The next function we define "lifts"
--- definitional equality over liftable neutrals
+-- The first "lifts" definitional equality over
+-- liftable neutrals
 --
 -- Formally, this represents the condition seen
 -- in the Kripke logical relation:
@@ -61,21 +47,6 @@ _==↑_ {Γ} t 𝓊̂ with 𝓊̂ Γ
 
 infix 3 _==↑_
 
--- We also define a function for definitional equality
--- over naturals with embedded liftable neutrals. This
--- represents the condition:
---   Γ ⊢ t = 𝓋̂(Γ) : nat
--- that is used in the logical relation between typed terms
--- and semantic objects at type nat.
-_==ℕ̂_ : {Γ : Γ} → Γ ⊢ nat → ⟦ nat ⟧ → Set
-_==ℕ̂_ t zero = t == zero
-_==ℕ̂_ {Γ} t (suc 𝓋̂) =
-  ∃[ n ] t == suc · n ×
-    (∀ {Γ′ : SystemT.Γ} → (Γ′≤Γ : Γ′ ≤ Γ) → Γ′≤Γ ≤⊢ n ==ℕ̂ 𝓋̂)
-_==ℕ̂_ t (ne 𝓊̂) = t ==↑ 𝓊̂
-
-infix 3 _==ℕ̂_
-
 -- The last function provides a shorthand for reifying
 -- an interpretation of T then immediately applying a
 -- context Γ, as is done in some implications (we use lowercase
@@ -84,23 +55,61 @@ infix 3 _==ℕ̂_
 ↓ᵀᵧ {Γ} a with ↓ᵀ a
 ... | a↑ = proj₁ (a↑ Γ)
 
--- We now introduce the Kripe logical relation between a typed term
--- Γ ⊢ t : T and a value in ⟦T⟧, it is constructed by induction on
--- types
-_Ⓡ_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
+-- We now introduce the Kripe logical relation Γ ⊢ t : T Ⓡ a
+-- between a typed term Γ ⊢ t : T and a value a ∈ ⟦T⟧
+--
+-- For Agda's termination checking, we have to define the
+-- logical relation at type nat separately, which we do so
+--  in the form of Ⓝ
+_Ⓝ_ : ∀ {Γ : Γ} → Γ ⊢ nat → ⟦ nat ⟧ → Set
+
+_==ℕ̂_ : ∀ {Γ : Γ} → Γ ⊢ nat → ⟦ nat ⟧ → Set
 
 -- The relation defined over nats:
--- Γ : nat Ⓡ 𝓋̂ =
---     ∀ Γ′ ≤ Γ. Γ′ ⊢ t = 𝓋̂(Γ′) : nat
-_Ⓡ_ {Γ} {nat} t 𝓋̂ =
+-- Γ : nat Ⓡ 𝓋̂ ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = 𝓋̂(Γ′) : nat
+--
+-- We define Ⓝ mutually with ==ℕ̂, a relation representing
+-- the condition Γ′ ⊢ t = 𝓋̂(Γ′) : nat, which lifts
+-- definitional equality to be over naturals with embedded
+-- liftable neutrals
+_Ⓝ_ {Γ} n 𝓋̂ =
   ∀ {Γ′ : SystemT.Γ}
   → (Γ′≤Γ : Γ′ ≤ Γ)
     ---------------
-  → Γ′≤Γ ≤⊢ t ==ℕ̂ 𝓋̂
+  → Γ′≤Γ ≤⊢ n ==ℕ̂ 𝓋̂
+
+infix 4 _Ⓝ_
+
+-- Definitional equality lifted to naturals with embedded
+-- liftable neutrals, this represents the condition
+--   Γ ⊢ t = 𝓋̂(Γ) : nat
+--
+-- For zero, the relation is a simple definitional equality
+-- judgement
+_==ℕ̂_ {Γ} t zero = t == zero
+-- For our recursive case (suc 𝓋̂), we want the term to be
+-- definitionally equal to suc · n such that n is logically
+-- related to 𝓋̂, a condition stronger than ==ℕ̂, as it holds
+-- for all extensions of the context -- this is why we need
+-- to define ==ℕ̂ mutually with Ⓝ. We want our recursive
+-- condition to be stronger to have an easier time with
+-- the embedded liftable neutrals
+_==ℕ̂_ {Γ} t (suc 𝓋̂) = ∃[ n ] t == suc · n × n Ⓝ 𝓋̂
+-- For an embedded liftable neutral, the relation is the
+-- lifted definitional equality defined earlier
+_==ℕ̂_ {Γ} t (ne 𝓊̂) = t ==↑ 𝓊̂
+
+infix 3 _==ℕ̂_
+
+-- With these in place, we can start defining the logical
+-- relation Ⓡ itself by induction on types, using Ⓝ for
+-- the base type nat
+_Ⓡ_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
+
+_Ⓡ_ {Γ} {nat} t 𝓋̂ = t Ⓝ 𝓋̂
 
 -- The relation defined over functions:
---   Γ ⊢ r : S → T Ⓡ f =
---     ∀ Γ′ ≤ Γ. Γ′ ⊢ s : S Ⓡ a ⇒ Γ′ ⊢ r s : T Ⓡ f(a)
+--   Γ ⊢ r : S → T Ⓡ f ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ s : S Ⓡ a ⇒ Γ′ ⊢ r s : T Ⓡ f(a)
 _Ⓡ_ {Γ} {S ⇒ T} r f =
   ∀ {Γ′ : SystemT.Γ}
   → (Γ′≤Γ : Γ′ ≤ Γ)
@@ -115,10 +124,10 @@ infix 4 _Ⓡ_
 -- of definitional equality is that the relation is transitive
 -- with respect to definitional equality
 ==-Ⓡ-trans : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T} {a : ⟦ T ⟧}
-     → t == t′
-     → t Ⓡ a
-       -------
-     → t′ Ⓡ a
+           → t == t′
+           → t Ⓡ a
+             -------
+           → t′ Ⓡ a
 ==-Ⓡ-trans {T = nat} {a = zero} t==t′ pf Γ′≤Γ =
   trans (sym (==-subst t==t′)) (pf Γ′≤Γ)
 ==-Ⓡ-trans {T = nat} {a = suc a} t==t′ pf Γ′≤Γ
@@ -189,7 +198,7 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
 ==↑-Ⓡ {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} Γ′≤Γ {s} {a} sⓇa =
   -- We prove the relation holds by using our induction
   -- hypothesis, so that our new goal is to prove that
-  -- Γ″ ⊢ 𝓊 s  = (𝓊̂ · (↓ˢ a)) Γ″ : T
+  -- Γ″ ⊢ 𝓊 s = (𝓊̂ · (↓ˢ a)) Γ″ : T
   -- for any Γ″ that is an extension of Γ′ (which itself
   -- extends Γ).
   ==↑-Ⓡ 𝓊·s==𝓊̂·↓ˢa

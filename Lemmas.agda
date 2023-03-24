@@ -7,6 +7,13 @@ module Lemmas where
 
 open import SystemT
 
+-- Equivalent terms are definitionally equal
+≡→== : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T}
+     → t ≡ t′
+       -------
+     → t == t′
+≡→== pf rewrite pf = refl
+
 -- A few properties about the ≤ relation,
 -- which are all required to prove irrelevance
 -- of proof for the relation
@@ -159,7 +166,7 @@ postulate
     → (Γ₃≤Γ₂ : Γ₃ ≤ Γ₂)
     → (Γ₂≤Γ₁ : Γ₂ ≤ Γ₁)
     → (t : Γ₁ ⊢ T)
-    → t [ weaken Γ₂≤Γ₁ ] [ weaken Γ₃≤Γ₂ ] ≡ t [ weaken (≤-trans Γ₃≤Γ₂ Γ₂≤Γ₁) ]
+    → Γ₃≤Γ₂ ≤⊢ Γ₂≤Γ₁ ≤⊢ t ≡ (≤-trans Γ₃≤Γ₂ Γ₂≤Γ₁) ≤⊢ t
 
   -- TODO: not sure if this lemma will be necessary
   ==-rename : ∀ {Γ Δ : Γ} {T : Type} {t t′ : Γ ⊢ T} {σᵨ : Δ ⊩ᵨ Γ}
