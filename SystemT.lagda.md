@@ -177,9 +177,9 @@ We expect the following soundness properties for a
 normalization algorithm nf(t) that produces a normal form
 for a typed term `Γ ⊢ t : T`:
 
-  - Γ ⊢ nf(t) : T (well-typedness of normal form)
-  - ⟦ nf(t) ⟧ = ⟦ t ⟧ (preservation of meaning)
-  - nf(nf(t)) = nf(t) (idempotency)
+  - `Γ ⊢ nf(t) : T` (well-typedness of normal form)
+  - `⟦ nf(t) ⟧ = ⟦ t ⟧` (preservation of meaning)
+  - `nf(nf(t)) = nf(t)` (idempotency)
 
 For preservation of meaning, our interpretations of
 functional terms are functions, whose equality is
@@ -187,7 +187,7 @@ undecidable. However, in STLC, we have that two terms
 are βη-equivalent iff their interpretationss are equal.
 So, we wish to define an extension of βη-equivalence
 for System T s.t. it implies equal interpretations
-(thus making the proposition ⟦ nf(t) ⟧ = ⟦ t ⟧ decidable).
+(thus making the proposition `⟦ nf(t) ⟧ = ⟦ t ⟧` decidable).
 
 To define our extension of βη-equivalence, we begin by
 defining substitution (which we will use to define β-reductions
@@ -442,11 +442,11 @@ written as `Γ ⊢ t = t′ : T`, we will use t == t′ in Agda
 
 The relation is written such that the definitional equality
 of two terms implies the equality of their interpretations
-(`Γ ⊢ t = t′ : T` iff ⟦t⟧ = ⟦t′⟧); it is the extension of
+(`Γ ⊢ t = t′ : T` iff `⟦ t ⟧ = ⟦ t′ ⟧`); it is the extension of
 Βη-equivalence for System T suggested earlier
 
 We will use this relation to prove the soundness property
-of preservation of meaning for NbE (i.e. ⟦nf(t)⟧ = ⟦t⟧)
+of preservation of meaning for NbE (i.e. `⟦ nf(t) ⟧ = ⟦ t ⟧`)
 ```agda
 data _==_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
 
