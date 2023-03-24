@@ -5,7 +5,7 @@ This repository contains a formalization of Chapter 2 of Andreas Abel's habilita
 
 It can be read in the following order:
 
-1) [SystemT.agda](./SystemT.agda)
+1) [SystemT.agda](./SystemT.lagda.md)
     * Basic language constructs
     * Parallel substitutions
     * Definitional equality
