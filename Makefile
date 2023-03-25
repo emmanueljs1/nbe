@@ -5,7 +5,7 @@ SINKFILE = Soundness.lagda.md
 SRCFILES = SystemT.lagda.md NbE.lagda.md Soundness.lagda.md
 HTMLS = $(patsubst %.lagda.md, %.html, $(SRCFILES))
 HTML_DIR = html
-BIN = web
+BIN = docs
 
 
 all: $(BIN) $(patsubst %, $(BIN)/%, $(HTMLS))
