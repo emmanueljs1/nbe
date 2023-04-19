@@ -1,17 +1,15 @@
 .PHONY: all
 
-SINKFILE = Soundness.lagda.md
-
-SRCFILES = SystemT.lagda.md NbE.lagda.md Soundness.lagda.md
-HTMLS = $(patsubst %.lagda.md, %.html, $(SRCFILES))
+FILE = NbE
+WEB_DIR = web
 HTML_DIR = html
 BIN = docs
 
-
-all: $(BIN) $(patsubst %, $(BIN)/%, $(HTMLS))
-	agda --html $(SINKFILE)
-	rm $(patsubst %, $(HTML_DIR)/%, $(HTMLS))
+all: $(BIN) $(BIN)/$(FILE).html
+	agda --html $(FILE).lagda.md
+	rm $(HTML_DIR)/$(FILE).html
 	mv $(HTML_DIR)/* $(BIN)
+	scp -r $(WEB_DIR)/ $(BIN)/
 
 $(BIN):
 	mkdir -p $(BIN)
@@ -21,5 +19,6 @@ $(BIN)/%.html:
 	pandoc --standalone --embed-resources --css=html/Agda.css html/$*.md -o $(BIN)/$*.html
 
 clean:
-	rm -rf html/
+	rm -rf $(HTML_DIR)
+	rm -rf $(BIN)
 	rm -r *.agdai
