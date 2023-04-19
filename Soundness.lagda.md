@@ -9,7 +9,6 @@ open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to
 open import Relation.Nullary using (yes; no)
 open Eq using (refl; _≡_) renaming (sym to ≡-sym; trans to ≡-trans)
 
-open import SystemT
 open import NbE
 open import Lemmas
 
@@ -32,7 +31,7 @@ it implies `Γ ⊢ t = ↓ᵀ a Γ : T`.
 For defining the relation in Agda, we will need some functions first. The first
 "lifts" definitional equality over liftable neutrals. Formally, this represents the condition `Γ ⊢ 𝓊 = 𝓊̂(Γ) : T`, or equivalently in Agda:
 ```agda
-_==↑_ : {Γ : Γ} {T : Type} → Γ ⊢ T → Ne↑ T → Set
+_==↑_ : {Γ : Ctx} {T : Type} → Γ ⊢ T → Ne↑ T → Set
 _==↑_ {Γ} t 𝓊̂ with 𝓊̂ Γ
 ... | inj₁ ⟨ 𝓊 , _ ⟩ =
       -- If the liftable neutral can be lifted to the
@@ -51,7 +50,7 @@ We also provide shorthand for reifying the interpretation of a term t
 and then immediately applying a context Γ (we use lowercase γ as our
 subscript as Γ is not a valid subscript)
 ```agda
-↓ᵀᵧ : ∀ {Γ : Γ} {T : Type} → (a : ⟦ T ⟧) → Γ ⊢ T
+↓ᵀᵧ : ∀ {Γ : Ctx} {T : Type} → (a : ⟦ T ⟧) → Γ ⊢ T
 ↓ᵀᵧ {Γ} a with ↓ᵀ a
 ... | a↑ = proj₁ (a↑ Γ)
 ```
@@ -65,7 +64,7 @@ will be defined inductively on types. At type nat, the relation is defined as:
 For Agda's termination checking, we have to define the logical relation at type
 nat separately, which we do so in the form of Ⓝ:
 ```agda
-_Ⓝ_ : ∀ {Γ : Γ} → Γ ⊢ nat → ⟦ nat ⟧ → Set
+_Ⓝ_ : ∀ {Γ : Ctx} → Γ ⊢ nat → ⟦ nat ⟧ → Set
 ```
 
 We define Ⓝ mutually with ==ℕ̂, a relation representing
@@ -73,10 +72,10 @@ the condition `Γ′ ⊢ t = 𝓋̂(Γ′) : nat`, which lifts definitional equa
 be over naturals with embedded liftable neutrals
 
 ```agda
-_==ℕ̂_ : ∀ {Γ : Γ} → Γ ⊢ nat → ⟦ nat ⟧ → Set
+_==ℕ̂_ : ∀ {Γ : Ctx} → Γ ⊢ nat → ⟦ nat ⟧ → Set
 
 _Ⓝ_ {Γ} n 𝓋̂ =
-  ∀ {Γ′ : SystemT.Γ}
+  ∀ {Γ′ : Ctx}
   → (Γ′≤Γ : Γ′ ≤ Γ)
     ---------------
   → Γ′≤Γ ≤⊢ n ==ℕ̂ 𝓋̂
@@ -110,7 +109,7 @@ With these in place, we can start defining the logical
 relation Ⓡ itself by induction on types, using Ⓝ for
 the base type nat
 ```agda
-_Ⓡ_ : ∀ {Γ : Γ} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
+_Ⓡ_ : ∀ {Γ : Ctx} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
 
 _Ⓡ_ {Γ} {nat} t 𝓋̂ = t Ⓝ 𝓋̂
 ```
@@ -119,7 +118,7 @@ For function types, the relation is defined as:
     Γ ⊢ r : S → T Ⓡ f ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ s : S Ⓡ a ⇒ Γ′ ⊢ r s : T Ⓡ f(a)
 ```agda
 _Ⓡ_ {Γ} {S ⇒ T} r f =
-  ∀ {Γ′ : SystemT.Γ}
+  ∀ {Γ′ : Ctx}
   → (Γ′≤Γ : Γ′ ≤ Γ)
   → ∀ {s : Γ′ ⊢ S} {a : ⟦ S ⟧}
   → s Ⓡ a
@@ -133,7 +132,7 @@ A result of defining our Kripe logical relation in terms
 of definitional equality is that the relation is transitive
 with respect to definitional equality
 ```agda
-==-Ⓡ-trans : ∀ {Γ : Γ} {T : Type} {t t′ : Γ ⊢ T} {a : ⟦ T ⟧}
+==-Ⓡ-trans : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T} {a : ⟦ T ⟧}
            → t == t′
            → t Ⓡ a
              -------
@@ -156,7 +155,7 @@ Additionally, because we have defined the relation so that its implication
 holds for all extensions of a context, we can "weaken" the logical relation
 `Γ ⊢ t : T Ⓡ a` for all `Γ′ ≤ Γ`, having that `Γ′ ⊢ t : T Ⓡ a` holds as well
 ```agda
-Ⓡ-weaken : ∀ {Γ′ Γ : Γ} {T : Type} {Γ′≤Γ : Γ′ ≤ Γ} {t : Γ ⊢ T} {a : ⟦ T ⟧}
+Ⓡ-weaken : ∀ {Γ′ Γ : Ctx} {T : Type} {Γ′≤Γ : Γ′ ≤ Γ} {t : Γ ⊢ T} {a : ⟦ T ⟧}
       → t Ⓡ a
       → Γ′≤Γ ≤⊢ t Ⓡ a
 Ⓡ-weaken {T = nat} {Γ′≤Γ} {t} pf Γ″≤Γ′
@@ -186,8 +185,8 @@ Our first implication is:
 
 which we can now formalize in Agda with our definitions
 ```agda
-==↑-Ⓡ : ∀ {Γ : Γ} {T : Type} {𝓊 : Γ ⊢ T} {𝓊̂ : Ne↑ T}
-      → (∀ {Γ′ : SystemT.Γ}
+==↑-Ⓡ : ∀ {Γ : Ctx} {T : Type} {𝓊 : Γ ⊢ T} {𝓊̂ : Ne↑ T}
+      → (∀ {Γ′ : Ctx}
          → (Γ′≤Γ : Γ′ ≤ Γ)
          → Γ′≤Γ ≤⊢ 𝓊 ==↑ 𝓊̂)
         -------------------
@@ -199,7 +198,7 @@ The second implication is:
     Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ′ : T
 
 ```agda
-Ⓡ-==↓ : ∀ {Γ′ Γ : Γ} {T : Type} {t : Γ ⊢ T} {a : ⟦ T ⟧}
+Ⓡ-==↓ : ∀ {Γ′ Γ : Ctx} {T : Type} {t : Γ ⊢ T} {a : ⟦ T ⟧}
       → t Ⓡ a
         ---------------------
       → (Γ′≤Γ : Γ′ ≤ Γ)
@@ -211,7 +210,7 @@ A consequence of the first implication is that
 as it will be the lemma we will need for proving the
 second implication
 ```agda
-xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Γ} {T : Type}
+xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Ctx} {T : Type}
         -------------------------
       → ` `Z {Γ} {T} Ⓡ ↑ᵀ (𝓍̂ T Γ)
 ```
@@ -255,7 +254,7 @@ equality to prove the desired goal.
 ==↑-Ⓡ {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} Γ′≤Γ {s} {a} sⓇa =
   ==↑-Ⓡ 𝓊·s==𝓊̂·↓ˢa
     where
-      𝓊·s==𝓊̂·↓ˢa : ∀ {Γ″ : Γ}
+      𝓊·s==𝓊̂·↓ˢa : ∀ {Γ″ : Ctx}
                  → (Γ″≤Γ′ : Γ″ ≤ Γ′)
                  → Γ″≤Γ′ ≤⊢ (Γ′≤Γ ≤⊢ 𝓊) · s ==↑ 𝓊̂ ·↑ (↓ᵀ a)
       𝓊·s==𝓊̂·↓ˢa  {Γ″} Γ″≤Γ′
@@ -308,7 +307,7 @@ on a.
     suc · ↓ᵀᵧ a
   ∎
   where
-    ==ℕ̂→==↓ᵀ : ∀ {Γ : SystemT.Γ} {n : Γ ⊢ nat} {a : ⟦ nat ⟧}
+    ==ℕ̂→==↓ᵀ : ∀ {Γ : Ctx} {n : Γ ⊢ nat} {a : ⟦ nat ⟧}
              → n ==ℕ̂ a
                ----------
              → n == ↓ᵀᵧ a
@@ -373,7 +372,7 @@ to finish our proof.
       begin
         (S ↑⊢ Γ′≤Γ ≤⊢ t) · ` `Z
       ==⟨ app-compatible subst-lemma refl ⟩
-        (≤-ext Γ′≤Γ ≤⊢ t) [ id ] · ` `Z
+        (≤-ext Γ′≤Γ ≤⊢ t) [ subst-id ] · ` `Z
       ==⟨ Ⓡ-==↓ (pf (≤-ext Γ′≤Γ) xⓇa) ≤-id ⟩
         proj₁ (↓ᵀ (f a) (Γ′ , S))
       ∎
@@ -392,7 +391,7 @@ prove that `Γ , x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂`, as `Γ′ ⊢ x = 𝓍̂ Γ�
 `Γ′ ≤ Γ , x:T`
 ```agda
 xⓇ↑ᵀ𝓍̂ {_} {T} = ==↑-Ⓡ x==𝓍̂ where
-  x==𝓍̂ : ∀ {Γ Γ′ : Γ}
+  x==𝓍̂ : ∀ {Γ Γ′ : Ctx}
        → (Γ′≤Γ,T : Γ′ ≤ (Γ , T))
        → Γ′≤Γ,T ≤⊢ ` `Z ==↑ 𝓍̂ T Γ
   x==𝓍̂ {Γ} {Γ′} pf
@@ -401,7 +400,7 @@ xⓇ↑ᵀ𝓍̂ {_} {T} = ==↑-Ⓡ x==𝓍̂ where
   ... | yes pf′
     with 𝓍̂ T Γ | ≤-pf-irrelevance pf pf′
   ... | _      | refl
-    with ≤ᵨ pf′
+    with ren-≤ pf′
   ...| _ , _  = refl
 ```
 
@@ -411,7 +410,7 @@ proof that `Γ ⊢ rec = ↓ᵀ ⟦rec⟧ Γ : (T ⇒ (nat ⇒ T ⇒ T) ⇒ nat 
 (i.e. proof that our interpretation of rec is sound) to prove the
 soundness of NbE
 ```agda
-recⓇ⟦rec⟧ : ∀ {Γ : Γ} {T : Type} → rec {Γ} {T} Ⓡ ⟦rec⟧
+recⓇ⟦rec⟧ : ∀ {Γ : Ctx} {T : Type} → rec {Γ} {T} Ⓡ ⟦rec⟧
 recⓇ⟦rec⟧ Γ′≤Γ {z} pf Γ″≤Γ′ pf′ Γ‴≤Γ″ {s = n} {zero} pf″
   with pf″ ≤-id
 ... | n==zero
@@ -445,7 +444,7 @@ recⓇ⟦rec⟧ Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ Γ‴≤Γ
 
 recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {aₛ} pf′ {Γ‴} Γ‴≤Γ″ {n} {ne 𝓊̂} pf″ =
   ==↑-Ⓡ rec==↑rec↑ where
-    rec==↑rec↑ : ∀ {Γ⁗ : SystemT.Γ}
+    rec==↑rec↑ : ∀ {Γ⁗ : Ctx}
       → (Γ⁗≤Γ‴ : Γ⁗ ≤ Γ‴)
       → Γ⁗≤Γ‴ ≤⊢ (Γ‴≤Γ″ ≤⊢ (Γ″≤Γ′ ≤⊢ rec · z) · s) · n ==↑ rec↑ (↓ᵀ az) (↓ᵀ aₛ) 𝓊̂
     rec==↑rec↑ {Γ⁗} Γ⁗≤Γ‴
@@ -515,8 +514,8 @@ substitutions and environments. We again use ∥Ⓡ∥ for
 the "parallel" in parallel substitutions, as Ⓡ is
 already defined for terms and semantic objects
 ```agda
-_∥Ⓡ∥_ : ∀ {Γ Δ : Γ}
-      → Γ ⊩ Δ
+_∥Ⓡ∥_ : ∀ {Γ Δ : Ctx}
+      → Sub Γ Δ
       → ⟦ Δ ⟧
       → Set
 ```
@@ -548,13 +547,13 @@ have that a logical relation for a shifted substitution
 holds if the logical relation holds for the original
 substitution (as the shifted terms will be irrelevant)
 ```agda
-∥Ⓡ∥-↑ : ∀ {Γ Δ : Γ} {T : Type} {σᵨ : Γ ⊩ᵨ Δ} {ρ : ⟦ Δ ⟧}
-      → substᵨ σᵨ ∥Ⓡ∥ ρ
-      → substᵨ (_↑ᵨ {T = T} σᵨ) ∥Ⓡ∥ ρ
-∥Ⓡ∥-↑ {σᵨ = ∅} pf = tt
-∥Ⓡ∥-↑ {T = T} {σᵨ = _ , x} {⟨ _ , a ⟩} ⟨ pf , xⓇa ⟩ = ⟨ ∥Ⓡ∥-↑ pf , ↑⊢xⓇa ⟩
+∥Ⓡ∥-↑ : ∀ {Γ Δ : Ctx} {T : Type} {σᵣ : Ren Γ Δ} {ρ : ⟦ Δ ⟧}
+      → subst-ren σᵣ ∥Ⓡ∥ ρ
+      → subst-ren (_↑ᵣ {T = T} σᵣ) ∥Ⓡ∥ ρ
+∥Ⓡ∥-↑ {σᵣ = ∅} pf = tt
+∥Ⓡ∥-↑ {T = T} {σᵣ = _ , x} {⟨ _ , a ⟩} ⟨ pf , xⓇa ⟩ = ⟨ ∥Ⓡ∥-↑ pf , ↑⊢xⓇa ⟩
   where
-    subst-lemma₁ = shift-var {S = T} {x = x} {σᵨ = idᵨ}
+    subst-lemma₁ = shift-var {S = T} {x = x} {σᵣ = ren-id}
     subst-lemma₂ = rename-id {x = x}
 
     Γ,T≤Γ = ≤-ext {T = T} ≤-id
@@ -572,7 +571,7 @@ holds between a substitution and an environment, it holds for any
 weakening of the substitution (as weakening is really a series
 of shifts)
 ```agda
-∥Ⓡ∥-weaken : ∀ {Γ′ Γ Δ : Γ} {Γ′≤Γ : Γ′ ≤ Γ} {σ : Γ ⊩ Δ} {ρ : ⟦ Δ ⟧}
+∥Ⓡ∥-weaken : ∀ {Γ′ Γ Δ : Ctx} {Γ′≤Γ : Γ′ ≤ Γ} {σ : Sub Γ Δ} {ρ : ⟦ Δ ⟧}
         → σ ∥Ⓡ∥ ρ
         → σ ∘ (weaken Γ′≤Γ) ∥Ⓡ∥ ρ
 ∥Ⓡ∥-weaken {σ = ∅} x = tt
@@ -584,9 +583,9 @@ We are now ready to introduce the semantic typing judgement
 `Γ ⊨ t : T`, which will be the what we will use to arrive
 at `Γ ⊢ t : T Ⓡ ⟦ t ⟧ ↑Γ Γ`
 ```agda
-_⊨_ : ∀ {T : Type} → (Γ : Γ) → Γ ⊢ T → Set
+_⊨_ : ∀ {T : Type} → (Γ : Ctx) → Γ ⊢ T → Set
 _⊨_ {T} Γ t =
-  ∀ {Δ : SystemT.Γ} {σ : Δ ⊩ Γ} {ρ : ⟦ Γ ⟧}
+  ∀ {Δ : Ctx} {σ : Sub Δ Γ} {ρ : ⟦ Γ ⟧}
   → σ ∥Ⓡ∥ ρ
     -------
   → t [ σ ] Ⓡ ⟦⊢ t ⟧ ρ
@@ -597,13 +596,13 @@ we prove the semantic typing judgement `Γ ⊨ t : T`,
 this is called the fundamental lemma of logical
 relations
 ```agda
-fundamental-lemma : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
+fundamental-lemma : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
                   → Γ ⊨ t
 fundamental-lemma {t = zero} σ∥Ⓡ∥ρ _ = refl
 fundamental-lemma {t = suc} σ∥Ⓡ∥ρ Δ′≤Δ {s} {a} pf {Δ″} Δ″≤Δ′ =
   ⟨ Δ″≤Δ′ ≤⊢ s , ⟨ refl , s==a ⟩ ⟩
   where
-    s==a : ∀ {Δ‴ : Γ} → (Δ‴≤Δ″ : Δ‴ ≤ Δ″) → Δ‴≤Δ″ ≤⊢ Δ″≤Δ′ ≤⊢ s ==ℕ̂ a
+    s==a : ∀ {Δ‴ : Ctx} → (Δ‴≤Δ″ : Δ‴ ≤ Δ″) → Δ‴≤Δ″ ≤⊢ Δ″≤Δ′ ≤⊢ s ==ℕ̂ a
     s==a Δ‴≤Δ″
       with pf (≤-trans Δ‴≤Δ″ Δ″≤Δ′)
     ... | pf
@@ -616,17 +615,17 @@ fundamental-lemma {t = ƛ t} {σ = σ} {ρ} σ∥Ⓡ∥ρ Γ′≤Γ {s} {a} s�
   ==-Ⓡ-trans (sym β-ƛ) t[σ′][s/x]Ⓡ⟦t⟧⟨ρ,a⟩
   where
     subst-lemma₁ =
-      subst-compose {τ = id , s} {weaken Γ′≤Γ ↑ , ` `Z} {t [ σ ↑ , ` `Z ]}
+      subst-compose {τ = subst-id , s} {weaken Γ′≤Γ ↑ , ` `Z} {t [ σ ↑ , ` `Z ]}
     subst-lemma₂ =
-     subst-compose {τ = ((weaken Γ′≤Γ ↑) ∘ (id , s)) , s} {σ ↑ , ` `Z} {t}
+     subst-compose {τ = ((weaken Γ′≤Γ ↑) ∘ (subst-id , s)) , s} {σ ↑ , ` `Z} {t}
 
     t[σ′] = t [ σ ↑ , ` `Z ] [ weaken Γ′≤Γ ↑ , ` `Z ]
 
-    subst-lemma₃ = subst-compose-↑ {τ = id} {weaken Γ′≤Γ} {s}
-    subst-lemma₄ = subst-compose-↑ {τ = weaken Γ′≤Γ ∘ id} {σ} {s}
+    subst-lemma₃ = subst-compose-↑ {τ = subst-id} {weaken Γ′≤Γ} {s}
+    subst-lemma₄ = subst-compose-↑ {τ = weaken Γ′≤Γ ∘ subst-id} {σ} {s}
     subst-lemma₅ = id-compose-identity {σ = weaken Γ′≤Γ}
 
-    σ″ = ((σ ↑) ∘ (((weaken Γ′≤Γ ↑) ∘ (id , s)) , s))
+    σ″ = ((σ ↑) ∘ (((weaken Γ′≤Γ ↑) ∘ (subst-id , s)) , s))
 
     σ″Ⓡρ : σ″  ∥Ⓡ∥ ρ
     σ″Ⓡρ rewrite subst-lemma₃ | subst-lemma₄ | subst-lemma₅ =
@@ -649,8 +648,8 @@ which we prove by induction using our lemma that
 are substituting for itself.
 
 ```agda
-idⓇ↑Γ : ∀ {Γ : Γ}
-       → id ∥Ⓡ∥ (↑Γ Γ)
+idⓇ↑Γ : ∀ {Γ : Ctx}
+       → subst-id ∥Ⓡ∥ (↑ᶜᵗˣ Γ)
 idⓇ↑Γ {∅} = tt
 ```
 For our inductive step, our IH will give us that
@@ -673,12 +672,13 @@ equality to the reified semantic object, we arrive at
 `Γ ⊢ t = ↓ᵀᵧ ⟦ t ⟧ ↑Γ : T`, which is what we want to show
 (i.e. `Γ ⊢ t = nf(t) : T`)
 ```agda
-soundness : ∀ {Γ : Γ} {T : Type} {t : Γ ⊢ T}
+soundness : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
           → t == nf t
 soundness {Γ} {T} {t}
   with fundamental-lemma {t = t} (idⓇ↑Γ {Γ})
 ... | tⓇ⟦t⟧↑Γ
   with Ⓡ-==↓ tⓇ⟦t⟧↑Γ ≤-id
 ... | t==↓ᵀᵧ⟦t⟧↑Γ
-  rewrite [id]-identity {t = t [ id ]} | [id]-identity {t = t} = t==↓ᵀᵧ⟦t⟧↑Γ
+  rewrite [id]-identity {t = t [ subst-id ]}
+        | [id]-identity {t = t}              = t==↓ᵀᵧ⟦t⟧↑Γ
 ```
