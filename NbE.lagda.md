@@ -3,11 +3,68 @@ title: "Normalization by Evaluation"
 author: Emmanuel Suárez Acevedo
 ---
 
-This is a formalization of Chapter 2 of Andreas Abel's habilitation thesis, "Normalization by Evaluation: Dependent Types and Impredicativity". [@nbe].
+### Background
+This site is both an overview of normalization by evaluation and a formalization
+in Agda of its presentation in Chapter 2 of Andreas Abel's habilitation thesis,
+"Normalization by Evaluation: Dependent Types and Impredicativity" [@nbe]. It
+was compiled from a literate Agda file available
+[here](https://github.com/emmanueljs1/nbe/blob/main/NbE.lagda.md) following the
+helpful advice in Jesper Cockx's
+[blog post](https://jesper.sikanda.be/posts/literate-agda.html). For clarity
+and readability, some parts of the source file are left out in this
+rendering (and this will be called out when possible). Some familiarity with
+Agda (e.g. such as having worked through the first part of [Programming
+Languages Foundations in Agda](https://plfa.inf.ed.ac.uk/22.08/)) is assumed,
+along with some knowledge of programming language foundations, though the content
+is mostly self contained.
 
-We start off by defining the language that we will
-use to showcase normalization by evaluation, System T,
-as is done in Section 2.1.
+### Introduction
+
+Normalization by evaluation is a technique for deriving the normal form of
+a term in an object language by *evaluating* the term in a meta language. For
+example,
+
+Consider the following term in the untyped lambda calculus:
+
+    λx. (λy. y) x
+
+This term is not in its *normal form*, that is, it can still undergo some
+reductions. In this case, we can apply a beta reduction under the first binder
+and arrive at:
+
+    `λx. x`
+
+With this new term being the normal form of `λx. (λy. y) x`. What we've just
+done, believe it or not, is normalization by evaluation!
+
+Normalization by evaluation is a technique for deriving the normal form of a
+term in an object language by *evaluating* the term in a meta language (a
+language we are using to describe the object language). In this case, our
+object language was the untyped lambda calculus, and our meta language was
+plain English.
+
+The same applies to your favorite programming language with integers and
+addition. Given the term:
+
+    2 + 3
+
+You know how to reduce this term without needing to actually "run" the code in
+your object language ─ you can "evaluate" it to 5. That is the intuition behind
+normalization by evaluation.
+
+To actually formalize normalization by evaluation and prove its correctness in
+Agda, the algorithm may seem to become less intuitive, but it will still be
+based on this initial idea.
+
+### System T
+
+Before going into the algorithm itself, we will embed the language for which
+we will be defining the algorithm, System T. System T is a small language with
+natural numbers, higher-order functions, and primitive recursion.
+
+<!---
+### Imports
+
 ```agda
 import Relation.Binary.PropositionalEquality as Eq
 open import Data.Empty using (⊥; ⊥-elim)
@@ -20,21 +77,22 @@ open Eq using (refl; _≡_) renaming (sym to ≡-sym; trans to ≡-trans)
 
 module NbE where
 ```
+--->
 
-It has natural numbers, higher-order functions, and
-primitive recursion. We will define it with intrinsic
-typing, and use a de Brujin index representation
-for variables.
+We start off with the types of the language: natural numbers and functions.
 
-We start off with the types of tha language: naturals
-and functions.
 ```agda
 data Type : Set where
   nat : Type
   _⇒_ : ∀ (S T : Type) → Type
 
 infixr 7 _⇒_
+```
 
+It will be convenient to make equality of types decidable as well. In general,
+we will omit other Agda functions used for decidability.
+
+```
 _≟Tp_ : ∀ (S T : Type) → Dec (S ≡ T)
 nat       ≟Tp nat                                  = yes refl
 nat       ≟Tp (S ⇒ T)                              = no λ()
@@ -46,18 +104,68 @@ nat       ≟Tp (S ⇒ T)                              = no λ()
 ...                        | yes refl  | yes refl  = yes refl
 ```
 
-We continue with typing contexts, defined inductively
-with the empty context, and extensions to contexts. As
-we are using a de Brujin index representation, there
-are no names when extending contexts (and really they
-are just lists of types).
+Additionally, we will want to have typing contexts for terms. A typing
+context (for which we will use the metavariable `Γ`) is either the empty
+context `∅` or an extension to a context `Γ , x:S` mapping an object
+language variable to a type (here, `Γ` is extended with the variable
+`x` mapped to the type `S`).
+
+Our Agda definition does not actually mention variables at all, and
+is really just a list of types. This is because we will be using a de
+Brujin representation for variables, and the de Brujin index representing
+a variable will be an index into the list of types that makes up a context.
+
 ```agda
 data Ctx : Set where
   ∅ : Ctx
   _,_ : Ctx → Type → Ctx
+```
 
+<!---
+```
 infixl 5 _,_
+```
+--->
 
+Our de Brujin indices will actually be lookup judgements into a
+context. They are very similar to natural numbers (and their contructors
+are suggestively named), though we define them as such instead of simply
+using Agda's natural numbers so that an index into a context is well-defined.
+
+```agda
+data _∋_ : Ctx → Type → Set where
+  `Z : ∀ {Γ : Ctx} {T : Type}
+        ---------
+      → Γ , T ∋ T
+
+  `S_ : ∀ {Γ : Ctx} {S T : Type}
+      → Γ ∋ T
+        ---------
+      → Γ , S ∋ T
+```
+
+<!---
+```
+infix 4 _∋_
+```
+--->
+
+Using these, we can represent the context `∅, x:S, y:T` along with the variable
+names `"x"` and `"y"` as follows.
+
+```agda
+module Example (S T : Type) where
+  ∅,x:S,y:T = ∅ , S , T
+
+  x : ∅,x:S,y:T ∋ S
+  x = `S `Z
+
+  y : ∅,x:S,y:T ∋ T
+  y = `Z
+```
+
+<!---
+```
 _≟Ctx_ : ∀ (Γ′ Γ : Ctx) → Dec (Γ′ ≡ Γ)
 ∅       ≟Ctx ∅                                  = yes refl
 ∅       ≟Ctx (_ , _)                            = no λ()
@@ -68,12 +176,17 @@ _≟Ctx_ : ∀ (Γ′ Γ : Ctx) → Dec (Γ′ ≡ Γ)
 ...                      | yes _     | no ¬pf   = no λ{refl → ¬pf refl}
 ...                      | yes refl  | yes refl = yes refl
 ```
+--->
 
-We also define a relation detailing when one context is the
-extension of another, this is introduced formally in a later
-section but will be useful throughout. A context is an extension
-of itself, and given that one context Γ′ extends another context
-Γ, the first can be extended further and the relation will still hold.
+When defining the algorithm for normalization by evaluation, it will be
+necessary to determine whether or not a context is an extension of
+another. A context `Γ′` extends another context `Γ` if every mapping in
+`Γ` is also in `Γ′`. In our representation, this will mean that if `Γ′`
+extends `Γ`, then `Γ` is a "sublist" of `Γ′`. We inductively define the
+rules for context extension based somewhat on this idea: a context extends
+itself, and given that a context `Γ′` extends another context `Γ`, an
+extension of `Γ′` is still an extension `Γ′`.
+
 ```agda
 data _≤_ : Ctx → Ctx → Set where
   ≤-id : ∀ {Γ : Ctx} → Γ ≤ Γ
@@ -82,7 +195,10 @@ data _≤_ : Ctx → Ctx → Set where
         → Γ′ ≤ Γ
           ----------
         → Γ′ , T ≤ Γ
+```
 
+<!---
+```
 infix 4 _≤_
 
 Γ≤∅ : ∀ {Γ : Ctx} → Γ ≤ ∅
@@ -104,23 +220,7 @@ _≤?_ : ∀ (Γ′ Γ : Ctx) → Dec (Γ′ ≤ Γ)
                            ≤-id → Γ′≢Γ refl
                            (≤-ext pf) → ¬pf pf
 ```
-
-We also introduce a lookup judgement for
-contexts, which corresponds to a de Brujin
-index.
-```agda
-data _∋_ : Ctx → Type → Set where
-  `Z : ∀ {Γ : Ctx} {T : Type}
-        ---------
-      → Γ , T ∋ T
-
-  `S_ : ∀ {Γ : Ctx} {S T : Type}
-      → Γ ∋ T
-        ---------
-      → Γ , S ∋ T
-
-infix 4 _∋_
-```
+--->
 
 Terms in our language are defined with an intrinsically
 typed represenation, such that a term t of type Γ ⊢ T is
