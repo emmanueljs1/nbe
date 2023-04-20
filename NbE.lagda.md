@@ -1,4 +1,9 @@
-# System T
+---
+title: "Normalization by Evaluation"
+author: Emmanuel Suárez Acevedo
+---
+
+This is a formalization of Chapter 2 of Andreas Abel's habilitation thesis, "Normalization by Evaluation: Dependent Types and Impredicativity". [@nbe].
 
 We start off by defining the language that we will
 use to showcase normalization by evaluation, System T,
@@ -1865,3 +1870,5 @@ soundness {Γ} {T} {t}
   rewrite [id]-identity {t = t [ subst-id ]}
         | [id]-identity {t = t}              = t==↓ᵀᵧ⟦t⟧↑Γ
 ```
+
+#### References

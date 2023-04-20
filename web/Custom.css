@@ -1,4 +1,9 @@
 body { margin-left: 20px; margin-right: 20px; padding: 5px }
+.author:before { content: "by: " }
+
+.author {
+  color: #a9a9a9
+}
 
 .Agda    { background-color: #F1F1F1 }
 
