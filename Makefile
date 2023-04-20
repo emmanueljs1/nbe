@@ -18,15 +18,9 @@ all: $(BIN) $(BIN)/$(FILE).html
 $(BIN):
 	mkdir -p $(BIN)
 
-$(BIN)/%.html: $(BIN)/%.md
-	pandoc --standalone --embed-resources --css=$(BOOTSTRAP) --css=$(CSS) html/$*.md -o $(BIN)/$*.html
-
-.PHONY: $(BIN)/$(FILE).html
-
-$(BIN)/%.md:
+$(BIN)/%.html:
 	agda --html --html-highlight=code $*.lagda.md
-
-.PHONY: $(BIN)/$(FILE).md
+	pandoc --standalone --embed-resources --css=$(BOOTSTRAP) --css=$(CSS) html/$*.md -o $(BIN)/$*.html
 
 clean:
 	rm -rf $(HTML_DIR)
