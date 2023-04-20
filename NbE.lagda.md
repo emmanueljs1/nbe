@@ -92,7 +92,7 @@ infixr 7 _⇒_
 It will be convenient to make equality of types decidable as well. In general,
 we will omit other Agda functions used for decidability.
 
-```
+```agda
 _≟Tp_ : ∀ (S T : Type) → Dec (S ≡ T)
 nat       ≟Tp nat                                  = yes refl
 nat       ≟Tp (S ⇒ T)                              = no λ()
