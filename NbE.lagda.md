@@ -8,8 +8,8 @@ This site is both an overview of normalization by evaluation and a formalization
 in Agda of its presentation in Chapter 2 of Andreas Abel's habilitation thesis,
 "Normalization by Evaluation: Dependent Types and Impredicativity" [@nbe]. It
 was compiled from a literate Agda file available
-[here](https://github.com/emmanueljs1/nbe/blob/main/NbE.lagda.md) (following the
-helpful advice in Jesper Cockx's
+[here](https://github.com/emmanueljs1/nbe/blob/main/NbE.lagda.md?plain=1)
+(following the helpful advice in Jesper Cockx's
 [blog post](https://jesper.sikanda.be/posts/literate-agda.html)). For clarity
 and readability, some parts of the source file are left out in this
 rendering, and this will be called out when possible. Some familiarity with
@@ -612,9 +612,8 @@ that two terms are βη-equivalent iff they have the same meaning. The same
 applies for System T (which is really a version of STLC with primitive
 recursion), so by extending βη-equivalence to System T so we can actually prove
 the last property. Specifically, we will prove that `Γ ⊢ nf(t) = t : T`, a
-notation used to indicate that the two terms are _definitionally equal_.
-Definitional equality for System T will be the extension to βη-equivalence that
-we will define.
+notation used to indicate that the two terms are _definitionally equal_ ─ the
+extension to βη-equivalence that we will be defining and using.
 
 To do so, we will need to actually define operations for β-reductions and
 η-expansions. For this, we will first define two parallel substitutions: the
