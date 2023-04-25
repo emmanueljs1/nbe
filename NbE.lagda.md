@@ -2215,4 +2215,4 @@ This site uses the following unicode[^1]:
 
 #### References
 
-[^1]: ̂ (COMBINING CIRCUMFLEX ACCENT) may be displayed on top of another character when written after it (e.g. \Mcu\^ produces 𝓊̂)
+[^1]: ̂ (`\^`) may be displayed on top of another character when written after it (e.g. `\Mcu\^` produces 𝓊̂)
