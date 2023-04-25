@@ -885,7 +885,7 @@ itself. We will get to this later, but it is for this reason that we have
 not yet written this implementation out in Agda. For now, we can give
 an initial sketch of the algorithm, using a _reflection_ function `↑ᵀ` that
 maps neutral terms of type `T` to semantic objects in `⟦ T ⟧`, and a
-_reification_ function for mapping a semantic object in `⟦ T ⟧` to normal forms
+_reification_ function `↓ᵀ` for mapping a semantic object in `⟦ T ⟧` to normal forms
  of type `T`:
 
 Putting all of these pieces together, we can present (in pseudo-code)
