@@ -779,27 +779,12 @@ module ==-Reasoning where
 open ==-Reasoning public
 ```
 
-### Normalization by Evaluation
+### Evaluation
 
-Now, we are ready to start defining the algorithm for normalization by
-evaluation. Normalization by evaluation is the process of obtaining the normal
-form of a term by evaluating it in a meta language (in our case, Agda).
-
-Evaluating terms in System T in our meta language will require defining the interpretations of its types, contexts, and terms.
-
-We use the following record to represent interpretations of types and contexts in System T, indicated by ⟦_⟧.
-
-```agda
-record Interpretation (D : Set) : Set₁ where
-  field
-    ⟦_⟧ : D → Set
-
-open Interpretation ⦃...⦄ public
-```
-
-The thesis first introduces a more traditional interpretation of these,
-but these definitions will need to be updated in our final implementation
-of the NbE algorithm.
+The evaluation, or interpretation, `⟦ t ⟧` of a well-typed term `Γ ⊢ t : T`
+assigns a meaning to `t` by equating it to a semantic object in our meta
+language, using an interpretation of the context `Γ` (an _environment_)
+under which the term `t` is well-typed.
 
 For types, we can interpret naturals in System T as ℕ, and functions in
 System T as Agda functions, defined inductively on their types.
@@ -807,95 +792,146 @@ System T as Agda functions, defined inductively on their types.
     ⟦ nat ⟧ = ℕ
     ⟦ S ⇒ T ⟧ = ⟦ S ⟧ → ⟦ T ⟧
 
-An empty context is interpreted as the unit type, and an extension to
-a context is defined inductively, with the extension itself being the
-interpretation of the type the context is extended with.
+An empty context is interpreted as the unit type (an empty environment), and an
+extension to a context is defined inductively, with the extension itself being
+the interpretation of the type the context is extended with.
 
     ⟦ ∅ ⟧ = ⊤
     ⟦ Γ , S ⟧ = ⟦ Γ ⟧ × ⟦ S ⟧
 
-From now on, we will use the metavariable ρ is used to represent elements of ⟦ Γ ⟧ for a context Γ.
+From now on, we will use the metavariable ρ to represent environments. The
+interpretation of a variable expects an environment, and is essentially a
+lookup into the environment for the variable's value:
 
-The interpretation of a variable expects the interpretation
-of a context, and is essentially a lookup:
-
-    ⟦ Γ ∋ x:T ⟧ (ρ ∈ ⟦Γ⟧) ∈ ⟦ T ⟧
+    ⟦ Γ ∋ x:T ⟧ (ρ ∈ ⟦ Γ ⟧) ∈ ⟦ T ⟧
     ⟦ Γ , T ∋ x:T ⟧ (ρ , a) = a
     ⟦ Γ , y:S ∋ x:T ⟧ (ρ , _) = ⟦ Γ ∋ x:T ⟧ ρ
 
-The interpretation of a typed term expects the interpretation
-of a context as well. It is more involed, so we only include
-the rule for variables and abstractions:
+The interpretation of a typed term expects an environment as well. We only
+include the evaluation rules for variables, abstractions, and application.
 
     ⟦ Γ ⊢ t : T ⟧ (ρ ∈ ⟦Γ⟧) = ⟦ T ⟧
     ⟦ Γ ⊢ x : T ⟧ ρ = ⟦ Γ ∋ x:T ⟧ ρ
     ⟦ Γ ⊢ λx . t : S ⇒ T ⟧ ρ  a  = ⟦ Γ , x:S ⊢ t : T ⟧ (ρ , a)
+    ⟦ Γ ⊢ r s : T ⟧ ρ = (⟦ Γ ⊢ r : S ⇒ T ⟧ ρ) (⟦ Γ ⊢ s : S ⟧ ρ)
 
-As our final definition of interpretation will change, this is
-only a rough sketch, but gives an idea of how we can evaluate terms
-in Agda. For now, we only include the concrete interpretation of
-a context Γ (generalized over any interpretation of types), as it will
-remain unchanged.
+Before moving forward, we introduce the record we will use to
+represent interpretations of types and contexts in System T.
+For now, we are only including the interpretation of a context
+as an environment, as our interpretation of types will change
+subtly to better fit our algorithm for normalization by
+evaluation ─ this is also why we have only discussed evaluation
+at a high level.
 
 ```agda
+record Interpretation (D : Set) : Set₁ where
+  field
+    ⟦_⟧ : D → Set
+
+open Interpretation ⦃...⦄ public
+
 instance
-    -- We only include the concrete interpretation of a
-    -- context Γ, generalized over any interpretation of
-    -- types, to be used with the actual interpretation
-    -- defined later
     ⟦Γ⟧ : ⦃ _ : Interpretation Type ⦄ → Interpretation Ctx
     Interpretation.⟦ ⟦Γ⟧ ⟧ ∅ = ⊤
     Interpretation.⟦ ⟦Γ⟧ ⟧ (Γ , T) = ⟦ Γ ⟧ × ⟦ T ⟧
 ```
 
-To motivate our algorithm, first we recognize that normalization by evaluation is,
-intuitively, the evaulation of an expression with unknowns (e.g. variables) to
+### Normalization by Evaluation
+
+The key idea behind normalization by evaluation is that we have
+inherently performed some normalization of the term `t` in its
+evaluation -- if `t` was an application `r s`, we are actually
+performing that application and reducing the term. Normalization by
+evaluation as an algorithm takes advantage of this fact.
+
+An issue with this view is that evaluation is not actually giving us the normal
+form of a term, but rather its meaning as a semantic object in our meta language.
+An algorithm for normalization by evaluation would need a way to to convert a
+semantic object in our meta language back into a term in the object language.
+
+Instead, we want to evaluate (i.e. normalize) the parts of the expression
+that actually _can_ be evaluated (such as function application), while leaving
+the parts that cannot intact. Under this view, normalization by evaluation
+becomes the evaluation of an expression with unknowns (i.e. variables) to
 another, possibly simplified, expression with unknowns.
 
-Because of this, we arrive at the first change to our interpretation of terms.
-The interpretation of the base type nat is now terms of type nat in their
-normal form -- after all, a variable of type nat is "blocked" and cannot be
-evaluated any further. In other words, we now have:
+To get this behavior, we make a subtle change to the "meaning" of a term
+in the meta language -- instead of terms of type `nat` mapping to the
+Agda data type for natural numbers, we will evaluate them to their normal
+form.
 
-    ⟦ nat ⟧ = terms of type nat in their normal form
+This is a subtle distinction with a significant impact on the algorithm
+we will define. We can now easily convert back to the object language,
+because in technicality we never left it to begin with.
 
-From now on, normalized terms with unknowns will be referred to as neutral terms
-(indicated by the metavariable 𝓊 for "unknown"), and normalized terms in general
-will be referred to as normal terms (indicated by the metavariable 𝓋 for "value").
-
-Additionally, while evaluation gives us the ability to normalize terms,
-it also transforms them into our meta language. We want a way to return
-to System T, which will be a function we will refer to as reification.
-We will refer to its opposite, e.g. the transformation of a term in System T
-into our meta language, as reflection.
-
-The normal form of a typed term t in context Γ will be obtained by using
-reflection and reification together. The following steps make up a sketch
-of the algorithm:
-
-  1) reflect the variables of the context Γ
-     (all of which are neutral terms)
-  2) interpret the value of the term using the environment
-     of reflected variables
-  3) "reify" the interpreted value of the term (i.e. returning
-     it to a term in normal form)
-
-Before we can actually define the algorithm, we need to formally introduce
-normal and neutral terms in Agda, which we define mutually. The constructors
-for these represent the different types of normal terms, and they are parametrized
-by the terms themselves.
+More concretely, we will be mapping a term `Γ ⊢ t : T` to an Agda data
+type used to represent a term in its normal form. Terms in their normal
+form (normal terms) will be defined mutually with terms that are blocked
+on evaluation because they are unknown (neutral terms).
 
 ```agda
--- Neutral terms
-data Ne (T : Type) (Γ : Ctx) : Γ ⊢ T → Set
--- Normal Terms
-data Nf : (T : Type) → (Γ : Ctx) → Γ ⊢ T → Set
+data Nf : (T : Type) → (Γ : Ctx) → Γ ⊢ T → Set -- Normal terms
+data Ne (T : Type) (Γ : Ctx) : Γ ⊢ T → Set     -- Neutral terms
 ```
+
+Now, the interpretation of a term of type `nat` is what we will want it to be to
+define a suitable algorithm for normalization by evaluation:
+
+    ⟦ nat ⟧ = Nf nat
+
+Note that our definition of normal terms is indexed both by a type and a
+context, yet here the interpretation of a type is only indexed by the type
+itself. We will get to this later, but it is for this reason that we have
+not yet written this implementation out in Agda. For now, we can give
+an initial sketch of the algorithm, using a _reflection_ function `↑ᵀ` that
+maps neutral terms of type `T` to semantic objects in `⟦ T ⟧`, and a
+_reification_ function for mapping a semantic object in `⟦ T ⟧` to normal forms
+ of type `T`:
+
+Putting all of these pieces together, we can present (in pseudo-code)
+what an algorithm for normalization by evaluation would do.
+
+    ⟦ nat ⟧ = Nf nat
+
+    ↑ᵀ ∈ Ne T → ⟦ T ⟧
+    ↑ⁿᵃᵗ 𝓊 = 𝓊
+    ↑ˢ⃗ᵗ 𝓊 (a ∈ ⟦ S ⟧) = ↑ᵀ (𝓊 𝓋) , 𝓋 = ↓ˢ a
+    
+    ↓ᵀ ∈ ⟦ T ⟧ → Nf T
+    ↓ⁿᵃᵗ 𝓋 = 𝓋
+    ↓ˢ⃗ᵗ f = λx. ↓ᵀ (f(a)) , where a = ↑ᵀ x and x is "fresh"
+    
+    ↑ᶜᵗˣ ∈ ⟦ Γ ⟧
+    ↑∅ = tt
+    ↑Γ,x:S = ↑Γ , ↑ᵀ x
+    
+    nf(t) = ↓ᵀ (⟦ t ⟧ ↑Γ)
+
+In summary, the algorithm proceeds as follows:
+
+  1) reflect the variables of the context Γ (↑Γ)
+
+  2) interpret the value of the term using the environment
+     of reflected variables (`⟦ t ⟧ ↑Γ`)
+
+  3) "reify" the interpreted value of the term (`↓ᵀ (⟦ t ⟧ ↑Γ)`),
+     returning it to a term in normal form
+
+The "freshness" condition is a key part of why we have not started
+defining a more concrete version of the algorithm, but with this sketch we
+can see how our new interpretation of the type `nat` has benefitted us: we are
+able to evaluate a term, leaving its unknowns "untouched", and once we have
+finished evaluating the term, we are able to convert it back into our object
+language.
+
+As an initial step in formally defining this algorithm, we can introduce
+the rules for normal and neutral terms in Agda. Going forward, we will be
+using 𝓊 (for "unknown") to refer to neutral terms and 𝓋 (for "value") to
+refer to normal terms.
 
 Neutral terms are normal terms in their blocked form. Variables are the "base
 case" for blocked terms. Application on an unknown function to a normal term is
-also blocked, as is recursion on an unknown natural.
-blocked terms.
+also blocked, as is recursion on an unknown natural. blocked terms.
 
 ```agda
 data Ne T Γ where
@@ -941,49 +977,38 @@ data Nf where
              → Nf T Γ 𝓊
 ```
 
-With these defined, we can give a more formal (but still not final) sketch
-of our algorithm:
+Now, we can discuss the issue of the freshness condition used when reifying at
+function type. We are using a de Brujin index representation, so "freshness" is
+given to us freely by extending the context. However, there is no context
+anywhere in our definition of reification, so what context do we extend with the
+fresh variable? This is actually an intentional decision for reification,
+because of a problem that is more subtle: after we reflect the variable, it may
+later be reified in a different context than it was created. Consider the
+reification of a semantic object `f` with type `(S → T) → U`:
 
-    ⟦ nat ⟧ = Nf nat
+    ↓⁽ˢ⃗ᵗ⁾⃗ᵘ f = λx. ↓ˢ⃗ᵗ (f(a)) , where a = ↑ᵘ x
 
-    ↑ᵀ ∈ Ne T → ⟦ T ⟧
-    ↑ⁿᵃᵗ 𝓊 = 𝓊
-    ↑ˢ⃗ᵗ 𝓊 (a ∈ ⟦ S ⟧) = ↑ᵀ (𝓊 𝓋) , 𝓋 = ↓ˢ a
-    
-    ↓ᵀ ∈ ⟦ T ⟧ → Nf T
-    ↓ⁿᵃᵗ 𝓋 = 𝓋
-    ↓ˢ⃗ᵗ f = λx. ↓ᵀ (f(a)) , where a = ↑ᵀ x and x is "fresh"
-    
-    ↑ᶜᵗˣ ∈ ⟦ Γ ⟧
-    ↑∅ = tt
-    ↑Γ,x:S = ↑Γ , ↑ᵀ x
-    
-    nf(t) = ↓ᵀ (⟦ t ⟧ ↑Γ)
+The inner reification evaluates further:
 
-The algorithm takes a term, evaluates it in an environment of reflected
-variables, and then reifies it back to System T. However, this sketch
-has an immediate issue to figure out -- how to determine the freshness
-condition for the variable x used when reifying at function type.
+    ↓ˢ⃗ᵗ (f(a)) = λy. ↓ᵗ (f(a)(b)) , where b = ↑ˢ y
 
-As we are using de Brujin indices, this has a simple solution: just extend
-the context. However, there is no context anywhere in our definition
-of reification, so what context do we extend with the fresh variable?
-This is actually intentional, because of an issue that is more subtle:
-after we reflect the variable, it may later be reified in a different
-context than it was created.
+Herein lies our problem: when we reflected `x` into our meta language, we had to
+use some context `Γ` to produce the Agda expression `a` with (presumably), the
+type `Nf T Γ`. Later, when we reify `f(a)(b)`, we will arrive at a term that is
+possibly using the variable `x`, but we are now in a different context,
+`Γ, y:S`. This suggests that we need to generalize our reflection of terms in
+the object language over all contexts, so that at reification we can use
+a different context than the one that was used at reflection.
 
-To address this, we introduce liftable terms. These are terms that are
-generalized over contexts, and can be applied to any context Γ.
+It will be the case that we can only actually reify a semantic object using
+a context that is an extension of the context used when that semantic object
+was reflected into the meta language (and with the example above, the reason
+is clear: our algorithm would otherwise not produce a term that is well-typed).
 
-An effect of this is that it could be that the resulting term is not
-well defined. In fact, it will be the case that liftable neutral terms can
-only be applied to extensions of the context under which they were created.
-Because of this, liftable neutrals will need to return a placeholder value (tt)
-for some contexts.
-
-We append the symbol ^ for the liftable version of a System T construct, and
-use 𝓋̂ and 𝓊̂ as the metavariables for liftable normal terms and neutral terms
-respectively.
+We introduce liftable normal and neutral terms to address this. These are
+normal/neutral terms that are generalized over contexts. Because we cannot
+apply _any_ context to a liftable normal/neutral term, we will need a
+placeholder value for some contexts.
 
 ```agda
 -- Liftable neutral term
@@ -995,24 +1020,32 @@ Nf^ : Type → Set
 Nf^ T = ∀ (Γ : Ctx) → ∃[ t ] Nf T Γ t
 ```
 
-Application of liftable terms is overloaded, i.e. (𝓊̂ 𝓋̂)(Γ) = 𝓊̂(Γ)𝓋̂(Γ)
+For convenience, we only use this placeholder for liftable neutral terms.
+This is possible because of how the algorithm for normalization by evaluation
+is designed ─ reification always eta-expands at function type, so there will
+only ever be a need to use a placeholder value at our base type `nat`. For
+liftable normals, we can fallback to using `zero` (which is a valid normal term)
+instead of using our placeholder value. We allow ourselves this convenience
+because in proving the soundness of normalization by evaluation, we will
+be proving that neither the placeholder value nor the fallback of `zero` will
+actually be used.
+
+Going forward, we will use 𝓋̂ and 𝓊̂ as the metavariables for liftable normal
+terms and neutral terms respectively, and will append the symbol ^ for the
+"liftable" counterpart of a System T construct. For example, we define the
+overloaded application `(𝓊̂ 𝓋̂)(Γ) = 𝓊̂(Γ)𝓋̂(Γ)` of liftable terms as `_·^_`.
 
 ```agda
-_·^_ : ∀ {S T : Type} → Ne^ (S ⇒ T) →  Nf^ S → Ne^ T
-(𝓊̂ ·^ 𝓋̂) Γ with 𝓊̂ Γ               |          𝓋̂ Γ
-...           | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩ | ⟨ 𝓋 , pf-𝓋 ⟩ =
-      -- Note that we need to provide proof
-      -- that our resulting lifted term is
-      -- a neutral term as well
-      inj₁ ⟨ 𝓊 · 𝓋 , ne-app pf-𝓊 pf-𝓋 ⟩
-...           | inj₂ tt           | _            = inj₂ tt
+_·^_ : ∀ {S T : Type} → Ne^ (S ⇒ T) → Nf^ S → Ne^ T
+(𝓊̂ ·^ 𝓋̂) Γ with 𝓊̂ Γ
+...           | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩ =
+  let ⟨ 𝓋 , pf-𝓋 ⟩ = 𝓋̂ Γ in
+  inj₁ ⟨ 𝓊 · 𝓋 , ne-app pf-𝓊 pf-𝓋 ⟩
+...           | inj₂ tt           = inj₂ tt
 ```
 
-Since normalization by evaluation will need to be
-over liftable terms, the concrete interpretation of
-the base type nat will in the end be naturals with embedded liftable
-neutrals, which we can now finally define in Agda, along with the
-interpretation of types.
+The actual interpretation of the base type `nat` will in fact be an extension to
+Agda's natural numbers that embeds liftable neutrals.
 
 ```agda
 data ℕ̂ : Set where
@@ -1026,107 +1059,64 @@ instance
   Interpretation.⟦ ⟦Type⟧ ⟧ (S ⇒ T) = ⟦ S ⟧ → ⟦ T ⟧
 ```
 
-With this, we begin the most important part
-of normalization by evaluation, the reflection
-and reification functions. These are mutually
-recursive, and will be defined inductively
-on the type T
-
-```agda
--- Reflection of neutral terms of type T into
--- semantic objects in ⟦T⟧
-↑ᵀ : {T : Type} → Ne^ T → ⟦ T ⟧
-
--- Reification of semantic objects in ⟦T⟧ into
--- normal terms of type T
-↓ᵀ : {T : Type} → ⟦ T ⟧ → Nf^ T
-```
-
-As was the case in the sketch of the algorithm, the reflection
-of a liftable neutral of type nat into the metalanguage (i.e. into
-a term ℕ̂) is just the liftable neutral itself, embedded with the
-ne constructor.
-
-```agda
-↑ᵀ {nat} 𝓊̂ = ne 𝓊̂
-```
-
-As for the reflection of neutral terms of type S ⇒ T into ⟦S⟧ → ⟦T⟧,
-we reify a semantic object in ⟦S⟧ and then reflect the neutral term
-resulting from the application of the reified object to the original
-neutral term. Here, we use the liftable application operation we
-defined earlier.
-
-```agda
-↑ᵀ {S ⇒ T} 𝓊̂ a = ↑ᵀ (𝓊̂ ·^ 𝓋̂) where 𝓋̂ = ↓ᵀ a
-```
-
-For the reification of semantic objects of type ⟦nat⟧,
-which are our naturals with embedded liftable neutrals (ℕ̂),
-we define the following helper function.
+We want a way to reify Agda expressions of type `ℕ̂`, for which we will define a
+function `↓ℕ̂`. It is here that given an incompatible context that results in the
+embedded liftable neutral being undefined, it will be necessary fallback to
+`zero`. Once again, this case will be irrelevant and we will prove that it will
+never actually be used in the algorithm for normalization by evaluation.
 
 ```agda
 ↓ℕ̂ : ⟦ nat ⟧ → Nf^ nat
 ↓ℕ̂ zero = (λ _ → ⟨ zero , nf-zero ⟩)
-```
-
-For the successor case, we reify the successor into a liftable
-successor function (suc^) applied to the reification of the argument
-to the successor function
-
-```agda
 ↓ℕ̂ (suc n) = suc^ (↓ℕ̂ n) where
   suc^ : Nf^ nat → Nf^ nat
   suc^ 𝓋̂ Γ =
     let ⟨ 𝓋 , pf ⟩ = 𝓋̂ Γ in
     ⟨ suc · 𝓋 , nf-suc pf ⟩
-```
-
-In the case of an embedded liftable neutral, we use `zero` as a
-fallback if the liftable neutral is undefined at the context.
-Our proof of soundness later will be proof that this fallback is not
-necessary in our algorithm.
-
-```agda
 ↓ℕ̂ (ne 𝓊̂) Γ with 𝓊̂ Γ
 ...            | inj₁ ⟨ 𝓊 , pf ⟩ = ⟨ 𝓊 , nf-neutral pf ⟩
 ...            | inj₂ tt         = ⟨ zero , nf-zero ⟩
 ```
 
-For reification at function type, we will need the following
-function which creates a "fresh" variable for a context Γ.
-Really, this is just the de Brujin index 0 for a context `Γ , x:S`.
-This will be a liftable variable that can be used in a context
-that is an extension of `Γ , x:S` (and is undefined otherwise).
-```
-𝓍̂ : (S : Type) → Ctx → Ne^ S
-𝓍̂ S Γ Γ′
-  with Γ′ ≤? (Γ , S)
-...  | no _          = inj₂ tt
-...  | yes pf        = inj₁ ⟨ # x , ne-var x ⟩ where x = ren 𝑍 (ren-≤ pf)
-```
 
-For our reification function, we reuse ↓ℕ̂ at type nat.
+Next up is perhaps the most important part of normalization by evaluation,
+reflection and reification. These are mutually recursive, and will each be
+defined by induction on the type `T`.
 
 ```agda
-↓ᵀ {nat} = ↓ℕ̂
+
+mutual
+  ↑ᵀ : {T : Type} → Ne^ T → ⟦ T ⟧
+  ↑ᵀ {nat} 𝓊̂ = ne 𝓊̂
+  ↑ᵀ {S ⇒ T} 𝓊̂ a = ↑ᵀ (𝓊̂ ·^ 𝓋̂) where 𝓋̂ = ↓ᵀ a
+
+  ↓ᵀ : {T : Type} → ⟦ T ⟧ → Nf^ T
+  ↓ᵀ {nat} = ↓ℕ̂
+  ↓ᵀ {S ⇒ T} f Γ =
+    let ⟨ 𝓋 , pf ⟩ = ↓ᵀ (f a) (Γ , S) in
+    ⟨ ƛ 𝓋 , nf-abs pf ⟩
+    where a = ↑ᵀ (𝓍̂ S Γ)
 ```
 
-For the reification of semantic objects of type ⟦S → T⟧ (which are functions
-of type ⟦S⟧ → ⟦T⟧), the resulting normal term is an abstraction over the
-reification of the function applied to the reflection of the bound variable,
-for which we use 𝓍̂
+For reification at function type, we use the following function which creates a
+"fresh" variable for a context `Γ`. Really, this is just the de Brujin index `𝑍`
+for a context `Γ, x:S`. This will be a liftable variable that can be used in
+a context that is an extension of `Γ, x:S` (and is undefined otherwise). When
+applied to an extension `Γ′` of `Γ, x:S` we can apply the extension renaming to
+the de Brujin index `𝑍` to obtain its corresponding index in the extended
+context.
 
- ```agda
-↓ᵀ {S ⇒ T} f Γ =
-  let ⟨ 𝓋 , pf ⟩ = ↓ᵀ (f a) (Γ , S) in
-  ⟨ ƛ 𝓋 , nf-abs pf ⟩
-  where a = ↑ᵀ (𝓍̂ S Γ)
+```
+  𝓍̂ : (S : Type) → Ctx → Ne^ S
+  𝓍̂ S Γ Γ′
+    with Γ′ ≤? (Γ , S)
+  ...  | no _          = inj₂ tt
+  ...  | yes pf        = inj₁ ⟨ # x , ne-var x ⟩ where x = ren 𝑍 (ren-≤ pf)
 ```
 
-With these two functions in place, we can define the reflection of a context
-Γ into an environment. This will be the reflected environment over which a typed
-term in the context Γ will be evaluated.
+With these two functions in place, we can also define the reflection of a context
+`Γ` into an environment. This will be the reflected environment over which a
+typed term in the context `Γ` will be evaluated.
 
 ```agda
 ↑ᶜᵗˣ : ∀ (Γ : Ctx) → ⟦ Γ ⟧
@@ -1134,10 +1124,9 @@ term in the context Γ will be evaluated.
 ↑ᶜᵗˣ (Γ , T) = ⟨ ↑ᶜᵗˣ Γ  , ↑ᵀ (𝓍̂ T Γ) ⟩
 ```
 
-We also need to use reflection and reification to
-define the interpretation of primitive recursion in
-System T, which must work with liftable neutrals (as
-our interpretation of nat now has them embedded)
+The interpretation of recursion in System T must work with liftable neutrals (as
+the interpretation of `nat` has them embedded), for this which we can use
+reflection and reification.
 
 ```agda
 rec^ : ∀ {T : Type} → Nf^ T → Nf^ (nat ⇒ T ⇒ T) → Ne^ nat → Ne^ T
@@ -1155,10 +1144,9 @@ rec^ 𝓋̂z 𝓋̂s 𝓊̂ Γ with 𝓊̂ Γ
   ↑ᵀ (rec^ 𝓋̂z 𝓋̂s 𝓊̂) where 𝓋̂z = ↓ᵀ z ; 𝓋̂s = ↓ᵀ s
 ```
 
-Now that we have a concrete interpretation of types,
-and an interpretation for primitive recursion,
-we can define the corresponding interpretations of
-the lookup and typing judgements.
+Evaluation can now actually be defined in Agda, having been blocked by a lack of
+an interpretation for primitive recursion. It is exactly as was shown earlier
+in pseudo-code.
 
 ```agda
 ⟦_∋Γ⟧ : ∀ {Γ : Ctx} {T : Type} → Γ ∋ T → ⟦ Γ ⟧ → ⟦ T ⟧
@@ -1174,7 +1162,7 @@ the lookup and typing judgements.
 ⟦⊢ r · s ⟧ ρ = ⟦⊢ r ⟧ ρ (⟦⊢ s ⟧  ρ)
 ```
 
-Finally, the algorithm for normalization by evaluation is as follows
+Finally, the algorithm for normalization by evaluation is as follows:
 
 ```agda
 nbe : ∀ {Γ : Ctx} {T : Type} → Γ ⊢ T → ∃[ t ] Nf T Γ t
@@ -1185,7 +1173,7 @@ nf t = let ⟨ t′ , _ ⟩ = nbe t in t′
 ```
 
 And here we have some examples of the algorithm in action, reusing our
-examples from [SystemT](./SystemT.lagda.md)
+examples from earlier.
 
 ```agda
 -- normal form of (λx. x) zero is zero
@@ -1205,15 +1193,30 @@ nf-ex3 with ex3
 ...       | _   = refl
 ```
 
-As for the soundness properties we want from this algorithm:
+### Correctness
+
+We wish for our algorithm for normalization by evaluation to be both sound and
+complete. This is a complex problem, and it is to make it simpler that we have
+introduced definitional equality. For now, we include as a postulate that if two
+terms are definitionally equal, then they must have the same interpretation.
+
+```agda
+postulate
+  ==→⟦≡⟧ : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T} {ρ : ⟦ Γ ⟧}
+         → t == t′
+         → ⟦⊢ t ⟧ ρ ≡ ⟦⊢ t′ ⟧ ρ
+```
+
+For our purposes, the soundness properties we want from this algorithm are:
   - `Γ ⊢ nf(t) : T` (well-typedness)
       We are using an intrinsically typed
       representation of terms, so this property is
       given to us automatically
 
   - `⟦ nf(t) ⟧ = ⟦ t ⟧` (preservation of meaning)
-      We will prove this in the following section
-      using definitional equality
+      This property is especially difficult, and we will have to use a logical
+      relation, along with definitional equality, to prove it in the following
+      section
 
   - `nf(nf(t)) = nf(t)` (idempotency)
       This follows directly from the preservation of
@@ -1223,23 +1226,15 @@ As for the soundness properties we want from this algorithm:
       we have `Γ ⊢ nf t = t : T`, which implies `nf (nf t) = nf(t)`
       by completeness
 
-For proving the completeness property of NbE,
-our goal is to prove that two programs with the
-same meaning (i.e. definitionally equal) have the
-same normal form:
+Separately, for our algorithm to be complete, we want to prove that two programs
+with the same meaning (i.e. definitionally equal) have the same normal form:
 
     Γ ⊢ t = t′ : T implies nf(t) = nf(t′)
 
-We can prove this using some equational reasoning
-paired with the definitional equality of two
-terms impliying they are semantically equal
-(included as a postulate for now)
+We can prove this using some equational reasoning paired with the definitional
+equality of two terms impliying they are semantically equal
 
 ```agda
-postulate
-  ==→⟦≡⟧ : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T} {ρ : ⟦ Γ ⟧}
-         → t == t′
-         → ⟦⊢ t ⟧ ρ ≡ ⟦⊢ t′ ⟧ ρ
 
 completeness : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T}
              → t == t′
@@ -1537,7 +1532,8 @@ infix 3 _==ℕ̂_
 ```
 
 We will also be generalizing our logical relation over any two
-Agda types, as later we will need to extend it.
+Agda types, as later we will need to extend it to relate more than
+just terms and semantic objects.
 
 ```agda
 record Rel (A B : Set) : Set₁ where
@@ -2175,7 +2171,7 @@ This site uses the following unicode[^1]:
     ≢  U+2262  NOT IDENTICAL TO (\==n)
     ⊢  U+22A2  RIGHT TACK (\|-)
     ƛ  U+019B  LATIN SMALL LETTER LAMBDA WITH STROKE (\Gl-)
-    ∙  U+2219  BULLET OPERATOR (\.)
+    ·  U+00B7  MIDDLE DOT (\cdot)
     σ  U+03C3  GREEK SMALL LETTER SIGMA (\Gs)
     Δ  U+0394  GREEK CAPITAL LETTER DELTA (\GD)
     ᵣ  U+1D63  LATIN SUBSCRIPT SMALL LETTER R (\_r)
