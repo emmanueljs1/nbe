@@ -4,17 +4,19 @@ author: Emmanuel Suárez Acevedo
 ---
 
 ### Background
+
 This site is both an overview of normalization by evaluation and a formalization
 in Agda of its presentation in Chapter 2 of Andreas Abel's habilitation thesis,
 "Normalization by Evaluation: Dependent Types and Impredicativity" [@nbe]. It
 was compiled from a literate Agda file available
 [here](https://github.com/emmanueljs1/nbe/blob/main/NbE.lagda.md?plain=1)
-(following the helpful advice in Jesper Cockx's
-[blog post](https://jesper.sikanda.be/posts/literate-agda.html)). For clarity
-and readability, some parts of the source file are left out in this
-rendering, and this will be called out when possible. Some familiarity with
+by following the helpful advice in
+[this](https://jesper.sikanda.be/posts/literate-agda.html) blog post by Jesper
+Cockx. For clarity and readability, some parts of the source file are left out
+in this rendering, and this will be called out when possible. At the moment,
+some lemmas are included only as postulates. Some familiarity with
 Agda (e.g. such as having worked through the first part of [Programming
-Languages Foundations in Agda](https://plfa.inf.ed.ac.uk/22.08/)) is assumed,
+Languages Foundations in Agda](https://plfa.inf.ed.ac.uk/22.08/)) is assumed
 along with some knowledge of programming language foundations, though the content
 is mostly self contained.
 
@@ -100,7 +102,7 @@ context `∅` or an extension to a context `Γ , x:S` mapping an object
 language variable to a type (here, `Γ` is extended with the variable
 `x` mapped to the type 𝑆`).
 
-Our Agda definition does not actually mention variables at all, and
+Our Agda definition does not actually mention variable names at all, and
 is really just a list of types. This is because we will be using a de
 Brujin representation for variables, and the de Brujin index representing
 a variable will be an index into the list of types that makes up a context.
@@ -120,8 +122,9 @@ infixl 5 _,_
 Our de Brujin indices will actually be lookup judgements into a
 context. They are very similar to natural numbers (and their contructors
 have been named suggestively based on this similarity), though we define
-them as such instead of simply using Agda's natural numbers so that an index
-into a context is well-defined.
+them as such instead of simply using Agda's natural numbers both so that an
+index into a context is well-defined and so that a variable can be intrinsically
+typed, something that we will be taking advantage of in a moment.
 
 ```agda
 data _∋_ : Ctx → Type → Set where
@@ -154,77 +157,6 @@ module Example (S T : Type) where
 
   y : ∅,x:S,y:T ∋ T
   y = 𝑍
-```
-
-When defining the algorithm for normalization by evaluation, it will be
-necessary to determine whether or not a context is an extension of
-another. A context `Γ′` extends another context `Γ` if every mapping in
-`Γ` is also in `Γ′`. In our representation, this will mean that if `Γ′`
-extends `Γ`, then `Γ` is a "sublist" of `Γ′`. We inductively define the
-rules for context extension based somewhat on this idea: a context extends
-itself, and given that a context `Γ′` extends another context `Γ`, an
-extension of `Γ′` is still an extension `Γ′`.
-
-```agda
-data _≤_ : Ctx → Ctx → Set where
-  ≤-id : ∀ {Γ : Ctx} → Γ ≤ Γ
-
-  ≤-ext : ∀ {Γ Γ′ : Ctx} {T : Type}
-        → Γ′ ≤ Γ
-          ----------
-        → Γ′ , T ≤ Γ
-```
-
-<!---
-```
-infix 4 _≤_
-```
---->
-
-It will be helpful to make this relation decidable, for which we define
-an infix function `≤?`. Note that to define it we use another function
-whose definition has been omitted for brevity:
-
-```agda
-_≟Ctx_ : (Γ Γ′ : Ctx) → Dec (Γ ≡ Γ′)
-```
-
-<!---
-```agda
-∅       ≟Ctx ∅                                  = yes refl
-∅       ≟Ctx (_ , _)                            = no λ()
-(_ , _) ≟Ctx ∅                                  = no λ()
-(Γ′ , S) ≟Ctx (Γ , T) with Γ′ ≟Ctx Γ | S ≟Tp T
-...                      | no ¬pf    | no _     = no λ{refl → ¬pf refl}
-...                      | no ¬pf    | yes _    = no λ{refl → ¬pf refl}
-...                      | yes _     | no ¬pf   = no λ{refl → ¬pf refl}
-...                      | yes refl  | yes refl = yes refl
-```
---->
-
-Interestingly, because of how we've defined our relation, the typical "obvious"
-case for a sublist relationship, that the empty list is a sublist of any other
-list, has to be proven separately as a lemma.
-
-```agda
-Γ≤∅ : ∀ {Γ : Ctx} → Γ ≤ ∅
-Γ≤∅ {∅} = ≤-id
-Γ≤∅ {Γ , _} with Γ≤∅ {Γ}
-...            | pf      = ≤-ext pf
-
-_≤?_ : ∀ (Γ′ Γ : Ctx) → Dec (Γ′ ≤ Γ)
-∅        ≤? ∅          = yes ≤-id
-∅        ≤? (_ , _)    = no λ()
-(_ , _)  ≤? ∅          = yes Γ≤∅
-(Γ′ , T) ≤? Γ@(_ , _)
-  with (Γ′ , T) ≟Ctx Γ
-...  | yes refl        = yes ≤-id
-...  | no Γ′≢Γ
-  with Γ′ ≤? Γ
-...  | yes pf          = yes (≤-ext pf)
-...  | no ¬pf          = no λ where
-                           ≤-id       → Γ′≢Γ refl
-                           (≤-ext pf) → ¬pf pf
 ```
 
 As for terms, System T has the variables, abstractions, and
@@ -305,9 +237,80 @@ ex3 : ∅ , nat , nat ⊢ nat
 ex3 = suc · ((ƛ suc · # 𝑆 𝑍) · # 𝑆 𝑍)
 ```
 
+When defining the algorithm for normalization by evaluation, it will be
+necessary to determine whether or not a context is an extension of
+another. A context `Γ′` extends another context `Γ` if every mapping in
+`Γ` is also in `Γ′`. In our representation, this will mean that if `Γ′`
+extends `Γ`, then `Γ` is a "sublist" of `Γ′`. We inductively define the
+rules for context extension based somewhat on this idea: a context extends
+itself, and given that a context `Γ′` extends another context `Γ`, an
+extension of `Γ′` is still an extension `Γ′`.
+
+```agda
+data _≤_ : Ctx → Ctx → Set where
+  ≤-id : ∀ {Γ : Ctx} → Γ ≤ Γ
+
+  ≤-ext : ∀ {Γ Γ′ : Ctx} {T : Type}
+        → Γ′ ≤ Γ
+          ----------
+        → Γ′ , T ≤ Γ
+```
+
+<!---
+```
+infix 4 _≤_
+```
+--->
+
+It will be helpful to make this relation decidable, for which we define
+an infix function `≤?`. Note that to define it we use another function
+whose definition has been omitted for brevity:
+
+```agda
+_≟Ctx_ : (Γ Γ′ : Ctx) → Dec (Γ ≡ Γ′)
+```
+
+<!---
+```agda
+∅       ≟Ctx ∅                                  = yes refl
+∅       ≟Ctx (_ , _)                            = no λ()
+(_ , _) ≟Ctx ∅                                  = no λ()
+(Γ′ , S) ≟Ctx (Γ , T) with Γ′ ≟Ctx Γ | S ≟Tp T
+...                      | no ¬pf    | no _     = no λ{refl → ¬pf refl}
+...                      | no ¬pf    | yes _    = no λ{refl → ¬pf refl}
+...                      | yes _     | no ¬pf   = no λ{refl → ¬pf refl}
+...                      | yes refl  | yes refl = yes refl
+```
+--->
+
+Interestingly, because of how we've defined our relation, the typical "obvious"
+case for a sublist relationship, that the empty list is a sublist of any other
+list, has to be proven separately as a lemma.
+
+```agda
+Γ≤∅ : ∀ {Γ : Ctx} → Γ ≤ ∅
+Γ≤∅ {∅} = ≤-id
+Γ≤∅ {Γ , _} with Γ≤∅ {Γ}
+...            | pf      = ≤-ext pf
+
+_≤?_ : ∀ (Γ′ Γ : Ctx) → Dec (Γ′ ≤ Γ)
+∅        ≤? ∅          = yes ≤-id
+∅        ≤? (_ , _)    = no λ()
+(_ , _)  ≤? ∅          = yes Γ≤∅
+(Γ′ , T) ≤? Γ@(_ , _)
+  with (Γ′ , T) ≟Ctx Γ
+...  | yes refl        = yes ≤-id
+...  | no Γ′≢Γ
+  with Γ′ ≤? Γ
+...  | yes pf          = yes (≤-ext pf)
+...  | no ¬pf          = no λ where
+                           ≤-id       → Γ′≢Γ refl
+                           (≤-ext pf) → ¬pf pf
+```
+
 Now that we have defined System T in Agda, we are almost ready
 to start describing an algorithm for normalization by
-evaluation. However, to prove the soundness of this algorithm,
+evaluation. However, to prove properties concerning this algorithm,
 we will need to define two more language constructs: substitutions
 and equality.
 
@@ -366,7 +369,7 @@ that is well-typed in the context `Δ` to a term `t [ σ ]` that is
 well typed in the context `Γ`
 
 Defining this operation is actually a little tricky in Agda, because
-the language requires that all code that is written be terminating.
+the language requires all code that is written to be terminating.
 The typical definition of the application of a substitution `σ` is not
 obviously terminating, so we will need to first introduce renaming.
 
