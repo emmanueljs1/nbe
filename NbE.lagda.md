@@ -1244,6 +1244,8 @@ following:
 
 <!--
 
+The following are lemmas that will be necessary for proving soundness.
+
 ```agda
 -- Equivalent terms are definitionally equal
 ≡→== : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T}
@@ -1418,11 +1420,11 @@ postulate
 -- Applying an increment renaming substitution to a term that already
 -- has a weakening substitution applied to it is equivalent to shifting
 -- the weakening substitution
-incr-↥-≡ : ∀ {Γ Γ′ : Ctx} {Γ′≤Γ : Γ′ ≤ Γ} {S T : Type} {t : Γ ⊢ T}
+weaken-incr≡↥ : ∀ {Γ Γ′ : Ctx} {Γ′≤Γ : Γ′ ≤ Γ} {S T : Type} {t : Γ ⊢ T}
          → S ↑⊢ (t [ weaken Γ′≤Γ ]) ≡ t [ subst-ren (ren-≤ Γ′≤Γ ↥ᵣ) ]
-incr-↥-≡ {Γ′≤Γ = ≤-id} {t = t} rewrite [id]-identity {t = t} = refl
-incr-↥-≡ {Γ′≤Γ = ≤-ext {T = S₁} Γ′≤Γ} {S₂} {t = t}
-  rewrite ≡-sym (incr-↥-≡ {Γ′≤Γ = Γ′≤Γ} {S₁} {t = t})
+weaken-incr≡↥ {Γ′≤Γ = ≤-id} {t = t} rewrite [id]-identity {t = t} = refl
+weaken-incr≡↥ {Γ′≤Γ = ≤-ext {T = S₁} Γ′≤Γ} {S₂} {t = t}
+  rewrite ≡-sym (weaken-incr≡↥ {Γ′≤Γ = Γ′≤Γ} {S₁} {t = t})
         | weaken-compose (≤-ext {T = S₁} ≤-id) Γ′≤Γ t
         | weaken-compose
             (≤-ext {T = S₂} ≤-id)
@@ -1435,7 +1437,6 @@ incr-↥-≡ {Γ′≤Γ = ≤-ext {T = S₁} Γ′≤Γ} {S₂} {t = t}
 
 -->
 
-
 ### Soundness
 
 To prove that the algorithm for normalization by evaluation implemented
@@ -1445,32 +1446,29 @@ to its normal form:
 
    Γ ⊢ t = nf(t) : T
 
-which expands to:
+In proving that a term is definitionally equal to its normal form, we will have
+that `⟦ nf (t) ⟧ = ⟦ t ⟧`, as definitional equality implies semantic equality.
+This new property we wish to prove expands to:
 
     Γ ⊢ t = ↓ᵀ a Γ, where a = ⟦ t ⟧ ↑Γ
 
 To prove this, we will establish a logical relation `Γ ⊢ t : T Ⓡ a` between a
 well-typed term `Γ ⊢ t : T` and a semantic object in our meta language
 `a ∈ ⟦ T ⟧` such that it implies `Γ ⊢ t = ↓ᵀ a Γ : T`. Later, we will prove that
-`Γ ⊢ t : T Ⓡ ⟦ t ⟧ ↑Γ`, thereby finishing our proof, but we will focus on the
-logical relation itself for now.
+`Γ ⊢ t : T Ⓡ ⟦ t ⟧ ↑Γ` (finishing our proof) but we will focus on the logical
+relation itself for now.
 
 For defining the relation in Agda, we will need to first define some other
 relations. The first such relation we define "lifts" definitional equality to
-include liftable neutrals:
+include liftable neutrals. If the liftable neutral can be lifted to the context
+`Γ`, this is just definitional equality. Otherwise, the relation can never hold,
+as there is no lifted term in the context to compare to.
 
 ```agda
 _==^_ : {Γ : Ctx} {T : Type} → Γ ⊢ T → Ne^ T → Set
 _==^_ {Γ} t 𝓊̂ with 𝓊̂ Γ
-... | inj₁ ⟨ 𝓊 , _ ⟩ =
-      -- If the liftable neutral can be lifted to the
-      -- context Γ, this is just definitional equality
-      t == 𝓊
-... | inj₂ _ =
-      -- Otherwise, the proposition cannot be proven,
-      -- as there is no lifted term in the context
-      -- to compare a term to
-      ⊥
+... | inj₁ ⟨ 𝓊 , _ ⟩   = t == 𝓊
+... | inj₂ _           = ⊥
 ```
 
 <!---
@@ -1522,17 +1520,17 @@ infix 3 _==ℕ̂_
 
 For the last part of our proof, we will be generalizing `Ⓡ` to relate more than
 just terms and semantic objects, so we will be using a record type generalized
-over any two types to define the relation.
+over any two Agda types to define the relation.
 
 ```agda
-record Rel (A B : Set) : Set₁ where
+record Relation (A B : Set) : Set₁ where
   field
-    relation : A → B → Set
+    rel : A → B → Set
 
-open Rel ⦃...⦄ public
+open Relation ⦃...⦄ public
 
-_Ⓡ_ : ∀ {A B : Set} ⦃ _ : Rel A B ⦄ → A → B → Set
-_Ⓡ_ = relation
+_Ⓡ_ : ∀ {A B : Set} ⦃ _ : Relation A B ⦄ → A → B → Set
+_Ⓡ_ = rel
 ```
 
 <!---
@@ -1557,9 +1555,9 @@ to be strengthened in this way.
 
 ```agda
 instance
-  Ⓡ-Terms : ∀ {Γ : Ctx} {T : Type} → Rel (Γ ⊢ T) ⟦ T ⟧
-  Rel.relation (Ⓡ-Terms {T = nat}) t 𝓋̂ = t Ⓝ 𝓋̂
-  Rel.relation (Ⓡ-Terms {Γ} {S ⇒ T}) r f =
+  Ⓡ-Terms : ∀ {Γ : Ctx} {T : Type} → Relation (Γ ⊢ T) ⟦ T ⟧
+  Relation.rel (Ⓡ-Terms {T = nat}) t 𝓋̂   = t Ⓝ 𝓋̂
+  Relation.rel (Ⓡ-Terms {Γ} {S ⇒ T}) r f =
     ∀ {Γ′ : Ctx}
     → (Γ′≤Γ : Γ′ ≤ Γ)
     → ∀ {s : Γ′ ⊢ S} {a : ⟦ S ⟧}
@@ -1644,23 +1642,33 @@ definitionally equal to the reification of that semantic object.
 
 This is intentional, as these results will be exactly what we will need to prove
 the soundness of normalization by evaluation. We formalize them with the
-following implications, which we will prove mutually (as reflection and
-reification are themselves defined mutually) by induction on types.
+following lemmas, which we will prove mutually (as reflection and reification
+are themselves defined mutually) by induction on types.
 
-Our first implication is:
+Our first lemma is:
 
     (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : T) ⇒ Γ ⊢ 𝓊 : T Ⓡ ↑ᵀ 𝓊̂
 
 ```agda
-==^→Ⓡ : ∀ {Γ : Ctx} {T : Type} {𝓊 : Γ ⊢ T} {𝓊̂ : Ne^ T}
-      → (∀ {Γ′ : Ctx}
-         → (Γ′≤Γ : Γ′ ≤ Γ)
-         → Γ′≤Γ ≤⊢ 𝓊 ==^ 𝓊̂)
-        -------------------
-      → 𝓊 Ⓡ (↑ᵀ 𝓊̂)
+==^→Ⓡ↑ : ∀ {Γ : Ctx} {T : Type} {𝓊 : Γ ⊢ T} {𝓊̂ : Ne^ T}
+        → (∀ {Γ′ : Ctx}
+           → (Γ′≤Γ : Γ′ ≤ Γ)
+           → Γ′≤Γ ≤⊢ 𝓊 ==^ 𝓊̂)
+          -------------------
+        → 𝓊 Ⓡ (↑ᵀ 𝓊̂)
 ```
 
-The second implication is:
+A consequence of this lemma is that `Γ , x:T ⊢ x Ⓡ ↑ᵀ (𝓍̂ Γ)`, which we can
+define in Agda now as it will be a lemma we will need for proving the next
+lemma we will introduce.
+
+```agda
+xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Ctx} {T : Type}
+        -------------------------
+      → # 𝑍 {Γ} {T} Ⓡ ↑ᵀ (𝓍̂ T Γ)
+```
+
+The second lemma we need is:
 
     Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ′ : T
 
@@ -1672,62 +1680,77 @@ The second implication is:
       → Γ′≤Γ ≤⊢ t == proj₁ (↓ᵀ a Γ′)
 ```
 
-This implication is in fact what we wanted in the first place: that if a term is
+This lemma is in fact what we wanted in the first place: that if a term is
 logically related to a semantic object, then it is definitionally equal to the
 reification of said object. It is stronger than we need it to be, but again this
 is necessary to actually prove the implication.
 
-A consequence of the first implication is that `Γ , x:T ⊢ x Ⓡ ↑ᵀ (𝓍̂ Γ)`, which
-we define in Agda now as it will be a lemma we will need for proving the second
-implication.
+We will start by proving the first lemma focusing on each case of the proof
+separately, before moving on to proving the second lemma. Again, the first
+lemma is:
+
+    (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : T) ⇒ Γ ⊢ 𝓊 : T Ⓡ ↑ᵀ 𝓊̂
+
+We prove this by induction on the type `T`. At type `nat`, our proof is
+immediate, as `Γ ⊢ u : nat Ⓡ ↑ⁿᵃᵗ 𝓊̂` is defined as:
+
+    ∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : nat
+
+Which is exactly our given proof.
 
 ```agda
-xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Ctx} {T : Type}
-        -------------------------
-      → # 𝑍 {Γ} {T} Ⓡ ↑ᵀ (𝓍̂ T Γ)
+==^→Ⓡ↑ {T = nat} pf Γ′≤Γ = pf Γ′≤Γ
 ```
 
-To prove the first implication, first we show that it always
-holds for liftable neutral terms of type nat. This is simply
-the given proof, so this case follows immediately.
+At type `S → T`, the proof is more complicated. We want to prove that:
 
-```agda
-==^→Ⓡ {T = nat} pf Γ′≤Γ = pf Γ′≤Γ
-```
 
-Now, for liftable neutral terms of type S → T, we prove that
-the relation holds for `↑ᵀ (𝓊̂ · ↓ˢ a)`
+    (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : S → T) ⇒ Γ ⊢ 𝓊 : S → T Ⓡ ↑ˢ⃗ᵗ 𝓊̂
 
-We prove the relation holds by using our induction
-hypothesis, so that our new goal is to prove that
+By definition of Ⓡ, this expands to:
+
+    (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : S → T) ⇒
+      ∀ Γ′ ≤ Γ. Γ′ ⊢ s Ⓡ a ⇒
+        Γ′ ⊢ 𝓊 s Ⓡ (↑ˢ⃗ᵗ 𝓊̂) a
+
+This simplifies further by the definition of reflection:
+
+    (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : S → T) ⇒
+      ∀ Γ′ ≤ Γ. Γ′ ⊢ s Ⓡ a ⇒
+        Γ′ ⊢ 𝓊 s Ⓡ ↑ᵀ (𝓊̂ · ↓ˢ a)
+
+Our induction hypothesis gives us that at type `T`, the following holds:
+
+    (∀ Γ″ ≤ Γ′. Γ″ ⊢ 𝓊 s = (𝓊̂ · ↓ˢ a) Γ″) ⇒
+        Γ′ ⊢ 𝓊 s Ⓡ ↑ᵀ (𝓊̂ · ↓ˢ a)
+
+With our induction hypothesis, our new goal is to prove only that:
 
     Γ″ ⊢ 𝓊 s = (𝓊̂ · (↓ˢ a)) Γ″ : T
 
-for any Γ″ that is an extension of Γ′ (which itself
-extends Γ).
+for any `Γ″` that is an extension of `Γ′` (which itself extends `Γ`). Note that
+`(𝓊̂ · (↓ˢ a)) Γ″` is equivalent to `𝓊̂(Γ″) · (↓ˢ a)(Γ″)` (application of liftable
+neutrals is overloaded), so the final form of the property we have to prove is:
 
-Note that `(𝓊̂ · (↓ˢ a)) Γ″` is equivalent to
-`𝓊̂(Γ″) · (↓ˢ a)(Γ″)` (application of liftable neutrals is overloaded.
+    Γ″ ⊢ 𝓊 s = 𝓊̂(Γ″) · ↓ˢ a Γ″ : T
 
-First, we deconstruct `𝓊̂ (Γ″)`,
-using our given proof that it's definitionally
-equal to `Γ″ ⊢ 𝓊 : S → T` to both discard the case
-where `𝓊̂ (Γ″)` is undefined and simplify our goal
-to proving that:
+Using the definitional equality rule of compatibility for application, we need
+only prove that:
 
-    Γ″ ⊢ 𝓊 · s = 𝓊″ · ↓ˢ a Γ″ : T (𝓊″ is 𝓊̂ lifted to the context Γ″)
+    Γ″ ⊢ 𝓊 = 𝓊̂(Γ″) : S → T
+    Γ″ ⊢ s = ↓ˢ a Γ″ : S
 
-We also use the other implication we will prove,
-alongside the fact that `s Ⓡ a`, to have evidence
-that `Γ″ ⊢ s : S` is definitionally equal to
-`↓ˢ a Γ″`.
+The first property is our given evidence, and the second property follows from
+the second lemma we will be proving:
 
-With these pieces in place, we can use equational reasoning for definitional
-equality to prove the desired goal.
+    Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ′ : T
+
+We have that `Γ′ ⊢ s : S Ⓡ a`, so we can apply this lemma to arrive at the
+second property we need. The proof in Agda is as described:
 
 ```agda
-==^→Ⓡ {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} Γ′≤Γ {s} {a} sⓇa =
-  ==^→Ⓡ 𝓊·s==𝓊̂·↓ˢa
+==^→Ⓡ↑ {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} Γ′≤Γ {s} {a} sⓇa =
+  ==^→Ⓡ↑ 𝓊·s==𝓊̂·↓ˢa
     where
       𝓊·s==𝓊̂·↓ˢa : ∀ {Γ″ : Ctx}
                  → (Γ″≤Γ′ : Γ″ ≤ Γ′)
@@ -1749,9 +1772,9 @@ equality to prove the desired goal.
           Γ″≤Γ = ≤-trans Γ″≤Γ′ Γ′≤Γ
 ```
 
-To prove the second implication, we proceed similarly
+To prove the second lemma, we proceed similarly
 and first prove it for type nat. If the term is logically
-related to zero, the implication holds immediately from
+related to zero, the lemma holds immediately from
 our given proof
 
 ```agda
@@ -1761,7 +1784,7 @@ our given proof
 
 Otherwise, if the term is logically related to
 a successor of a natural, our given proof
-similarly leads to the implication, though for this case,
+similarly leads to the lemma though for this case,
 we additionally need a lemma showing
 that if a term of type nat is definitionally
 equal to an object a of type ℕ̂ (i.e. a natural
@@ -1800,7 +1823,7 @@ on a.
 ```
 
 Lastly for type nat, if the term is logically related to an
-embedded liftable neutral, the implication also
+embedded liftable neutral, the lemma also
 holds immediately from our given proof
 
 ```agda
@@ -1861,7 +1884,7 @@ to finish our proof.
   ∎
   where
     subst-lemma =
-      ≡→== (≡-trans (incr-↥-≡ {Γ′≤Γ = Γ′≤Γ} {t = t}) (≡-sym [id]-identity))
+      ≡→== (≡-trans (weaken-incr≡↥ {Γ′≤Γ = Γ′≤Γ} {t = t}) (≡-sym [id]-identity))
     a = ↑ᵀ {S} (𝓍̂ S Γ′)
     xⓇa = xⓇ↑ᵀ𝓍̂ {Γ′} {S}
 ```
@@ -1871,7 +1894,7 @@ prove that `Γ , x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂`, as `Γ′ ⊢ x = 𝓍̂ Γ�
 `Γ′ ≤ Γ , x:T`
 
 ```agda
-xⓇ↑ᵀ𝓍̂ {_} {T} = ==^→Ⓡ x==𝓍̂ where
+xⓇ↑ᵀ𝓍̂ {_} {T} = ==^→Ⓡ↑ x==𝓍̂ where
   x==𝓍̂ : ∀ {Γ Γ′ : Ctx}
        → (Γ′≤Γ,T : Γ′ ≤ (Γ , T))
        → Γ′≤Γ,T ≤⊢ # 𝑍 ==^ 𝓍̂ T Γ
@@ -1925,7 +1948,7 @@ recⓇ⟦rec⟧ Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {as} pf′ Γ‴≤Γ�
       rewrite subst-lemma₁ | subst-lemma₂ = pf
 
 recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {as} pf′ {Γ‴} Γ‴≤Γ″ {n} {ne 𝓊̂} pf″ =
-  ==^→Ⓡ rec==^rec^ where
+  ==^→Ⓡ↑ rec==^rec^ where
     rec==^rec^ : ∀ {Γ⁗ : Ctx}
       → (Γ⁗≤Γ‴ : Γ⁗ ≤ Γ‴)
       → Γ⁗≤Γ‴ ≤⊢ (Γ‴≤Γ″ ≤⊢ (Γ″≤Γ′ ≤⊢ rec · z) · s) · n ==^ rec^ (↓ᵀ az) (↓ᵀ as) 𝓊̂
@@ -1951,7 +1974,7 @@ recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {as} pf′ {Γ�
         Γ⁗,nat,T≤Γ⁗ = ≤-ext {T = T} Γ⁗,nat≤Γ⁗
         Γ⁗,nat,T≤Γ⁗,nat = ≤-ext {T = T} (≤-id {Γ⁗ , nat})
 
-        subst-lemma₁ = ≡-sym (incr-↥-≡ {Γ′≤Γ = Γ⁗≤Γ″} {S = nat} {t = s})
+        subst-lemma₁ = ≡-sym (weaken-incr≡↥ {Γ′≤Γ = Γ⁗≤Γ″} {S = nat} {t = s})
         subst-lemma₂ =
           ≡-sym (weaken-compose Γ⁗≤Γ‴ Γ‴≤Γ″ s)
         subst-lemma₃ = [id]-identity {t = T ↑⊢ nat ↑⊢ Γ⁗≤Γ‴ ≤⊢ Γ‴≤Γ″ ≤⊢ s}
@@ -2007,11 +2030,10 @@ related to an environment (ρ , a) if σ is logically
 related to ρ and s is logically related to a.
 
 ```agda
-
 instance
-  Ⓡ-Sub : ∀ {Γ Δ : Ctx} → Rel (Sub Γ Δ) (⟦ Δ ⟧)
-  Rel.relation Ⓡ-Sub ∅ tt              = ⊤
-  Rel.relation Ⓡ-Sub (σ , s) ⟨ ρ , a ⟩ = σ Ⓡ ρ × s Ⓡ a
+  Ⓡ-Sub : ∀ {Γ Δ : Ctx} → Relation (Sub Γ Δ) (⟦ Δ ⟧)
+  Relation.rel Ⓡ-Sub ∅ tt              = ⊤
+  Relation.rel Ⓡ-Sub (σ , s) ⟨ ρ , a ⟩ = σ Ⓡ ρ × s Ⓡ a
 ```
 
 A consequence of how substitutions and their logical
