@@ -36,17 +36,12 @@ done, believe it or not, is normalization by evaluation!
 Normalization by evaluation is a technique for deriving the normal form of a
 term in an object language by *evaluating* the term in a meta language (a
 language we are using to describe the object language). In this case, our
-object language was the untyped lambda calculus, and our meta language was
-plain English.
+object language was the untyped lambda calculus, and our meta language was,
+well, just plain English.
 
-The same applies to your favorite programming language with integers and
-addition. Given the term:
-
-    2 + 3
-
-You know how to reduce this term without needing to actually "run" the code in
-your object language ─ you can "evaluate" it to 5 on a piece of paper. That is
-the intuition behind normalization by evaluation.
+In essence, you know how to reduce a term by evaluating the parts that can be
+evaluated while leaving the parts that cannot untouched. That is the intuition
+behind normalization by evaluation.
 
 To actually formalize normalization by evaluation and prove its correctness in
 Agda, the algorithm may seem to become less intuitive, but it will still be
@@ -55,7 +50,7 @@ based on this initial idea.
 ### System T
 
 Before going into the algorithm itself, we will embed the language for which
-we will be defining the algorithm, System T. System T is a small language with
+we will be defining the algorithm: System T. System T is a small language with
 natural numbers, higher-order functions, and primitive recursion.
 
 <!---
@@ -228,7 +223,7 @@ _≤?_ : ∀ (Γ′ Γ : Ctx) → Dec (Γ′ ≤ Γ)
   with Γ′ ≤? Γ
 ...  | yes pf          = yes (≤-ext pf)
 ...  | no ¬pf          = no λ where
-                           ≤-id → Γ′≢Γ refl
+                           ≤-id       → Γ′≢Γ refl
                            (≤-ext pf) → ¬pf pf
 ```
 
@@ -242,7 +237,7 @@ following program increments the number 1 twice:
 
 Terms in System T will be defined in our Agda formalization using
 an *intrinsically* typed representation. We have defined our types
-first, and terms are only every considered in terms of types.
+first, and terms are only every considered with respect to their type.
 
 Using this representation, we only have to consider well-typed
 terms. An Agda term `t` of type `Γ ⊢ T` is the well-typed System T
@@ -328,10 +323,9 @@ rules:
     ----------             --------------------------
     Γ ⊢ ∅ : ∅              Γ ⊢ (σ , x / s) : Δ , x:S
 
-That is, any context can be used to substitute for the empty
-context, and any substitution can be extended with a well-typed
-term in the substitution's "source" context. In Agda, the
-rules are:
+That is, any context can be used to substitute for the empty context (an "empty"
+substitution), and any substitution can be extended with a well-typed term in
+the substitution's "source" context. In Agda, the rules are:
 
 ```agda
 data Sub : Ctx → Ctx → Set where
@@ -1195,10 +1189,12 @@ nf-ex3 with ex3
 
 ### Correctness
 
-We wish for our algorithm for normalization by evaluation to be both sound and
-complete. This is a complex problem, and it is to make it simpler that we have
-introduced definitional equality. For now, we include as a postulate that if two
-terms are definitionally equal, then they must have the same interpretation.
+We wish for our algorithm for normalization by evaluation to be both complete
+and sound. We will describe exactly what this means, but it is for the purpose
+of proving these properties that we introduced definitional equality.
+Specifically, we will need the property that if terms are definitionally equal,
+then they must have the same interpretation. We include this property as a
+postulate.
 
 ```agda
 postulate
@@ -1207,7 +1203,27 @@ postulate
          → ⟦⊢ t ⟧ ρ ≡ ⟦⊢ t′ ⟧ ρ
 ```
 
-For our purposes, the soundness properties we want from this algorithm are:
+We consider our algorithm for normalization by evaluation if two terms that are
+definitionally equal (and thus have the same meaning) have the same normal form:
+
+    Γ ⊢ t = t′ : T implies nf(t) = nf(t′)
+
+Expanding out `nf` here gives us the following theorem:
+
+    Γ ⊢ t = t′ : T ⇒ ↓ᵀ (⟦ t ⟧ ↑Γ) Γ = ↓ᵀ (⟦ t′ ⟧ ↑Γ) Γ
+
+This follows directly from `Γ ⊢ t = t′ : T` implying that `⟦ t ⟧ = ⟦ t′ ⟧`.
+
+```agda
+completeness : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T}
+             → t == t′
+             → nf t ≡ nf t′
+completeness {Γ} t==t′ rewrite ==→⟦≡⟧ {ρ = ↑ᶜᵗˣ Γ} t==t′ = refl
+```
+
+Separately, the soundness properties that we want from this algorithm are the
+following:
+
   - `Γ ⊢ nf(t) : T` (well-typedness)
       We are using an intrinsically typed
       representation of terms, so this property is
@@ -1225,22 +1241,6 @@ For our purposes, the soundness properties we want from this algorithm are:
       By the soundness property of preservation of meaning,
       we have `Γ ⊢ nf t = t : T`, which implies `nf (nf t) = nf(t)`
       by completeness
-
-Separately, for our algorithm to be complete, we want to prove that two programs
-with the same meaning (i.e. definitionally equal) have the same normal form:
-
-    Γ ⊢ t = t′ : T implies nf(t) = nf(t′)
-
-We can prove this using some equational reasoning paired with the definitional
-equality of two terms impliying they are semantically equal
-
-```agda
-
-completeness : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T}
-             → t == t′
-             → nf t ≡ nf t′
-completeness {Γ} t==t′ rewrite ==→⟦≡⟧ {ρ = ↑ᶜᵗˣ Γ} t==t′ = refl
-```
 
 <!--
 
@@ -1438,21 +1438,26 @@ incr-↥-≡ {Γ′≤Γ = ≤-ext {T = S₁} Γ′≤Γ} {S₂} {t = t}
 
 ### Soundness
 
-We prove the soundness property of preservation of meaning of NbE
-(i.e. `⟦ nf(t) ⟧ = ⟦ t ⟧`), which we just call soundness here for brevity,
-by proving the definitional equality of a term and its normal form:
+To prove that the algorithm for normalization by evaluation implemented
+preserves the meaning of a program (⟦ nf(t) ⟧ = ⟦ t ⟧, which we will just refer
+to as soundness from now on), we will prove that a term is definitionally equal
+to its normal form:
 
-    Γ ⊢ t = nf(t) : T
+   Γ ⊢ t = nf(t) : T
 
 which expands to:
 
     Γ ⊢ t = ↓ᵀ a Γ, where a = ⟦ t ⟧ ↑Γ
 
-For this, a logical relation `t Ⓡ a` is defined such that
-it implies `Γ ⊢ t = ↓ᵀ a Γ : T`.
+To prove this, we will establish a logical relation `Γ ⊢ t : T Ⓡ a` between a
+well-typed term `Γ ⊢ t : T` and a semantic object in our meta language
+`a ∈ ⟦ T ⟧` such that it implies `Γ ⊢ t = ↓ᵀ a Γ : T`. Later, we will prove that
+`Γ ⊢ t : T Ⓡ ⟦ t ⟧ ↑Γ`, thereby finishing our proof, but we will focus on the
+logical relation itself for now.
 
-For defining the relation in Agda, we will need some functions first. The first
-"lifts" definitional equality over liftable neutrals. Formally, this represents the condition `Γ ⊢ 𝓊 = 𝓊̂(Γ) : T`, or equivalently in Agda:
+For defining the relation in Agda, we will need to first define some other
+relations. The first such relation we define "lifts" definitional equality to
+include liftable neutrals:
 
 ```agda
 _==^_ : {Γ : Ctx} {T : Type} → Γ ⊢ T → Ne^ T → Set
@@ -1466,74 +1471,58 @@ _==^_ {Γ} t 𝓊̂ with 𝓊̂ Γ
       -- as there is no lifted term in the context
       -- to compare a term to
       ⊥
+```
 
+<!---
+```
 infix 3 _==^_
 ```
+--->
 
-We also provide shorthand for reifying the interpretation of a term t
-and then immediately applying a context Γ (we use lowercase γ as our
-subscript as Γ is not a valid subscript)
+Formally, this relation represents the condition `Γ ⊢ 𝓊 = 𝓊̂(Γ) : T`, meaning
+that a term `𝓊` is definitionally equal to the liftable neutral `𝓊̂` lifted to
+the context `Γ`.
+
+The logical relation `Γ ⊢ t : T Ⓡ a` will be defined inductively on types. For
+Agda's termination checking, we will need to define the logical relation at type
+`nat` separately. At type `nat`, the relation is defined as:
+
+      Γ ⊢ t : nat Ⓡ 𝓋̂ ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = 𝓋̂(Γ′) : nat
+
+In other words, `t` is logically related to a semantic object `𝓋̂ ∈ ℕ̂` if and only
+if the term is definitionally equal to `𝓋̂` when lifted to any context `Γ′` that
+is an extension of `Γ`.
+
+In Agda, we define this relation as `_Ⓝ_` We define `Ⓝ` mutually with `==ℕ̂`, a
+relation representing the condition `Γ′ ⊢ t = 𝓋̂(Γ′) : nat` we have just shown,
+which lifts definitional equality to be over naturals with embedded liftable
+neutrals, as was done with `_==^_`.
 
 ```agda
-↓ᵀᵧ : ∀ {Γ : Ctx} {T : Type} → (a : ⟦ T ⟧) → Γ ⊢ T
-↓ᵀᵧ {Γ} a = proj₁ (↓ᵀ a Γ)
+mutual
+  _Ⓝ_ : ∀ {Γ : Ctx} → Γ ⊢ nat → ⟦ nat ⟧ → Set
+  _Ⓝ_ {Γ} n 𝓋̂ =
+    ∀ {Γ′ : Ctx}
+    → (Γ′≤Γ : Γ′ ≤ Γ)
+      ---------------
+    → Γ′≤Γ ≤⊢ n ==ℕ̂ 𝓋̂
+
+  _==ℕ̂_ : ∀ {Γ : Ctx} → Γ ⊢ nat → ⟦ nat ⟧ → Set
+  _==ℕ̂_ {Γ} t zero = t == zero
+  _==ℕ̂_ {Γ} t (suc 𝓋̂) = ∃[ n ] t == suc · n × n Ⓝ 𝓋̂
+  _==ℕ̂_ {Γ} t (ne 𝓊̂) = t ==^ 𝓊̂
 ```
 
-With these, we can begin to introduce the Kripe logical relation `Γ ⊢ t : T Ⓡ a`
-between a typed term `Γ ⊢ t : T` and a value `a ∈ ⟦ T ⟧`. The logical relation
-will be defined inductively on types. At type nat, the relation is defined as:
-
-    Γ : nat Ⓡ 𝓋̂ ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = 𝓋̂(Γ′) : nat
-
-For Agda's termination checking, we have to define the logical relation at type
-nat separately, which we do so in the form of Ⓝ:
-```agda
-_Ⓝ_ : ∀ {Γ : Ctx} → Γ ⊢ nat → ⟦ nat ⟧ → Set
+<!---
 ```
-
-We define Ⓝ mutually with ==ℕ̂, a relation representing
-the condition `Γ′ ⊢ t = 𝓋̂(Γ′) : nat`, which lifts definitional equality to
-be over naturals with embedded liftable neutrals
-
-```agda
-_==ℕ̂_ : ∀ {Γ : Ctx} → Γ ⊢ nat → ⟦ nat ⟧ → Set
-
-_Ⓝ_ {Γ} n 𝓋̂ =
-  ∀ {Γ′ : Ctx}
-  → (Γ′≤Γ : Γ′ ≤ Γ)
-    ---------------
-  → Γ′≤Γ ≤⊢ n ==ℕ̂ 𝓋̂
-
 infix 4 _Ⓝ_
-```
-
-For `zero`, the ==ℕ̂ relation is a simple definitional equality
-judgement:
-```agda
-_==ℕ̂_ {Γ} t zero = t == zero
-```
-However, for our recursive case (suc 𝓋̂), the definition is a bit
-more involved. We want the term to be definitionally equal to `suc · n`
-such that n is logically related to 𝓋̂, a condition stronger than ==ℕ̂,
-as it holds for all extensions of the context -- this is why we need
-to define ==ℕ̂ mutually with Ⓝ. We want our recursive condition to be
-stronger to have an easier time with the embedded liftable neutrals
-
-```agda
-_==ℕ̂_ {Γ} t (suc 𝓋̂) = ∃[ n ] t == suc · n × n Ⓝ 𝓋̂
-```
-For an embedded liftable neutral, the relation is the
-lifted definitional equality defined earlier
-
-```agda
-_==ℕ̂_ {Γ} t (ne 𝓊̂) = t ==^ 𝓊̂
-
 infix 3 _==ℕ̂_
 ```
+--->
 
-We will also be generalizing our logical relation over any two
-Agda types, as later we will need to extend it to relate more than
-just terms and semantic objects.
+For the last part of our proof, we will be generalizing `Ⓡ` to relate more than
+just terms and semantic objects, so we will be using a record type generalized
+over any two types to define the relation.
 
 ```agda
 record Rel (A B : Set) : Set₁ where
@@ -1544,27 +1533,32 @@ open Rel ⦃...⦄ public
 
 _Ⓡ_ : ∀ {A B : Set} ⦃ _ : Rel A B ⦄ → A → B → Set
 _Ⓡ_ = relation
-
-infix 4 _Ⓡ_
 ```
 
-With these in place, we can start defining the logical
-relation Ⓡ between terms and semantic objects by induction on types,
-using Ⓝ for the base type nat.
+<!---
+```
+infix 4 _Ⓡ_
+```
+--->
+
+With these in place, we can start defining the logical relation `Ⓡ` between
+terms and semantic objects by induction on types, using `Ⓝ` for the base type
+`nat`. For function types, the relation is defined as:
+
+    Γ ⊢ r : S → T Ⓡ f ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ s : S Ⓡ a ⇒ Γ′ ⊢ r s : T Ⓡ f(a)
+
+The relation is written so that it sort of expands functions, reducing our proof
+that a functional term in System T is logically related to a function in Agda to
+only having to prove that given related arguments, the functional term and the
+function in Agda both produce related results. Again, this is generalized over
+all extensions of the context `Γ` ─ while our final results will only be
+concerned with the context `Γ`, to prove these results we will need the relation
+to be strengthened in this way.
 
 ```agda
 instance
   Ⓡ-Terms : ∀ {Γ : Ctx} {T : Type} → Rel (Γ ⊢ T) ⟦ T ⟧
   Rel.relation (Ⓡ-Terms {T = nat}) t 𝓋̂ = t Ⓝ 𝓋̂
-```
-
-For function types, the relation is defined as:
-
-    Γ ⊢ r : S → T Ⓡ f ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ s : S Ⓡ a ⇒ Γ′ ⊢ r s : T Ⓡ f(a)
-
-We can write this in Agda as almost a direct translation.
-
-```agda
   Rel.relation (Ⓡ-Terms {Γ} {S ⇒ T}) r f =
     ∀ {Γ′ : Ctx}
     → (Γ′≤Γ : Γ′ ≤ Γ)
@@ -1574,9 +1568,15 @@ We can write this in Agda as almost a direct translation.
     → (Γ′≤Γ ≤⊢ r) · s Ⓡ f a
 ```
 
-A result of defining our Kripe logical relation for terms
-using definitional equality is that the relation is transitive
-with respect to definitional equality
+As the logical relation between terms and semantic objects is defined using
+definitional equality, it is transitive with respect to definitional equality.
+We prove this using a postulated lemma that has been omitted, `==-subst`. With
+`==-subst`, we postulate that if two terms are definitionally equal, the terms
+with the same substitution applied are still definitionally equal. This is our
+first proof using equational reasoning for definitional equality. As for most
+proofs related to the logical relation `Ⓡ` between terms and semantic objects,
+we prove it by induction on types, and do a case analysis at type `nat` on the
+semantic object `a ∈ ℕ̂`.
 
 ```agda
 ==-Ⓡ-trans : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T} {a : ⟦ T ⟧}
@@ -1584,23 +1584,46 @@ with respect to definitional equality
            → t Ⓡ a
              -------
            → t′ Ⓡ a
-==-Ⓡ-trans {T = nat} {a = zero} t==t′ pf Γ′≤Γ =
-  trans (sym (==-subst t==t′)) (pf Γ′≤Γ)
-==-Ⓡ-trans {T = nat} {a = suc a} t==t′ pf Γ′≤Γ
-  with pf Γ′≤Γ
-... | ⟨ n , ⟨ t==sn , n==a ⟩ ⟩ =
-  ⟨ n , ⟨ trans (sym (==-subst t==t′)) t==sn , n==a ⟩ ⟩
-==-Ⓡ-trans {T = nat} {a = ne 𝓊̂} t==t′ pf {Γ′} Γ′≤Γ
+==-Ⓡ-trans {T = nat} {t} {t′} {zero} t==t′ pf Γ′≤Γ =
+  begin
+    Γ′≤Γ ≤⊢ t′
+  ==⟨ sym (==-subst t==t′) ⟩
+    Γ′≤Γ ≤⊢ t
+  ==⟨ pf Γ′≤Γ ⟩
+    zero
+  ∎
+==-Ⓡ-trans {T = nat} {t} {t′} {suc a} t==t′ pf Γ′≤Γ =
+  let ⟨ n , ⟨ t==sn , n==a ⟩ ⟩ = pf Γ′≤Γ in
+  let t′==sn = begin
+                 Γ′≤Γ ≤⊢ t′
+               ==⟨ sym (==-subst t==t′) ⟩
+                 Γ′≤Γ ≤⊢ t
+               ==⟨ t==sn ⟩
+                 suc · n
+               ∎
+  in
+  ⟨ n , ⟨ t′==sn , n==a ⟩ ⟩
+==-Ⓡ-trans {T = nat} {t} {t′} {ne 𝓊̂} t==t′ pf {Γ′} Γ′≤Γ
   with 𝓊̂ Γ′          | pf Γ′≤Γ
 ... | inj₁ ⟨ 𝓊 , _ ⟩ | t==𝓊 =
-  trans (sym (==-subst t==t′)) t==𝓊
-==-Ⓡ-trans {T = S ⇒ T} t==t′ pf Γ′≤Γ sⓇa =
-  ==-Ⓡ-trans (app-compatible (==-subst t==t′) refl) (pf Γ′≤Γ sⓇa)
+  begin
+    Γ′≤Γ ≤⊢ t′
+  ==⟨ sym (==-subst t==t′) ⟩
+    Γ′≤Γ ≤⊢ t
+  ==⟨ t==𝓊 ⟩
+    𝓊
+  ∎
+==-Ⓡ-trans {T = S ⇒ T} {r} {r′} r==r′ pf Γ′≤Γ sⓇa = ==-Ⓡ-trans r·s==r′·s r·sⓇfa
+  where
+    r·s==r′·s = app-compatible (==-subst r==r′) refl
+    r·sⓇfa = pf Γ′≤Γ sⓇa
 ```
 
-Additionally, because we have defined the relation so that its implication
-holds for all extensions of a context, we can "weaken" the logical relation
-`Γ ⊢ t : T Ⓡ a` for all `Γ′ ≤ Γ`, having that `Γ′ ⊢ t : T Ⓡ a` holds as well
+Additionally, because we have defined the relation so that its implication holds
+for all extensions of a context, we can "weaken" the logical relation
+`Γ ⊢ t : T Ⓡ a` for all `Γ′ ≤ Γ`, having that `Γ′ ⊢ t : T Ⓡ a` holds as well.
+For this proof, we use another postulated lemma that weakening a term `t` twice
+is equivalent to weakening it once with a composed weakening substitution.
 
 ```agda
 Ⓡ-weaken : ∀ {Γ′ Γ : Ctx} {T : Type} {Γ′≤Γ : Γ′ ≤ Γ} {t : Γ ⊢ T} {a : ⟦ T ⟧}
@@ -1612,26 +1635,21 @@ holds for all extensions of a context, we can "weaken" the logical relation
   rewrite weaken-compose Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ) sⓇa
 ```
 
-The Kripke logical relation is "sandwiched" between
-reflection and reification -- to arrive at the logical
-relation between a term and a semantic object, the
-semantic object must be a reflection of a liftable neutral
-that is definitionally equal to the term. Likewise,
-if a logical relation holds between a term and a semantic
-object, then the term must be definitionally equal
-to the reification of that semantic object.
+The logical relation between terms and semantic objects is "sandwiched" between
+reflection and reification -- to arrive at a logical relation between a term and
+a semantic object, the semantic object must be a reflection of a liftable
+neutral that is definitionally equal to the term. Likewise, if a logical
+relation holds between a term and a semantic object, then the term must be
+definitionally equal to the reification of that semantic object.
 
-This is intentional, as these results will be exactly
-what we will need to prove the soundness of NbE. We
-formalize them with the following implications, which
-we will prove mutually (as reflection and reification
-are themselves defined mutually) by induction on types.
+This is intentional, as these results will be exactly what we will need to prove
+the soundness of normalization by evaluation. We formalize them with the
+following implications, which we will prove mutually (as reflection and
+reification are themselves defined mutually) by induction on types.
 
 Our first implication is:
 
     (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : T) ⇒ Γ ⊢ 𝓊 : T Ⓡ ↑ᵀ 𝓊̂
-
-which we can now formalize in Agda with our definitions
 
 ```agda
 ==^→Ⓡ : ∀ {Γ : Ctx} {T : Type} {𝓊 : Γ ⊢ T} {𝓊̂ : Ne^ T}
@@ -1649,15 +1667,19 @@ The second implication is:
 ```agda
 Ⓡ→==↓ : ∀ {Γ′ Γ : Ctx} {T : Type} {t : Γ ⊢ T} {a : ⟦ T ⟧}
       → t Ⓡ a
-        ---------------------
+        ----------------------------
       → (Γ′≤Γ : Γ′ ≤ Γ)
-      → Γ′≤Γ ≤⊢ t == ↓ᵀᵧ a
+      → Γ′≤Γ ≤⊢ t == proj₁ (↓ᵀ a Γ′)
 ```
 
-A consequence of the first implication is that
-`Γ , x:T ⊢ x Ⓡ ↑ᵀ (𝓍̂ Γ)`, which we define now
-as it will be the lemma we will need for proving the
-second implication
+This implication is in fact what we wanted in the first place: that if a term is
+logically related to a semantic object, then it is definitionally equal to the
+reification of said object. It is stronger than we need it to be, but again this
+is necessary to actually prove the implication.
+
+A consequence of the first implication is that `Γ , x:T ⊢ x Ⓡ ↑ᵀ (𝓍̂ Γ)`, which
+we define in Agda now as it will be a lemma we will need for proving the second
+implication.
 
 ```agda
 xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Ctx} {T : Type}
@@ -1712,19 +1734,18 @@ equality to prove the desired goal.
                  → Γ″≤Γ′ ≤⊢ (Γ′≤Γ ≤⊢ 𝓊) · s ==^ 𝓊̂ ·^ (↓ᵀ a)
       𝓊·s==𝓊̂·↓ˢa  {Γ″} Γ″≤Γ′
         with 𝓊̂ Γ″           | pf (≤-trans Γ″≤Γ′ Γ′≤Γ)
-      ... | inj₁ ⟨ 𝓊″ , _ ⟩ | 𝓊==𝓊″
-        with Ⓡ→==↓ sⓇa Γ″≤Γ′
-      ... | s==↓ᵀᵧa =
+      ... | inj₁ ⟨ 𝓊″ , _ ⟩ | 𝓊==𝓊″                   =
         begin
           Γ″≤Γ′ ≤⊢ (Γ′≤Γ ≤⊢ 𝓊) · s
         ==⟨ app-compatible (≡→== (weaken-compose Γ″≤Γ′ Γ′≤Γ 𝓊)) refl ⟩
           (Γ″≤Γ ≤⊢ 𝓊) · (Γ″≤Γ′ ≤⊢ s)
         ==⟨ app-compatible 𝓊==𝓊″ refl ⟩
           𝓊″ · (Γ″≤Γ′ ≤⊢ s)
-        ==⟨ app-compatible refl s==↓ᵀᵧa ⟩
-          𝓊″ · ↓ᵀᵧ a
+        ==⟨ app-compatible refl s==↓ᵀaΓ″ ⟩
+          𝓊″ · proj₁ (↓ᵀ a Γ″)
         ∎
         where
+          s==↓ᵀaΓ″ = Ⓡ→==↓ sⓇa Γ″≤Γ′
           Γ″≤Γ = ≤-trans Γ″≤Γ′ Γ′≤Γ
 ```
 
@@ -1760,13 +1781,13 @@ on a.
   ==⟨ t==sn ⟩
     suc · n
   ==⟨ app-compatible refl (==ℕ̂→==↓ᵀ {a = a} n==ℕ̂a) ⟩
-    suc · ↓ᵀᵧ a
+    suc · proj₁ (↓ᵀ a Γ)
   ∎
   where
     ==ℕ̂→==↓ᵀ : ∀ {Γ : Ctx} {n : Γ ⊢ nat} {a : ⟦ nat ⟧}
              → n ==ℕ̂ a
-               ----------
-             → n == ↓ᵀᵧ a
+               -------------------
+             → n == proj₁ (↓ᵀ a Γ)
     ==ℕ̂→==↓ᵀ {a = zero} pf with ↓ᵀ {nat} zero
     ... | _ = pf
     ==ℕ̂→==↓ᵀ {Γ} {a = suc a} ⟨ n , ⟨ m==sn , n==a ⟩ ⟩
@@ -2126,7 +2147,7 @@ given `Γ ⊢ id : Γ Ⓡ ↑Γ`, we have that `Γ ⊢ t [ id ] Ⓡ ⟦ t ⟧ �
 
 Using the lemma that logical relation implies definitional
 equality to the reified semantic object, we arrive at
-`Γ ⊢ t = ↓ᵀᵧ ⟦ t ⟧ ↑Γ : T`, which is what we want to show
+`Γ ⊢ t = ↓ᵀ (⟦ t ⟧ ↑Γ) Γ : T`, which is what we want to show
 (i.e. `Γ ⊢ t = nf(t) : T`)
 
 ```agda
@@ -2136,9 +2157,9 @@ soundness {Γ} {T} {t}
   with fundamental-lemma {t = t} (idⓇ↑Γ {Γ})
 ... | tⓇ⟦t⟧↑Γ
   with Ⓡ→==↓ tⓇ⟦t⟧↑Γ ≤-id
-... | t==↓ᵀᵧ⟦t⟧↑Γ
+... | t==↓ᵀ⟦t⟧↑Γ
   rewrite [id]-identity {t = t [ subst-id ]}
-        | [id]-identity {t = t}              = t==↓ᵀᵧ⟦t⟧↑Γ
+        | [id]-identity {t = t}              = t==↓ᵀ⟦t⟧↑Γ
 ```
 
 #### Unicode
@@ -2201,7 +2222,6 @@ This site uses the following unicode[^1]:
     𝓍  U+1D4CD  MATHEMATICAL SCRIPT SMALL X (\Mcx)
     ≰  U+2270  NEITHER LESS THAN NOR EQUAL TO (\len)
     ₃  U+2083  SUBSCRIPT 3 (\_3)
-    ᵧ  U+1D67 GREEK SUBSCRIPT SMALL LETTER GAMMA (\_Gg)
     ⇔  U+21D4  LEFT RIGHT DOUBLE ARROW (\<=>)
     Ⓝ  U+24C3  CIRCLED LATIN CAPITAL LETTER N (\(n)2)
     Ⓡ  U+24C7  CIRCLED LATIN CAPITAL LETTER R (\(r)2)
