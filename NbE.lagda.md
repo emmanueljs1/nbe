@@ -667,8 +667,11 @@ as we are using an intrinsically-typed representation.
 ```
 
 With these defined, we can actually introduce definitional equality in Agda.
-We use `t == t′` in Agda instead of `Γ ⊢ t = t′ : T`, though we will refer to
-two terms that are definitionally equal with the latter.
+The relation is an extension of βη-equivalence for the simply-typed lambda
+calculus that includes the computation rules for the primitive recursion
+operation that differentiates System T from STLC. We use `t == t′` in Agda
+instead of `Γ ⊢ t = t′ : T`, though we will refer to two terms that are
+definitionally equal with the latter.
 
 ```agda
 data _==_ : ∀ {Γ : Ctx} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
@@ -735,10 +738,10 @@ infix 3 _==_
 ```
 --->
 
-For the readability of some of our proofs, it will be helpful to
-have the ability to use equational reasoning with respect to definitional
-equality. We omit this definition, but it is almost identical to Agda's own
-equational reasoning for propositional equality.
+For the readability of some of our proofs, it will be helpful to have the
+ability to use equational reasoning with respect to definitional equality. We
+omit this definition, but it is almost identical to Agda's own equational
+reasoning for propositional equality.
 
 <!---
 ```agda
@@ -1061,7 +1064,8 @@ never actually be used in the algorithm for normalization by evaluation.
 
 ```agda
 ↓ℕ̂ : ⟦ nat ⟧ → Nf^ nat
-↓ℕ̂ zero = (λ _ → ⟨ zero , nf-zero ⟩)
+↓ℕ̂ zero = zero^ where
+  zero^ = (λ _ → ⟨ zero , nf-zero ⟩)
 ↓ℕ̂ (suc n) = suc^ (↓ℕ̂ n) where
   suc^ : Nf^ nat → Nf^ nat
   suc^ 𝓋̂ Γ =
@@ -1230,9 +1234,13 @@ following:
       given to us automatically
 
   - `⟦ nf(t) ⟧ = ⟦ t ⟧` (preservation of meaning)
-      This property is especially difficult, and we will have to use a logical
-      relation, along with definitional equality, to prove it in the following
-      section
+      We want an algorithm for normalization by evaluation to ensure that the
+      normal form of a term that is obtained is _semantically equal_ to the
+      original term, i.e. the two terms have the same meaning. As discussed,
+      equality of functional terms in Agda is undecidable, for which we have
+      introduced definitional equality (which implies semantic equality). Even
+      proving that `Γ ⊢ nf(t) = t : T` is difficult, and we will have to use a
+      logical relation to prove it. We do so in the following section.
 
   - `nf(nf(t)) = nf(t)` (idempotency)
       This follows directly from the preservation of
@@ -1244,7 +1252,9 @@ following:
 
 <!--
 
-The following are lemmas that will be necessary for proving soundness.
+The following are lemmas that will be necessary for proving the definitional
+equality of a term and its normal form as obtained by normalization by
+evaluation.
 
 ```agda
 -- Equivalent terms are definitionally equal
@@ -1539,6 +1549,8 @@ infix 4 _Ⓡ_
 ```
 --->
 
+#### Logical relation between terms and semantic objects
+
 With these in place, we can start defining the logical relation `Ⓡ` between
 terms and semantic objects by induction on types, using `Ⓝ` for the base type
 `nat`. For function types, the relation is defined as:
@@ -1658,7 +1670,7 @@ Our first lemma is:
         → 𝓊 Ⓡ (↑ᵀ 𝓊̂)
 ```
 
-A consequence of this lemma is that `Γ , x:T ⊢ x Ⓡ ↑ᵀ (𝓍̂ Γ)`, which we can
+A consequence of this lemma is that `Γ , x:T ⊢ x Ⓡ ↑ᵀ 𝓍̂ Γ`, which we can
 define in Agda now as it will be a lemma we will need for proving the next
 lemma we will introduce.
 
@@ -1707,7 +1719,7 @@ At type `S → T`, the proof is more complicated. We want to prove that:
 
     (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : S → T) ⇒ Γ ⊢ 𝓊 : S → T Ⓡ ↑ˢ⃗ᵗ 𝓊̂
 
-By definition of Ⓡ, this expands to:
+By definition of `Ⓡ`, this expands to:
 
     (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : S → T) ⇒
       ∀ Γ′ ≤ Γ. Γ′ ⊢ s Ⓡ a ⇒
@@ -1746,7 +1758,7 @@ the second lemma we will be proving:
     Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ′ : T
 
 We have that `Γ′ ⊢ s : S Ⓡ a`, so we can apply this lemma to arrive at the
-second property we need. The proof in Agda is as described:
+second property we need. The proof in Agda is as described above:
 
 ```agda
 ==^→Ⓡ↑ {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} Γ′≤Γ {s} {a} sⓇa =
@@ -1772,97 +1784,75 @@ second property we need. The proof in Agda is as described:
           Γ″≤Γ = ≤-trans Γ″≤Γ′ Γ′≤Γ
 ```
 
-To prove the second lemma, we proceed similarly
-and first prove it for type nat. If the term is logically
-related to zero, the lemma holds immediately from
-our given proof
+This brings us to our second lemma:
+
+    Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ′ : T
+
+It will similarly be proven by induction on the type `T`. First, let us prove
+the lemma for the type `nat`. At type `nat`, our lemma simplifies (by definition
+of `Ⓡ`) to:
+
+    (∀ Γ′ ≤ Γ. Γ′ ⊢ t : T = a (Γ′)) ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ⁿᵃᵗ a Γ′ : T
+
+We can prove this separately as a lemma, this time by induction on the semantic
+object `a ∈ ℕ̂`, as `↓ⁿᵃᵗ` is defined by recursion on expressions of type `ℕ̂`.
+The lemma makes up the first part of our proof, after which we can move on to
+our inductive step.
 
 ```agda
-Ⓡ→==↓ {T = nat} {a = zero} pf Γ′≤Γ with ↓ᵀ {nat} zero
-... | _ = pf Γ′≤Γ
+==ℕ̂→==↓ᵀ : ∀ {Γ : Ctx} {n : Γ ⊢ nat} {a : ⟦ nat ⟧}
+         → n ==ℕ̂ a
+           -------------------
+         → n == proj₁ (↓ᵀ a Γ)
+==ℕ̂→==↓ᵀ {a = zero} pf with ↓ᵀ {nat} zero
+... | _ = pf
+==ℕ̂→==↓ᵀ {Γ} {a = suc a} ⟨ n , ⟨ m==sn , n==a ⟩ ⟩
+  with ↓ᵀ {nat} (suc a) | ==ℕ̂→==↓ᵀ {a = a} (n==a ≤-id)
+... | _                 | pf
+  rewrite [id]-identity {t = n} = trans m==sn (app-compatible refl pf)
+==ℕ̂→==↓ᵀ {Γ} {t} {ne 𝓊̂} pf
+  with 𝓊̂ Γ           | pf
+... | inj₁ ⟨ 𝓊 , _ ⟩ | t==𝓊 = t==𝓊
+
+Ⓡ→==↓ {T = nat} {a = a} pf Γ′≤Γ = ==ℕ̂→==↓ᵀ {a = a} (pf Γ′≤Γ)
 ```
 
-Otherwise, if the term is logically related to
-a successor of a natural, our given proof
-similarly leads to the lemma though for this case,
-we additionally need a lemma showing
-that if a term of type nat is definitionally
-equal to an object a of type ℕ̂ (i.e. a natural
-with embedded liftable neutrals), then it is
-definitionally equal to the reification of
-the object a. We can prove this by induction
-on a.
+For our inductive step, we prove the lemma for terms of type `S → T`. Our lemma
+now simplifies to:
 
-```agda
-Ⓡ→==↓ {Γ} {T = nat} {t} {suc a} pf Γ′≤Γ
-  with pf Γ′≤Γ
-... | ⟨ n , ⟨ t==sn , nⓇa ⟩ ⟩
-  with nⓇa ≤-id
-... | n==ℕ̂a rewrite [id]-identity {t = n} =
-  begin
-    Γ′≤Γ ≤⊢ t
-  ==⟨ t==sn ⟩
-    suc · n
-  ==⟨ app-compatible refl (==ℕ̂→==↓ᵀ {a = a} n==ℕ̂a) ⟩
-    suc · proj₁ (↓ᵀ a Γ)
-  ∎
-  where
-    ==ℕ̂→==↓ᵀ : ∀ {Γ : Ctx} {n : Γ ⊢ nat} {a : ⟦ nat ⟧}
-             → n ==ℕ̂ a
-               -------------------
-             → n == proj₁ (↓ᵀ a Γ)
-    ==ℕ̂→==↓ᵀ {a = zero} pf with ↓ᵀ {nat} zero
-    ... | _ = pf
-    ==ℕ̂→==↓ᵀ {Γ} {a = suc a} ⟨ n , ⟨ m==sn , n==a ⟩ ⟩
-      with ↓ᵀ {nat} (suc a) | ==ℕ̂→==↓ᵀ {a = a} (n==a ≤-id)
-    ... | _                 | pf
-      rewrite [id]-identity {t = n} = trans m==sn (app-compatible refl pf)
-    ==ℕ̂→==↓ᵀ {Γ} {t} {ne 𝓊̂} pf
-      with 𝓊̂ Γ           | pf
-    ... | inj₁ ⟨ 𝓊 , _ ⟩ | t==𝓊 = t==𝓊
-```
+    (∀ Γ′ ≤ Γ. Γ′ ⊢ x : S Ⓡ a ⇒ Γ′ ⊢ t x : T Ⓡ f a) ⇒
+      ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ˢ⃗ᵗ f Γ′
 
-Lastly for type nat, if the term is logically related to an
-embedded liftable neutral, the lemma also
-holds immediately from our given proof
+We can once again expand out the definition of reification at type `S → T`,
+simplifying the lemma to:
 
-```agda
-Ⓡ→==↓ {Γ′} {T = nat} {a = ne 𝓊̂} pf Γ′≤Γ
-  with 𝓊̂ Γ′           | pf Γ′≤Γ
-... | inj₁ ⟨ 𝓊 , _ ⟩  | t==𝓊     = t==𝓊
-```
-For our inductive step, we prove the implication
-for terms of type S → T. Our desired implication
-is now:
+    (∀ Γ′ ≤ Γ. Γ′ ⊢ x : S Ⓡ a ⇒ Γ′ ⊢ t x : T Ⓡ f a) ⇒
+      Γ′ ⊢ t = λx. ↓ᵀ f a (Γ′ , x:S) : T (where a = ↑ˢ 𝓍̂ Γ′)
 
-    Γ′ ⊢ t = ↓ᵀ f Γ′ : T
+We prove this by η-expanding `t` to `λx. t x` and then using the compatibility
+rule for abstractions to simplify our goal to proving:
 
-which, by definition, expands to:
+      Γ′ , x:S ⊢ t x = λx. ↓ᵀ f a (Γ′ , x:S) : T
 
-    Γ′ ⊢ t = λx. ↓ᵀ f a (Γ′ , x:S) : T (where a = ↑ᵀ 𝓍̂ˢ Γ′)
+Our inductive hypothesis gives us that:
 
-We prove this by η expanding t to `λx. t x` and
-then using the compatibility rule for abstractions
-of definitional equality to simplify our goal to
-proving:
+      ∀ Γ″ ≤ Γ′. Γ″ ⊢ t x = ↓ᵀ f a : T
 
-    Γ′ , x:S ⊢ t x = ↓ᵀ f a (Γ′, x:S)
+With it, all we need to prove is:
 
-Note that our inductive hypothesis is:
+    Γ′ , x : S ⊢ t x : T Ⓡ f a
 
-    t x Ⓡ f a implies t x = ↓ᵀ f a
-
-This is exactly what we want to show, so now
-all we need is to prove that `t x Ⓡ f a`.
-
-Luckily, our given proof holds that t and f
-are logically related, which is equivalent
-to saying that if `x Ⓡ a` , then `t x Ⓡ f a`,
-reducing what we have to prove only to
-`x Ⓡ a`. We have been using "a" for simplicity,
-but `a = ↑ᵀ 𝓍̂ˢ Γ′`, and we are mutually proving
-that `x Ⓡ ↑ᵀ 𝓍̂`, so we use this lemma here
+Our given proof further simplifies this goal to simply proving that
+`∀ Γ″ ≤ Γ′. Γ″ ⊢ x : S Ⓡ a`. We have been using `a` for simplicity, but again,
+`a = ↑ˢ 𝓍̂ Γ′`. Earlier, we established a lemma `xⓇ↑ᵀ𝓍̂` that was a special case
+of the first lemma that we are proving mutually, and here we can use that lemma
 to finish our proof.
+
+The Agda proof for this case is as described, needing only a some substitution
+lemmas to deal with the fact that in switching contexts, we are applying
+weakening substitutions to our terms (we have left the proofs of these lemmas
+out as well, as they are mostly a result of our formalization of
+substitutions).
 
 ```agda
 Ⓡ→==↓ {Γ′} {T = S ⇒ _} {t} {f} pf Γ′≤Γ =
@@ -1883,15 +1873,17 @@ to finish our proof.
     proj₁ (↓ᵀ f Γ′)
   ∎
   where
-    subst-lemma =
-      ≡→== (≡-trans (weaken-incr≡↥ {Γ′≤Γ = Γ′≤Γ} {t = t}) (≡-sym [id]-identity))
     a = ↑ᵀ {S} (𝓍̂ S Γ′)
     xⓇa = xⓇ↑ᵀ𝓍̂ {Γ′} {S}
+
+    subst-lemma =
+      ≡→== (≡-trans (weaken-incr≡↥ {Γ′≤Γ = Γ′≤Γ} {t = t}) (≡-sym [id]-identity))
 ```
 
-Using our first implication, we can quickly
-prove that `Γ , x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂`, as `Γ′ ⊢ x = 𝓍̂ Γ′ : T` for all
-`Γ′ ≤ Γ , x:T`
+Lastly, we can quickly derive the lemma `Γ , x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂ Γ` used in the
+previous lemma using `(∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ′) : T) ⇒ Γ ⊢ 𝓊 Ⓡ ↑ᵀ 𝓊̂`. Again, we
+use a lemma we have left out in the rendering that any proof of context
+extension is equivalent.
 
 ```agda
 xⓇ↑ᵀ𝓍̂ {_} {T} = ==^→Ⓡ↑ x==𝓍̂ where
@@ -1900,23 +1892,30 @@ xⓇ↑ᵀ𝓍̂ {_} {T} = ==^→Ⓡ↑ x==𝓍̂ where
        → Γ′≤Γ,T ≤⊢ # 𝑍 ==^ 𝓍̂ T Γ
   x==𝓍̂ {Γ} {Γ′} pf
     with Γ′ ≤? (Γ , T)
-  ... | no ¬pf = ¬pf pf
+  ... | no ¬pf         = ¬pf pf
   ... | yes pf′
     with 𝓍̂ T Γ | ≤-pf-irrelevance pf pf′
   ... | _      | refl
     with ren-≤ pf′
-  ...| _ , _  = refl
+  ...| _ , _       = refl
 ```
 
-Before moving forward, we also want to show that rec Ⓡ ⟦rec⟧.
-This will be necessary for proving soundness, as we will need
-proof that `Γ ⊢ rec = ↓ᵀ ⟦rec⟧ Γ : (T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T)`
-(i.e. proof that our interpretation of rec is sound) to prove the
-soundness of NbE
+Before moving forward to the last part of our overall proof that the normal form
+of a term obtained by normaliztion by evaluation is definitionally equal, we
+also need to show that  `Γ ⊢ rec : T → (nat → T → T) → nat → T Ⓡ ⟦rec⟧`, as one
+of the terms that `t` can be in our desired property `Γ ⊢ t Ⓡ ⟦t⟧ ↑Γ` is `rec`.
+Essentially, we need proof that our interpretation of `rec` is sound to prove
+the overall soundness of normalization by evaluation. We omit this proof, as it
+is rather involved, but it is again available in the source code.
 
 ```agda
 recⓇ⟦rec⟧ : ∀ {Γ : Ctx} {T : Type} → rec {Γ} {T} Ⓡ ⟦rec⟧
+```
+
+<!---
+```agda
 recⓇ⟦rec⟧ Γ′≤Γ {z} pf Γ″≤Γ′ pf′ Γ‴≤Γ″ {s = n} {zero} pf″
+
   with pf″ ≤-id
 ... | n==zero
   rewrite [id]-identity {t = n} =
@@ -2005,29 +2004,36 @@ recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {as} pf′ {Γ�
         ... | pf
           rewrite subst-lemma₄ | subst-lemma₅ = pf
 ```
+--->
 
-With that out of the way, having proved the lemma that
-`Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ : T`, we have:
+Let's focus on one of the lemmas we have proven:
+
+    Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ : T
+
+We have defined our logical relation with the property that this lemma gives us
+that:
     Γ ⊢ t : T Ⓡ a ⇒ Γ ⊢ t = ↓ᵀ a Γ : T
-which is what we wanted our logical relation to imply,
-so that we can then show that `Γ ⊢ t : T Ⓡ a` for `a = ⟦t⟧ (↥ Γ)`
 
-For this, we will establish that `Γ ⊢ t : T Ⓡ ⟦t⟧ (↥ Γ)`
-using the fundamental lemma of logical relations. First,
-we will need to extend logical relations to include
-substitutions and environments.
+We now need to show that:
 
-Similarly as for terms and values, a Kripe logical
-relation between a parallel substitution and an
-environment is defined inductively, though this time
-by induction on the rules for parallel substitutions
-instead of by induction on types.
+    Γ ⊢ t : T Ⓡ ⟦t⟧ ↑Γ
 
-A substitution from the empty context is always
-logically related to an empty environment, while
-an extension to a substition (σ , s / x) is logically
-related to an environment (ρ , a) if σ is logically
-related to ρ and s is logically related to a.
+With this, we can arrive at the definitional equality of a term and its normal
+form as obtained from our algorithm for normalization by evaluation:
+
+    Γ ⊢ t = ↓ᵀ (⟦t⟧ ↑Γ) Γ : T
+
+To prove `Γ ⊢ t : T Ⓡ ⟦t⟧ ↑Γ`, we will need to extend our logical relation to
+include substitutions and environments.
+
+The relation `Γ ⊢ σ : Δ Ⓡ ρ` between a parallel substitution `Γ ⊢ σ : Δ` and an
+environment `ρ ∈ ⟦ Δ ⟧` will be defined inductively, though this time by
+induction on `σ`.
+
+A substitution from the empty context is always logically related to an empty
+environment, while an extension to a substition `(σ , s / x)` is logically
+related to an environment `(ρ , a)` if `σ` is logically related to `ρ` and `s`
+is logically related to `a`.
 
 ```agda
 instance
@@ -2036,17 +2042,22 @@ instance
   Relation.rel Ⓡ-Sub (σ , s) ⟨ ρ , a ⟩ = σ Ⓡ ρ × s Ⓡ a
 ```
 
-A consequence of how substitutions and their logical
-relation with environments are defined is that we
-have that a logical relation for a shifted substitution
-holds if the logical relation holds for the original
-substitution (as the shifted terms will be irrelevant)
+A consequence of defining the logical relation between substitutions and
+environments by induction on `σ` is that we have that a logical relation for a
+shifted substitution holds if the logical relation holds for the original
+substitution. Intuitively, this makes sense because our relation is really only
+concerned with the context `Δ`, which remains unchanged between a shifted
+substitution `Γ , x:T ⊢ σ ↑ : Δ` and the original substitution `Γ ⊢ σ : Δ`.
+This lemma (specifically its special case for a renaming substitution, which
+is easier to prove) will come in handy later on. We can prove it by induction
+on the renaming substitution itself. Here again we use some substitution lemmas
+whose definitions are omitted.
 
 ```agda
 Ⓡ-↥ : ∀ {Γ Δ : Ctx} {T : Type} {σᵣ : Ren Γ Δ} {ρ : ⟦ Δ ⟧}
       → subst-ren σᵣ Ⓡ ρ
       → subst-ren (_↥ᵣ {T = T} σᵣ) Ⓡ ρ
-Ⓡ-↥ {σᵣ = ∅} pf = tt
+Ⓡ-↥ {σᵣ = ∅} pf                                   = tt
 Ⓡ-↥ {T = T} {σᵣ = _ , x} {⟨ _ , a ⟩} ⟨ pf , xⓇa ⟩ = ⟨ Ⓡ-↥ pf , ↑⊢xⓇa ⟩
   where
     subst-lemma₁ = shift-var {S = T} {x = x} {σᵣ = ren-id}
@@ -2061,24 +2072,24 @@ substitution (as the shifted terms will be irrelevant)
       rewrite subst-lemma₁ | subst-lemma₂ = pf
 ```
 
-A generalization of this is, similarly as for logical relations
-between terms and semantic objects, that if a logical relation
-holds between a substitution and an environment, it holds for any
-weakening of the substitution (as weakening is really a series
-of shifts)
+A generalization of this is, similarly as for logical relations between terms
+and semantic objects, that if a logical relation holds between a substitution
+and an environment, it holds for any weakening of the substitution (as weakening
+is really a series of shifts). We prove this by induction on the substitution,
+applying the `Ⓡ-weaken` lemma for the logical relation between terms and
+semantic objects for each term in the substitution.
 
 ```agda
 Ⓡ-weaken′ : ∀ {Γ′ Γ Δ : Ctx} {Γ′≤Γ : Γ′ ≤ Γ} {σ : Sub Γ Δ} {ρ : ⟦ Δ ⟧}
         → σ Ⓡ ρ
         → σ ∘ (weaken Γ′≤Γ) Ⓡ ρ
-Ⓡ-weaken′ {σ = ∅} x = tt
+Ⓡ-weaken′ {σ = ∅} x                            = tt
 Ⓡ-weaken′ {Γ′≤Γ = Γ′≤Γ} {σ , s} ⟨ σⓇρ , sⓇa ⟩ =
   ⟨ Ⓡ-weaken′ {Γ′≤Γ = Γ′≤Γ} σⓇρ , Ⓡ-weaken {Γ′≤Γ = Γ′≤Γ} sⓇa ⟩
 ```
 
-We are now ready to introduce the semantic typing judgement
-`Γ ⊨ t : T`, which will be the what we will use to arrive
-at `Γ ⊢ t : T Ⓡ ⟦ t ⟧ ↑Γ Γ`
+These two lemmas will be necessary for our proofs, which we are now ready to
+begin laying out. We introduce the semantic typing judgement `Γ ⊨ t : T`:
 
 ```agda
 _⊨_ : ∀ {T : Type} → (Γ : Ctx) → Γ ⊢ T → Set
@@ -2089,10 +2100,65 @@ _⊨_ {T} Γ t =
   → t [ σ ] Ⓡ ⟦⊢ t ⟧ ρ
 ```
 
-By induction on the typing judgement `Γ ⊢ t : T`,
-we prove the semantic typing judgement `Γ ⊨ t : T`,
-this is called the fundamental lemma of logical
-relations
+That is, `Γ ⊨ t : T` is a judgement implying that if a substitution is logically
+related to an environment, then the application of that substitution to a term
+is logically related to the evaluation of that term under the environment. By
+induction on the typing judgement `Γ ⊢ t : T`, we can prove the semantic typing
+judgement `Γ ⊨ t : T`. This is called the fundamental lemma of logical
+relations. For `zero` and `suc`, the cases follow immediately from how we have
+defined the logical relation between terms and semantic objects. For `rec`, we
+can use our earlier lemma. In the case of variables, the proof is essentially a
+lookup into the environment for the semantic object that the variable is
+logically related to, using our proof that `Γ ⊢ σ : Δ Ⓡ ρ`). Application follows
+from our inductive hypotheses, leaving us at the abstraction case, which is the
+most complicated to prove.
+
+In the case of an abstraction `Γ ⊢ λx. t : S → T`, we want to prove:
+    Γ ⊢ σ : Δ Ⓡ ρ ⇒
+      Γ ⊢ (λx. t) [ σ ] : S → T Ⓡ ⟦ Γ ⊢ λx. t : S → T ⟧ ρ
+
+By the definition of the application of a substitution to an abstraction, as
+well as the definition of evaluation of an abstraction, this simplifies to:
+
+    Γ ⊢ σ : Δ Ⓡ ρ ⇒
+      Γ ⊢ λx. t [ σ ↥ , x / x ] : S → T Ⓡ f
+        (where f = λ a → ⟦ Γ , x: S ⊢ t : T ⟧ (ρ , a))
+
+We can also expand this using the definition of `Ⓡ` for functions (and
+immediately reducing the application of `f` to `a`):
+
+    Γ ⊢ σ : Δ Ⓡ ρ ⇒
+      ∀ Γ′ ≤ Γ. Γ′ ⊢ s : S Ⓡ a ⇒
+        Γ′ ⊢ (λx. t [ σ ↥ , x / x ]) · s : T Ⓡ ⟦ Γ , x:S ⊢ t : T ⟧ (ρ , a)
+
+Already, this is a tricky property to parse. To start, we can use our lemma
+that `Ⓡ` is transitive with respect to definitional equality, and use the `β-ƛ`
+rule to reduce `(λx. t [ σ ↑ , x/x ]) · s` to `t [ σ ↑ , x / x ] [s / x]`. Now,
+we need only prove:
+
+    Γ′ , x:S ⊢ t [ σ ↥ , x / x ] [ s / x ] : T Ⓡ ⟦ Γ , x:S ⊢ t : T ⟧ (ρ , a)
+
+Here, we can use a substitution lemma to reduce these two substitutions, giving
+us:
+
+    Γ′ , x:S ⊢ t [ σ ↥ , s / x ] : T Ⓡ ⟦ Γ , x:S ⊢ t : T ⟧ (ρ , a)
+
+Now, the property we want to show actually looks like our induction hypothesis.
+With it, we have that we only need to show that:
+
+     Γ′ , x:S ⊢ (σ ↥ , s / x) : Δ Ⓡ (ρ , a)
+
+This expands to proving both:
+
+     Γ′ , x:S ⊢ σ ↥ : Δ Ⓡ ρ
+     Γ′ ⊢ s : S Ⓡ a
+
+The first follows from our earlier lemma that if a substitution is logically
+related to an environment, then so is a shifting of the substitution. The
+second property follows from our given proof. With that, our abstraction case is
+proven. In reality, there are a few other substitution lemmas that our
+formalization forces us to use, but they are mostly irrelevant to the proofs
+themselves at a high-level. [^1]
 
 ```agda
 fundamental-lemma : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
@@ -2111,66 +2177,70 @@ fundamental-lemma {t = # 𝑍} {σ = _ , _ } {⟨ _ , _ ⟩} ⟨ _ , xⓇa ⟩ =
 fundamental-lemma {t = # (𝑆 x)} {σ = _ , _} {⟨ _ , _ ⟩} ⟨ σⓇρ , _ ⟩ =
   fundamental-lemma {t = # x} σⓇρ
 fundamental-lemma {t = ƛ t} {σ = σ} {ρ} σⓇρ Γ′≤Γ {s} {a} sⓇa =
-  ==-Ⓡ-trans (sym β-ƛ) t[σ′][s/x]Ⓡ⟦t⟧⟨ρ,a⟩
+  ==-Ⓡ-trans (sym β-ƛ) t[σ↥,x/x][s/x]Ⓡ⟦t⟧⟨ρ,a⟩
   where
     subst-lemma₁ =
       subst-compose {τ = subst-id , s} {weaken Γ′≤Γ ↥ , # 𝑍} {t [ σ ↥ , # 𝑍 ]}
     subst-lemma₂ =
      subst-compose {τ = ((weaken Γ′≤Γ ↥) ∘ (subst-id , s)) , s} {σ ↥ , # 𝑍} {t}
 
-    t[σ′] = t [ σ ↥ , # 𝑍 ] [ weaken Γ′≤Γ ↥ , # 𝑍 ]
+    t[σ↥,x/x] = t [ σ ↥ , # 𝑍 ] [ weaken Γ′≤Γ ↥ , # 𝑍 ]
 
     subst-lemma₃ = subst-compose-↥ {τ = subst-id} {weaken Γ′≤Γ} {s}
     subst-lemma₄ = subst-compose-↥ {τ = weaken Γ′≤Γ ∘ subst-id} {σ} {s}
     subst-lemma₅ = id-compose-identity {σ = weaken Γ′≤Γ}
 
-    σ″ = ((σ ↥) ∘ (((weaken Γ′≤Γ ↥) ∘ (subst-id , s)) , s))
+    σ′ = ((σ ↥) ∘ (((weaken Γ′≤Γ ↥) ∘ (subst-id , s)) , s))
 
-    σ″Ⓡρ : σ″  Ⓡ ρ
-    σ″Ⓡρ rewrite subst-lemma₃ | subst-lemma₄ | subst-lemma₅ =
+    σ′Ⓡρ : σ′  Ⓡ ρ
+    σ′Ⓡρ rewrite subst-lemma₃ | subst-lemma₄ | subst-lemma₅ =
       Ⓡ-weaken′ {Γ′≤Γ = Γ′≤Γ} σⓇρ
 
-    t[σ′][s/x]Ⓡ⟦t⟧⟨ρ,a⟩ : t[σ′] [ s /x] Ⓡ ⟦⊢ t ⟧ ⟨ ρ , a ⟩
-    t[σ′][s/x]Ⓡ⟦t⟧⟨ρ,a⟩ rewrite subst-lemma₁ | subst-lemma₂ =
-        fundamental-lemma {t = t} ⟨ σ″Ⓡρ , sⓇa ⟩
+    t[σ↥,x/x][s/x]Ⓡ⟦t⟧⟨ρ,a⟩ : t[σ↥,x/x] [ s /x] Ⓡ ⟦⊢ t ⟧ ⟨ ρ , a ⟩
+    t[σ↥,x/x][s/x]Ⓡ⟦t⟧⟨ρ,a⟩ rewrite subst-lemma₁ | subst-lemma₂ =
+        fundamental-lemma {t = t} ⟨ σ′Ⓡρ , sⓇa ⟩
 fundamental-lemma {t = r · s} {σ = σ} σⓇρ
   with fundamental-lemma {t = r} σⓇρ | fundamental-lemma {t = s} σⓇρ
-... | Γ⊨r                              | Γ⊨s
+... | Γ⊨r                             | Γ⊨s
   with Γ⊨r ≤-id Γ⊨s
 ... | pf
   rewrite [id]-identity {t = r [ σ ]} = pf
 ```
 
-For the identity substitution we have that `Γ ⊢ id : Γ Ⓡ ↑Γ` ,
-which we prove by induction using our lemma that
-`Γ,x:T ⊢ x : T Ⓡ ↑ᵀ (𝓍ᵀ Γ)` for every variable that we
-are substituting for itself.
+Separately, we have that the identity substitution is logically related to
+our environment of reflected variables, `Γ ⊢ id : Γ Ⓡ ↑Γ`. We prove this by
+induction, again using the lemma that `Γ, x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂ Γ` for every
+variable being substituted for itself. For our inductive step:
+
+    Γ , x : T ⊢ id ↥ , x / x : Γ , x : T`
+
+The inductive hypothesis actually gives us proof that `Γ ⊢ id : Γ Ⓡ ↑Γ`. What
+we really want is proof that `Γ , x : T ⊢ id ↥ : Γ Ⓡ Γ`. Here, we use our lemma
+that if a logical relation holds for a substitution and an environment, it also
+holds for a shifting of the substitution. This transforms our inductive
+hypothesis into our goal.
 
 ```agda
 idⓇ↑Γ : ∀ {Γ : Ctx}
        → subst-id Ⓡ (↑ᶜᵗˣ Γ)
-idⓇ↑Γ {∅} = tt
-```
-For our inductive step, our IH will give us that
-`Γ ⊢ id : Γ Ⓡ ↑Γ Γ`, but we want proof that `Γ , x:T ⊢ id ↥ : Γ Ⓡ Γ`
-(because the identity substitution is unwrapped to `(id ↥ , x / x)`
-for the context` Γ , x:T`). Here, we use our lemma that if a
-logical relation holds for a substitution and an environment
-it holds for a shifting of the substition, allowing us to
-transform our IH into our goal
-
-```agda
+idⓇ↑Γ {∅}     = tt
 idⓇ↑Γ {Γ , T} = ⟨ Ⓡ-↥ {T = T} idⓇ↑Γ , xⓇ↑ᵀ𝓍̂ ⟩
 ```
 
-With this fact, we arrive at the soundness of NbE. By the fundamental lemma,
-given `Γ ⊢ id : Γ Ⓡ ↑Γ`, we have that `Γ ⊢ t [ id ] Ⓡ ⟦ t ⟧ ↑Γ` -- and
-`t [ id ] ≡ t`.
+Now, we arrive at the soundness of our algorithm for normalization by
+evaluation. We have `Γ ⊢ id : Γ Ⓡ ↑Γ`, and using the fundamental lemma with
+the identity substitution gives us:
 
-Using the lemma that logical relation implies definitional
-equality to the reified semantic object, we arrive at
-`Γ ⊢ t = ↓ᵀ (⟦ t ⟧ ↑Γ) Γ : T`, which is what we want to show
-(i.e. `Γ ⊢ t = nf(t) : T`)
+    Γ ⊢ t [ id ] Ⓡ ⟦ t ⟧ ↑Γ
+
+Note also that `t [ id ] ≡ t`. Using the lemma that logical relation between a
+term and a semantic object implies the definitional equality of the term to the
+reification of the semantic object, we have:
+
+    Γ ⊢ t = ↓ᵀ (⟦ t ⟧ ↑Γ) Γ : T
+
+Thus, our algorithm for normalization by evaluation is sound and preserves the
+meaning of a term that it normalizes.
 
 ```agda
 soundness : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
@@ -2186,7 +2256,7 @@ soundness {Γ} {T} {t}
 
 #### Unicode
 
-This site uses the following unicode[^1]:
+This site uses the following unicode[^2]:
 
     λ  U+03BB  GREEK SMALL LETTER LAMBDA (\Gl)
     ⊥  U+22A5  UP TACK (\bot)
@@ -2253,4 +2323,13 @@ This site uses the following unicode[^1]:
 
 #### References
 
-[^1]: ̂ (`\^`) may be displayed on top of another character when written after it (e.g. `\Mcu\^` produces 𝓊̂)
+[^1]: Note that there is a subtle detail here left out, we are implicitly
+considering a substitution using `Γ′` but the original substitution is
+`Γ ⊢ σ : Δ`. This gets a little too into the details of our substitutions, but
+we are writing out `σ ↥` when really we should write out
+`(σ ∘ weaken Γ′ ≤ Γ) ↥`. In the end, our reasoning still follows because the
+composition of a weakening onto a substitution is really equivalent to shifting
+it by that many extensions, and again ─ shifts do not affect the logical
+relation between a substitution and an environment.
+
+[^2]: ̂ (`\^`) may be displayed on top of another character when written after it (e.g. `\Mcu\^` produces 𝓊̂)
