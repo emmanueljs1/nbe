@@ -12,13 +12,18 @@ was compiled from a literate Agda file available
 [here](https://github.com/emmanueljs1/nbe/blob/main/NbE.lagda.md?plain=1)
 by following the helpful advice in
 [this](https://jesper.sikanda.be/posts/literate-agda.html) blog post by Jesper
-Cockx. For clarity and readability, some parts of the source file are left out
-in this rendering, and this will be called out when possible. At the moment,
-some lemmas are included only as postulates. Some familiarity with
-Agda (e.g. such as having worked through the first part of [Programming
-Languages Foundations in Agda](https://plfa.inf.ed.ac.uk/22.08/)) is assumed
-along with some knowledge of programming language foundations, though the content
-is mostly self contained.
+Cockx.
+
+For clarity and readability, some parts of the source file are left out in this
+rendering, and this will be called out when possible. 
+
+Some familiarity with Agda (e.g. such as having worked through the first part of
+[Programming Languages Foundations in Agda](https://plfa.inf.ed.ac.uk/22.08/))
+is assumed along with some knowledge of programming language foundations, though
+the content is mostly self contained.
+
+Note that, at the moment, some of the substitution lemmas used in the proof of
+soundness are included only as postulates.
 
 ### Introduction
 
@@ -2256,6 +2261,26 @@ soundness {Γ} {T} {t}
   rewrite [id]-identity {t = t [ subst-id ]}
         | [id]-identity {t = t}              = t==↓ᵀ⟦t⟧↑Γ
 ```
+
+### Conclusion
+
+In the end, we have formalized an algorithm in Agda for normalization by
+evaluation that is based on the intuition of leaving the parts of a term that
+cannot be evaluated (i.e. "unknowns") unchanged while still evaluating the parts
+of the term that we do know how to reduce. The algorithm is both complete and
+sound with respect to definitional equality, as we have proven. Completeness
+followed quickly from the definition of the algorithm, while soundness required
+a more in-depth proof involving the use of logical relations and the fundamental
+lemma of logical relations.
+
+In his habilitation thesis, Andreas Abel goes on to introduce the algorithm for
+the untyped lambda calculus, from which he continues to build upon, arriving at
+an algorithm for a language with dependent types and a language with
+impredicativity. This introduction to normalization to evaluation should
+hopefully be a good starting point to explore these and other extensions of the
+algorithm, such as simply trying out these proofs for yourself with a different
+extension of the simply typed lambda calculus, or implementing the algorithm
+in a language other than Agda.
 
 #### Unicode
 
