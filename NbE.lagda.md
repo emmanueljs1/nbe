@@ -1420,6 +1420,11 @@ cong-seq σ≡σ′ τ≡τ′ rewrite σ≡σ′ | τ≡τ′ = refl
             → ρ ≡ ρ′
 ≡-,-invertᵣ refl = refl
 
+≡-,-invert : ∀ {Γ Δ : Ctx} {S : Type} {σ σ′ : Sub Γ Δ} {s : Γ ⊢ S}
+           → _≡_ {A = Sub Γ (Δ , S)} (σ , s) (σ′ , s)
+           → σ ≡ σ′
+≡-,-invert refl = refl
+
 -- Renaming a lookup judgement is equivalent to applying the
 -- renaming to a variable with that lookup judgement
 ren≡[x]ᵣ : ∀ {Γ Δ : Ctx} {T : Type} {x : Δ ∋ T} {ρ : Ren Γ Δ}
@@ -1529,7 +1534,7 @@ ren-ren≡ren∘ {ρ = ρ , x} {x = 𝑍}       = refl
 ren-ren≡ren∘ {ω = ω} {ρ , _} {x = 𝑆 x} = ren-ren≡ren∘ {ω = ω} {ρ} {x}
 
 compose-ext : ∀ {Γ Δ Σ : Ctx} {ω : Ren Γ Δ} {ρ : Ren Δ Σ} {T : Type}
-  → _≡_ {A = Ren (Γ , T) (Σ , T)} ((ρ ↥ᵣ , 𝑍) ∘ᵣ (ω ↥ᵣ , 𝑍)) ((ρ ∘ᵣ ω) ↥ᵣ , 𝑍)
+  → _≡_ {A = Ren (Γ , T) (Σ , T)} ((ρ ↥ᵣ , 𝑍) ∘ᵣ (ω ↥ᵣ , 𝑍)) (ρ ∘ᵣ ω ↥ᵣ , 𝑍)
 compose-ext {ρ = ∅} = refl
 compose-ext {ω = ω} {_,_ {S = S} ρ x} {T}
   rewrite ≡-,-invertᵣ (compose-ext {ω = ω} {ρ} {T})
@@ -1564,11 +1569,29 @@ sub-η : ∀ {Γ Δ : Ctx} {S T : Type} {σ : Sub Γ (Δ , S)}
 sub-η {σ = ∅ , x}                                                  = refl
 sub-η {S = S} {σ = σ , r , s} rewrite sub-tail {T = S} {s} {σ , r} = refl
 
+compose-exts : ∀ {Γ Δ Σ : Ctx} {T : Type} {τ : Sub Γ Δ} {σ : Sub Δ Σ}
+             → _≡_ {A = Sub (Γ , T) (Σ , T)} ((σ ↥ , # 𝑍) ∘ (τ ↥ , # 𝑍)) (σ ∘ τ ↥ , # 𝑍)
+compose-exts {σ = ∅} = refl
+compose-exts {σ = σ , s} = ?
+--compose-exts {σ = ∅}     = refl
+--compose-exts {T = T} {τ} {_,_ {S = S} σ s}
+--  rewrite ≡-,-invert (compose-exts {T = T} {τ} {σ}) = {!!}
+
 -- TODO
 postulate
   subst-compose : ∀ {Γ Δ Σ : Ctx} {T : Type} {τ : Sub Γ Δ} {σ : Sub Δ Σ}
                     {t : Σ ⊢ T}
                 → t [ σ ] [ τ ] ≡ t [ σ ∘ τ ]
+
+my-lemma : ∀ {Γ Δ : Ctx} {S T : Type} {σ : Sub Γ Δ} {s : Γ ⊢ S} {t : Δ ⊢ T}
+         → t [ subst-incr ] [ σ , s ] ≡ t [ σ ]
+my-lemma {t = zero} = refl
+my-lemma {t = suc} = refl
+my-lemma {t = rec} = refl
+my-lemma {t = # x} = {!!}
+my-lemma {σ = σ} {s} {ƛ t}
+  rewrite subst-compose  {τ = (σ , s) ↥ , # 𝑍} {subst-incr ↥ , # 𝑍} {t} = {!!}
+my-lemma {t = t · t₁} = {!!}
 
 subst-compose-↥ : ∀ {Γ Δ Σ : Ctx} {S : Type} {τ : Sub Γ Δ}
                     {σ : Sub Δ Σ} {s : Γ ⊢ S}
@@ -1577,8 +1600,8 @@ subst-compose-↥ {Σ = ∅} {σ = ∅} = refl
 subst-compose-↥ {Δ = Δ} {Σ , T} {S} {τ} {σ , t} {s}
   rewrite subst-compose-↥ {τ = τ} {σ} {s}
         | rename-subst-ren {ρ = ren-incr {T = S}} {t}
-        | subst-compose {τ = τ , s} {σ = subst-incr} {t}
-        | sub-tail {t = s} {τ}                           = refl
+        | subst-compose {τ = τ , s} {σ = subst-incr} {t} = {!!}
+--        | sub-tail {t = s} {τ}                           = refl
 ```
 -->
 
