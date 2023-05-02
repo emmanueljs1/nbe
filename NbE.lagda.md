@@ -6,28 +6,25 @@ author: Emmanuel Suárez Acevedo
 ### Background
 
 This site is both an overview of normalization by evaluation and a formalization
-in Agda of its presentation in Chapter 2 of Andreas Abel's habilitation thesis,
+in Agda of the algorithm for the simply typed lambda calculus, based largely on
+its presentation in Chapter 2 of Andreas Abel's habilitation thesis,
 "Normalization by Evaluation: Dependent Types and Impredicativity" [@nbe]. It
 was compiled from a literate Agda file available
-[here](https://github.com/emmanueljs1/nbe/blob/main/NbE.lagda.md?plain=1)
-by following the helpful advice in
-[this](https://jesper.sikanda.be/posts/literate-agda.html) blog post by Jesper
-Cockx.
+[here](https://github.com/emmanueljs1/nbe/blob/main/NbE.lagda.md) by following
+the helpful advice in [this](https://jesper.sikanda.be/posts/literate-agda.html)
+blog post by Jesper Cockx.
 
 For clarity and readability, some parts of the source file are left out in this
-rendering, and this will be called out when possible. 
+rendering, and this will be called out when possible.
 
 Some familiarity with Agda (e.g. such as having worked through the first part of
 [Programming Languages Foundations in Agda](https://plfa.inf.ed.ac.uk/22.08/))
 is assumed along with some knowledge of programming language foundations, though
 the content is mostly self contained.
 
-Note that, at the moment, some of the substitution lemmas used in the proof of
-soundness are included only as postulates.
-
 ### Introduction
 
-Consider the following term in the untyped lambda calculus:
+Consider the following term in the lambda calculus:
 
     λx. (λy. y) x
 
@@ -37,8 +34,8 @@ and arrive at:
 
     `λx. x`
 
-With this new term being the normal form of `λx. (λy. y) x`. What we've just
-done, believe it or not, is normalization by evaluation!
+This new term is now the normal form of `λx. (λy. y) x`. What we've just done,
+believe it or not, is normalization by evaluation!
 
 Normalization by evaluation is a technique for deriving the normal form of a
 term in an object language by *evaluating* the term in a meta language (a
@@ -46,19 +43,13 @@ language we are using to describe the object language). In this case, our
 object language was the untyped lambda calculus, and our meta language was,
 well, just plain English.
 
-In essence, you know how to reduce a term by evaluating the parts that can be
-evaluated while leaving the parts that cannot untouched. That is the intuition
+In essence, you can reduce a term by evaluating the parts that _can_ be
+evaluated while leaving the parts that _can't_ untouched. That is the intuition
 behind normalization by evaluation.
 
 To actually formalize normalization by evaluation and prove its correctness in
 Agda, the algorithm may seem to become less intuitive, but it will still be
 based on this initial idea.
-
-### System T
-
-Before going into the algorithm itself, we will embed the language for which
-we will be defining the algorithm: System T. System T is a small language with
-natural numbers, higher-order functions, and primitive recursion.
 
 <!---
 ### Imports
@@ -70,47 +61,51 @@ open import Data.Unit using (⊤; tt)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Product using (_×_; proj₁; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
 open import Relation.Nullary using (Dec; yes; no; ¬_)
-open Eq using (refl; _≡_) renaming (sym to ≡-sym; trans to ≡-trans)
+open Eq using (refl; trans; sym; _≡_; cong; cong₂; cong-app)
 open Eq.≡-Reasoning using (_≡⟨⟩_; step-≡; begin_; _∎)
 
 module NbE where
+
+postulate
+  extensionality : ∀ {A B : Set} {f g : A → B}
+    → (∀ (x : A) → f x ≡ g x)
+      -----------------------
+    → f ≡ g
 ```
 --->
 
-We start off with the types of the language: natural numbers and functions.
+### STLC
+
+The object language that will be used here to define normalization by evaluation
+will be the simply-typed lambda calculus with `𝟙` ("unit") as a base type. It
+has variables, functions, application, and a single value of type `𝟙`: `unit`.
 
 ```agda
 data Type : Set where
-  nat : Type
-  _⇒_ : ∀ (S T : Type) → Type
+  -- unit
+  𝟙   : Type
 
-infixr 7 _⇒_
+  -- functions
+  _⇒_ : ∀ (S T : Type) → Type
 ```
 
 <!---
 ```agda
-_≟Tp_ : ∀ (S T : Type) → Dec (S ≡ T)
-nat       ≟Tp nat                                  = yes refl
-nat       ≟Tp (S ⇒ T)                              = no λ()
-(S₁ ⇒ T₁) ≟Tp nat                                  = no λ()
-(S₁ ⇒ T₁) ≟Tp (S₂ ⇒ T₂) with S₁ ≟Tp S₂ | T₁ ≟Tp T₂
-...                        | no ¬pf    | no _      = no λ{refl → ¬pf refl}
-...                        | no ¬pf    | yes _     = no λ{refl → ¬pf refl}
-...                        | yes _     | no ¬pf    = no λ{refl → ¬pf refl}
-...                        | yes refl  | yes refl  = yes refl
+infixr 7 _⇒_
 ```
 --->
 
-Additionally, we will want to have typing contexts for terms. A typing
-context (for which we will use the metavariable `Γ`) is either the empty
-context `∅` or an extension to a context `Γ , x:S` mapping an object
-language variable to a type (here, `Γ` is extended with the variable
-`x` mapped to the type 𝑆`).
+A typing context (for which the metavariable `Γ` will be used) is either the
+empty context `∅` or an extension to a context `Γ , x:S` mapping an object
+language variable to a type (here, `Γ` is extended with the variable `x` mapped
+to the type `S`).
 
-Our Agda definition does not actually mention variable names at all, and
-is really just a list of types. This is because we will be using a de
-Brujin representation for variables, and the de Brujin index representing
-a variable will be an index into the list of types that makes up a context.
+The Agda definition does not actually mention variable names at all, and is
+really just a list of types. This is because a de Brujin representation will be
+used for variables, so instead of a name, a variable will be an index into the
+list of types making up the context (i.e. a de Brujin index). For example, the
+variable `x` in the context `Γ , x:S` would be represented simply as the zeroth
+index.
 
 ```agda
 data Ctx : Set where
@@ -124,12 +119,13 @@ infixl 5 _,_
 ```
 --->
 
-Our de Brujin indices will actually be lookup judgements into a
-context. They are very similar to natural numbers (and their contructors
-have been named suggestively based on this similarity), though we define
-them as such instead of simply using Agda's natural numbers both so that an
-index into a context is well-defined and so that a variable can be intrinsically
-typed, something that we will be taking advantage of in a moment.
+The de Brujin index representing a variable will not actually be a natural
+number "index", but rather a lookup judgements into a context. These lookup
+judgements are very similar to natural numbers (and their contructors have been
+named suggestively based on this similarity: `𝑍` for zero and `𝑆` for
+successor). Defining them this way instead of simply using Agda's natural
+numbers will allow for an index into a context to always be well-defined (and
+for variables to be intrinsically typed, as will be shown in a moment).
 
 ```agda
 data _∋_ : Ctx → Type → Set where
@@ -150,8 +146,8 @@ infix 9 𝑆_
 ```
 --->
 
-Using these, we can represent the context `∅, x:S, y:T` along with the variable
-names `"x"` and `"y"` as follows.
+Using these, the context `∅, x:S, y:T` can be represented along with the
+variable names `"x"` and `"y"` as is done in the following example.
 
 ```agda
 module Example (S T : Type) where
@@ -164,47 +160,38 @@ module Example (S T : Type) where
   y = 𝑍
 ```
 
-As for terms, System T has the variables, abstractions, and
-application just like the lambda calculus. It has the constants
-`zero` and `suc` (as a curried constant) for constructing naturals,
-as well as `rec`, a curried constant for primitive recursion. The
-following program increments the number 1 twice:
+STLC terms will be embedded in Agda using an *intrinsically* typed
+representation. Types are defined first, and terms are only every considered
+with respect to their type.
 
-    (λx. suc (suc x)) (suc zero)
+Using this representation, terms that are not well-typed don't even have to be
+considered, as they are impossible to represent. An STLC term `t` embedded in
+Agda as an expression of type `Γ ⊢ T` is, by definition, a well-typed STLC
+term of type `T` in the context `Γ` (written as `Γ ⊢ t : T`).
 
-Terms in System T will be defined in our Agda formalization using
-an *intrinsically* typed representation. We have defined our types
-first, and terms are only every considered with respect to their type.
-
-Using this representation, we only have to consider well-typed
-terms. An Agda term `t` of type `Γ ⊢ T` is the well-typed System T
-term `Γ ⊢ t : T` itself.
-
-For clarity, when talking about terms we will not use their intrinsically
-typed representation using de Brujin indices, though we will only consider
-well-typed terms going forward. (e.g. the variable # 𝑍 will be referred to
-as `Γ , x:T ⊢ x : T`)
+For clarity, when talking about terms their representation in the STLC will be
+used over their intrinsically typed representation using de Brujin indices, and
+all terms will be assumed to be well-typed. (e.g. the variable `# 𝑍` will be
+referred to as `Γ , x:T ⊢ x : T`, or just `x`.)
 
 ```agda
 data _⊢_ (Γ : Ctx) : Type → Set where
-  zero : Γ ⊢ nat
+  -- unit term
+  unit : Γ ⊢ 𝟙
 
-  suc : Γ ⊢ nat ⇒ nat
-
-  rec  : ∀ {T : Type}
-         ---------------------------------
-       → Γ ⊢ (T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T)
-
+  -- variable
   #_ : ∀ {S : Type}
      → Γ ∋ S
        -----
      → Γ ⊢ S
 
+  -- abstraction
   ƛ_ : ∀ {S T : Type}
      → Γ , S ⊢ T
        ---------
      → Γ ⊢ S ⇒ T
 
+  -- application
   _·_ : ∀ {S T : Type}
       → Γ ⊢ S ⇒ T
       → Γ ⊢ S
@@ -213,7 +200,7 @@ data _⊢_ (Γ : Ctx) : Type → Set where
 ```
 
 <!---
-```
+```agda
 infix 4 _⊢_
 infix 5 ƛ_
 infixl 7 _·_
@@ -221,35 +208,37 @@ infix 9 #_
 ```
 --->
 
-We can define some sample programs in the language
-using these constructors:
+Here are some sample programs in STLC embedded here using these constructors:
 
 ```agda
 -- Γ ⊢ λx. x : T → T
 ex0 : ∀ {Γ : Ctx} {T : Type} → Γ ⊢ T ⇒ T
 ex0 = ƛ # 𝑍
 
--- ∅ ⊢ (λx. x) zero : nat
-ex1 : ∅ ⊢ nat
-ex1 = ex0 · zero
-
--- ∅ ⊢ suc ((λx. x) zero) : nat
-ex2 : ∅ ⊢ nat
-ex2 = suc · ex1
-
--- ∅ , x:nat, y:nat ⊢ suc ((λz. suc y) x) : nat
-ex3 : ∅ , nat , nat ⊢ nat
-ex3 = suc · ((ƛ suc · # 𝑆 𝑍) · # 𝑆 𝑍)
+-- ∅ ⊢ (λx. x) unit : 𝟙
+ex1 : ∅ ⊢ 𝟙
+ex1 = ex0 · unit
 ```
 
+With this embedding of the simply typed lambda calculus in Agda, an algorithm
+for normalization by evaluation can actually be written. However, to prove
+properties about the algorithm (e.g. that it is actually correct), a few more
+language constructs are still needed. They are: context extension,
+substitutions, and definitional equality. These will be defined before getting
+into the details of the algorithm itself.
+
+#### Context extension
+
 When defining the algorithm for normalization by evaluation, it will be
-necessary to determine whether or not a context is an extension of
-another. A context `Γ′` extends another context `Γ` if every mapping in
-`Γ` is also in `Γ′`. In our representation, this will mean that if `Γ′`
-extends `Γ`, then `Γ` is a "sublist" of `Γ′`. We inductively define the
-rules for context extension based somewhat on this idea: a context extends
-itself, and given that a context `Γ′` extends another context `Γ`, an
-extension of `Γ′` is still an extension `Γ′`.
+necessary to determine whether or not a context is an extension of another. A
+context `Γ′` extends another context `Γ` if every mapping in `Γ` is also in
+`Γ′`.
+
+Since contexts are really just lists in their Agda representation, `Γ′` will be
+an extension of `Γ` if `Γ` is a "sublist" of `Γ′`. The relation for context
+extension is defined inductively based somewhat on this idea: a context extends
+itself, and given that a context `Γ′` extends another context `Γ`, an extension
+of `Γ′` is still an extension of `Γ′`.
 
 ```agda
 data _≤_ : Ctx → Ctx → Set where
@@ -262,14 +251,105 @@ data _≤_ : Ctx → Ctx → Set where
 ```
 
 <!---
-```
+```agda
 infix 4 _≤_
 ```
 --->
 
-It will be helpful to make this relation decidable, for which we define
-an infix function `≤?`. Note that to define it we use another function
-whose definition has been omitted for brevity:
+<!---
+
+The relation is invertible: if `Γ′ ≤ Γ , T`, then `Γ′ ≤ Γ`.
+
+```agda
+invert-≤ : ∀ {Γ Γ′ : Ctx} {T : Type}
+         → Γ′ ≤ Γ , T
+           ----------
+         → Γ′ ≤ Γ
+invert-≤ ≤-id = ≤-ext ≤-id
+invert-≤ (≤-ext x) = ≤-ext (invert-≤ x)
+```
+--->
+
+The relation is antisymmetric, meaning that if `Γ′ ≤ Γ` and `Γ ≤ Γ′`, then
+`Γ′` and `Γ` must be the same context. This proof is left out in the rendering,
+though it is proven mutually with the fact that `Γ` is never an
+extension of `Γ , x : T`.
+
+```agda
+≤-antisym : ∀ {Γ Γ′ : Ctx}
+          → Γ ≤ Γ′
+          → Γ′ ≤ Γ
+            ------
+          → Γ ≡ Γ′
+
+Γ≰Γ,T : ∀ {Γ : Ctx} {T : Type} → ¬ (Γ ≤ Γ , T)
+```
+
+<!---
+```agda
+≤-ext-uniq-T : ∀ {Γ Γ′ : Ctx} {S T : Type}
+           → Γ′ ≤ Γ , T
+           → Γ′ ≤ Γ , S
+             ----------
+           → T ≡ S
+
+≤-ext-uniq-T ≤-id ≤-id = refl
+≤-ext-uniq-T ≤-id (≤-ext c) = ⊥-elim (Γ≰Γ,T c)
+≤-ext-uniq-T (≤-ext c) ≤-id = ⊥-elim (Γ≰Γ,T c)
+≤-ext-uniq-T (≤-ext p₁) (≤-ext p₂)
+  rewrite ≤-ext-uniq-T p₁ p₂ = refl
+
+≤-antisym ≤-id Γ′≤Γ = refl
+≤-antisym (≤-ext Γ≤Γ′) ≤-id = refl
+≤-antisym (≤-ext {T = T₁} p₁) (≤-ext {T = T₂} p₂)
+  with invert-≤ p₁ | invert-≤ p₂
+...  | ≤→         | ≤←
+  with ≤-antisym ≤→ ≤←
+...  | refl
+  rewrite ≤-ext-uniq-T p₁ p₂     = refl
+
+Γ≰Γ,T {Γ} {T} Γ≤Γ,T
+  with ≤-ext {T = T} (≤-id {Γ})
+...  | Γ,T≤Γ
+  with ≤-antisym Γ≤Γ,T Γ,T≤Γ
+...  | ()
+```
+--->
+
+This relation is also transitive, a proof that follows by induction:
+
+```agda
+≤-trans : ∀ {Γ″ Γ′ Γ : Ctx}
+         → Γ″ ≤ Γ′
+         → Γ′ ≤ Γ
+           -------
+         → Γ″ ≤ Γ
+≤-trans ≤-id ≤-id               = ≤-id
+≤-trans ≤-id (≤-ext pf)         = ≤-ext pf
+≤-trans (≤-ext pf) ≤-id         = ≤-ext pf
+≤-trans (≤-ext pf₁) (≤-ext pf₂) = ≤-ext (≤-trans pf₁ (≤-ext pf₂))
+```
+
+Finally, this relation can be made decidable. Its decidability in requires that
+equality between contexts (and by extension, type) also be decidable, though
+these proofs are also left out in the rendering.
+
+```agda
+_≟Tp_ : ∀ (S T : Type) → Dec (S ≡ T)
+```
+
+<!---
+```agda
+𝟙         ≟Tp 𝟙                                    = yes refl
+𝟙         ≟Tp (S ⇒ T)                              = no λ()
+(S₁ ⇒ T₁) ≟Tp 𝟙                                    = no λ()
+(S₁ ⇒ T₁) ≟Tp (S₂ ⇒ T₂) with S₁ ≟Tp S₂ | T₁ ≟Tp T₂
+...                        | no ¬pf    | no _      = no λ{refl → ¬pf refl}
+...                        | no ¬pf    | yes _     = no λ{refl → ¬pf refl}
+...                        | yes _     | no ¬pf    = no λ{refl → ¬pf refl}
+...                        | yes refl  | yes refl  = yes refl
+```
+--->
 
 ```agda
 _≟Ctx_ : (Γ Γ′ : Ctx) → Dec (Γ ≡ Γ′)
@@ -288,20 +368,16 @@ _≟Ctx_ : (Γ Γ′ : Ctx) → Dec (Γ ≡ Γ′)
 ```
 --->
 
-Interestingly, because of how we've defined our relation, the typical "obvious"
-case for a sublist relationship, that the empty list is a sublist of any other
-list, has to be proven separately as a lemma.
+With these, the relation can be made decidable in Agda:
 
 ```agda
-Γ≤∅ : ∀ {Γ : Ctx} → Γ ≤ ∅
-Γ≤∅ {∅} = ≤-id
-Γ≤∅ {Γ , _} with Γ≤∅ {Γ}
-...            | pf      = ≤-ext pf
-
 _≤?_ : ∀ (Γ′ Γ : Ctx) → Dec (Γ′ ≤ Γ)
 ∅        ≤? ∅          = yes ≤-id
 ∅        ≤? (_ , _)    = no λ()
-(_ , _)  ≤? ∅          = yes Γ≤∅
+(_ , _)  ≤? ∅          = yes Γ≤∅ where
+  Γ≤∅ : ∀ {Γ : Ctx} → Γ ≤ ∅
+  Γ≤∅ {∅}     = ≤-id
+  Γ≤∅ {Γ , _} = ≤-ext Γ≤∅
 (Γ′ , T) ≤? Γ@(_ , _)
   with (Γ′ , T) ≟Ctx Γ
 ...  | yes refl        = yes ≤-id
@@ -313,237 +389,144 @@ _≤?_ : ∀ (Γ′ Γ : Ctx) → Dec (Γ′ ≤ Γ)
                            (≤-ext pf) → ¬pf pf
 ```
 
-Now that we have defined System T in Agda, we are almost ready
-to start describing an algorithm for normalization by
-evaluation. However, to prove properties concerning this algorithm,
-we will need to define two more language constructs: substitutions
-and equality.
-
 ### Substitution
 
-A parallel substitution `Γ ⊢ σ : Δ` in System T provides
-a term in `Γ` to substitute for each variable in the context
-`Δ` -- `Γ ⊢ σ : Δ` can be read as "σ is a substitution for the
-context `Δ` using `Γ`". It is defined with the following two
-rules:
-
-                            Γ ⊢ σ : Δ       Γ ⊢ t : S
-    ----------             --------------------------
-    Γ ⊢ ∅ : ∅              Γ ⊢ (σ , x / s) : Δ , x:S
-
-That is, any context can be used to substitute for the empty context (an "empty"
-substitution), and any substitution can be extended with a well-typed term in
-the substitution's "source" context. In Agda, the rules are:
+A parallel substitution `Γ ⊢ σ : Δ` provides a term in `Γ` to substitute for
+each variable in the context `Δ`. In other words, a substitution `σ` is a
+function from variables in a context to terms in another context.
 
 ```agda
-data Sub : Ctx → Ctx → Set where
-  ∅ : ∀ {Γ} → Sub Γ ∅
-
-  _,_ : ∀ {Γ Δ : Ctx} {S : Type}
-        → Sub Γ Δ
-        → Γ ⊢ S
-          ---------
-        → Sub Γ (Δ , S)
+Sub : Ctx → Ctx → Set
+Sub Γ Δ = ∀ {T : Type} → Δ ∋ T → Γ ⊢ T
 ```
 
-This substition can be used to actually substitute a variable
-for a term -- an operation that is simply a "lookup" in the
-"list" of terms that makes up a parallel substitution.
-
-```agda
-sub : ∀ {Γ Δ : Ctx} {S : Type}
-    → Δ ∋ S
-    → Sub Γ Δ
-      -------
-    → Γ ⊢ S
-sub 𝑍     (_ , s) = s
-sub (𝑆 x) (σ , _) = sub x σ
-```
-
-We also wish to actually use this substitution, which is why we
-will define an operation for the application of a substitution
-to a term:
+To actually use a substitution, an operation is needed to apply the substitution
+to a term in the context being used by the substitution:
 
 
     Δ ⊢ σ : Γ      Δ ⊢ t : T
     ------------------------
          Γ ⊢ t [ σ ] : T
 
-Given a substitution σ for `Δ` using `Γ`, we can transform a term `t`
-that is well-typed in the context `Δ` to a term `t [ σ ]` that is
-well typed in the context `Γ`
+This operation would allow for transforming a term `t` that is well-typed in the
+context `Δ` using a substitution `σ` that maps every variable in `Δ` to a term
+that is well-typed in `Γ`.
 
-Defining this operation is actually a little tricky in Agda, because
-the language requires all code that is written to be terminating.
-The typical definition of the application of a substitution `σ` is not
-obviously terminating, so we will need to first introduce renaming.
+Defining this operation is actually a little tricky in Agda, because the
+typical definition of the application of a substitution `σ` is not obviously
+terminating. To solve this problem, it is necessary to separately define a
+smaller subset of substitution: renaming.
 
-Renaming is a specialized substitution where we can only substitute variables
-with other variables (i.e. a renaming `Γ ⊢ ρ : Δ` provides a variable in `Γ`,
-not a term in `Γ`, to replace for every variable in `Δ`).
-
-It is necessary to first to define renaming substitutions so that termination
-is guaranteed. In general, when referring to a renaming substitution (or a
-related operation), we will use the subscript 'ᵣ'.
+A renaming is a specialized substitution where the only terms that can be
+substituted for variables are other variables (i.e. a renaming `Γ ⊢ ρ : Δ`
+provides a variable in `Γ`, not a term in `Γ`, to replace for every variable
+in `Δ`). 
 
 ```agda
-data Ren : Ctx → Ctx → Set where
-  ∅ : ∀ {Γ : Ctx} → Ren Γ ∅
-
-  _,_ : ∀ {Γ Δ : Ctx} {S : Type}
-      → Ren Γ Δ
-      → Γ ∋ S
-        -------------
-      → Ren Γ (Δ , S)
+Ren : Ctx → Ctx → Set
+Ren Γ Δ = ∀ {T : Type} → Δ ∋ T → Γ ∋ T
 ```
 
-Since a renaming is really just a specialized substitution,
-we can transform any renaming substitution into a parallel
-substitution.
+Any renaming can be transformed to the more general definition for
+substitutions:
 
 ```agda
-subst-ren : ∀ {Γ Δ : Ctx} → Ren Γ Δ → Sub Γ Δ
-subst-ren ∅ = ∅
-subst-ren (ρ , x) = subst-ren ρ , # x
+ren : ∀ {Γ Δ : Ctx} → Ren Γ Δ → Sub Γ Δ
+ren ρ x = # ρ x
 ```
 
-However, because renaming substitutions are specialized to
-variables, we can use them to rename variables (i.e. convert between lookup
-judgements), an operation that is similar to `sub`.
+Two renamings that will be especially relevant are the identity renaming (which
+substitutes variables for themselves) and the shifting renaming (which shifts
+all variables by 1). To indicate that these are renamings specifically (as they
+will also be defined for the more general definition of substitutions), the
+subscript `ᵣ` is used.
 
 ```agda
-ren : ∀ {Γ Δ : Ctx} {S : Type}
-    → Δ ∋ S
-    → Ren Γ Δ
-      -------
-    → Γ ∋ S
-ren 𝑍     (ρ , x) = x
-ren (𝑆 x) (ρ , _) = ren x ρ
+idᵣ : ∀ {Γ : Ctx} → Ren Γ Γ
+idᵣ x = x
+
+↥ᵣ : ∀ {Γ : Ctx} {T : Type} → Ren (Γ , T) Γ
+↥ᵣ x = 𝑆 x
 ```
 
-You may have seen renamings before as simply a type synonym
-for the Agda type `∀ {T} → Γ ∋ T → Δ ∋ T` (or similar) -- that is,
-the renaming is itself the mapping that we have defined above. Our
-definition makes the distinction here of having renamings defined
-separately because it allows us to easily define a shifting operation
-over them (and the same reasoning applies to substitutions).
+Any two renamings can also be composed. For a renaming substitution, this is
+really just function compostition. Agda's own symbol for function composition,
+`∘`, is used for this reason (though again with the subscript `ᵣ`).
 
 ```agda
-_↥ᵣ : ∀ {Γ Δ : Ctx} {T : Type}
-    → Ren Γ Δ
-      -------------
-    → Ren (Γ , T) Δ
-∅ ↥ᵣ       = ∅
-(ρ , x) ↥ᵣ = ρ ↥ᵣ , 𝑆 x
+_∘ᵣ_ : ∀ {Γ Δ Σ : Ctx} → Ren Δ Γ → Ren Σ Δ → Ren Σ Γ
+ρ ∘ᵣ ω = λ x → ω (ρ x)
 ```
 
 <!---
 ```agda
-infix 6 _↥ᵣ
+infixr 9 _∘ᵣ_
 ```
 --->
 
-Shifting a renaming substitution shifts all indices in the renaming by
-one -- in other words, given a renaming for `Δ` using `Γ`, we can create
-a renaming for `Δ` using `Γ , x:T`. If we had represented renamings simply
-as `∀ {T} → Γ ∋ T → Δ ∋ T`, this operation would be impossible to define.
-
-    impossible : ∀ {Γ Δ : Ctx} {S : Type}
-               → (∀ {T : Type} → Γ ∋ T → Δ ∋ T)
-               → (∀ {T : Type} → Γ , S ∋ T → Δ ∋ T)
-    impossible ρ 𝑍     = ?    -- Here, there is no lookup judgement we can use
-    impossible ρ (𝑆 x) = ρ x
-
-We will use the shifting renaming to extend renaming under a binder,
-but more importantly we will need this operation because context extensions
-are a core part of the algorithm for normalization by evaluation we will define
-is context extensions. With this operation, we can define a renaming for a
-context `Γ` using a `Γ′` such that `Γ′ ≤ Γ`. This renaming is really a series
-of shifts based on how many extensions to `Γ` the context `Γ′` contains.
-
-Its definition depends on one more key renaming, the identity renaming. The
-identity renaming just renames each variable with itself. We define it mutually
-with an "increment" renaming (a special case of the shifting renaming), which
-will be useful later on.
-
-```agda
-mutual
-  ren-id : ∀ {Γ : Ctx} → Ren Γ Γ
-  ren-id {∅} = ∅
-  ren-id {Γ , T} = ren-incr , 𝑍
-
-  ren-incr : ∀ {Γ : Ctx} {T : Type} → Ren (Γ , T) Γ
-  ren-incr = ren-id ↥ᵣ
-```
-
-Using these, we can define a renaming for a context `Γ` using any of its
-extensions.
+It is possible to define a renaming for a context `Γ′` using a context `Γ` that
+it extends by composing many shifting renamings, ending finally at the identity
+renaming.
 
 ```
-ren-≤ : ∀ {Γ′ Γ : Ctx} → Γ′ ≤ Γ → Ren Γ′ Γ
-ren-≤ ≤-id = ren-id
-ren-≤ (≤-ext pf) = (ren-≤ pf) ↥ᵣ
+ρ-≤ : ∀ {Γ′ Γ : Ctx} → Γ′ ≤ Γ → Ren Γ′ Γ
+ρ-≤ ≤-id       = idᵣ
+ρ-≤ (≤-ext pf) = ρ-≤ pf ∘ᵣ ↥ᵣ
 ```
 
 The application of a renaming substituion `Γ ⊢ ρ : Δ` to a term `Δ ⊢ t : T`
 rebases the term to the context `Γ`. This is done by "distributing" the
 renaming substitution across all subterms of the term, renaming all variables
-used in the term with their corresponding variable in `Γ`.
+used in the term with their corresponding variable in `Γ`. When going under a
+binder, the renaming substitution has to be "extended" (`ext`) to now use the
+newly bound variable `𝑍`.
 
 ```agda
+ext : ∀ {Γ Δ : Ctx} → Ren Γ Δ → ∀ {T : Type} → Ren (Γ , T) (Δ , T)
+ext ρ 𝑍     = 𝑍
+ext ρ (𝑆 x) = 𝑆 ρ x
+
 _[_]ᵣ : ∀ {Γ Δ : Ctx} {T : Type}
       → Δ ⊢ T
       → Ren Γ Δ
         -------
       → Γ ⊢ T
-zero [ _ ]ᵣ = zero
-suc [ _ ]ᵣ = suc
-rec [ _ ]ᵣ = rec
-# x [ ρ ]ᵣ = # ren x ρ
-(ƛ t) [ ρ ]ᵣ = ƛ t [ ρ ↥ᵣ , 𝑍 ]ᵣ
+unit [ _ ]ᵣ    = unit
+# x [ ρ ]ᵣ     = # ρ x
+(ƛ t) [ ρ ]ᵣ   = ƛ t [ ext ρ ]ᵣ
 (r · s) [ ρ ]ᵣ = r [ ρ ]ᵣ · s [ ρ ]ᵣ
-
-infix 8 _[_]ᵣ
-```
-
-Renaming substitutions now allow us to build out parallel
-substitutions and their operations such that these operations
-are guaranteed to terminate. As was done for renaming substitutions, we define a
-shifting operation for parallel substitutions, to be used for extending a
-substitution under a binder.
-
-```agda
-_↥ : ∀ {Γ Δ : Ctx} {T : Type}
-   → Sub Γ Δ
-     -------------
-   → Sub (Γ , T) Δ
-∅ ↥       = ∅
-(σ , s) ↥ = σ ↥ , s [ ren-incr ]ᵣ
 ```
 
 <!---
-```
-infix 6 _↥
+```agda
+infix 8 _[_]ᵣ
 ```
 --->
 
-Now, we can actually define the application `t [ σ ]` of a parallel substitution
-`Γ ⊢ σ : Δ` to a term `Δ ⊢ t : T`, and Agda believes that the definition is
-terminating. It is very similar to the application of a renaming substitution,
-except now we are replacing variables with entire terms.
+With the application of a renaming substitution, it is now possible to define
+the application of any general substitution such that it is guaranteed to
+terminate. Extending the terms in the substitution under a binder requires
+applying a shifting substitution to every term in the binder. By defining
+the application of renaming substitutions separately, extending a substitution
+can be done such that the overall definition of the application `Γ ⊢ t [ σ ]: T`
+of a substitution `Γ ⊢ σ : Δ` is guaranteed to be terminating. The definition is
+very similar to the more specific application of a renaming substitution, except
+variables are now being replcaed with entire terms.
+
 
 ```agda
+exts : ∀ {Γ Δ : Ctx} → Sub Γ Δ → ∀ {T : Type} → Sub (Γ , T) (Δ , T)
+exts σ 𝑍     = # 𝑍
+exts σ (𝑆 x) = (σ x) [ ↥ᵣ ]ᵣ
 
 _[_] : ∀ {Γ Δ : Ctx} {T : Type}
      → Δ ⊢ T
      → Sub Γ Δ
        -------
      → Γ ⊢ T
-zero [ _ ] = zero
-suc [ _ ] = suc
-rec [ _ ] = rec
-# x [ σ ] = sub x σ
-(ƛ t) [ σ ] = ƛ (t [ σ ↥ , # 𝑍 ])
+unit [ _ ]    = unit
+# x [ σ ]     = σ x
+(ƛ t) [ σ ]   = ƛ t [ exts σ ]
 (r · s) [ σ ] = r [ σ ] · s [ σ ]
 ```
 
@@ -553,55 +536,356 @@ infix 8 _[_]
 ```
 --->
 
-Substitutions can be composed by applying a substitution `Γ ⊢ τ : Δ`
-to every term in a substitution `Δ ⊢ σ : Σ`. This will be useful
-for a few substitution lemmas we will use in our proofs.
+The more general identity and shifting substitutions are defined exactly as they
+were for renamings, except now the variable term is used. Parallel substitutions
+can also be composed, by applying a substitution `Γ ⊢ τ : Δ` to every term in a
+substitution `Δ ⊢ σ : Σ`.
 
 ```agda
-_∘_ : ∀ {Γ Δ Σ : Ctx} → Sub Δ Σ → Sub Γ Δ → Sub Γ Σ
-∅       ∘ _ = ∅
-(σ , s) ∘ τ = (σ ∘ τ) , s [ τ ]
+id : ∀ {Γ : Ctx} → Sub Γ Γ
+id x = # x
+
+↥ : ∀ {Γ : Ctx} {T : Type} → Sub (Γ , T) Γ
+↥ x = # 𝑆 x
+
+_∘_ : ∀ {Γ Δ Σ : Ctx} → Sub Δ Γ → Sub Σ Δ → Sub Σ Γ
+(σ ∘ τ) x = (σ x) [ τ ]
+```
+
+Any substitution `Γ ⊢ σ : Δ` can be extended with a well-typed term `Γ ⊢ s : S`
+as well, which will be written as `Γ ⊢ σ ∷ s : Δ , x : S` (with `∷` used for
+"cons").
+
+```agda
+_∷_ : ∀ {Γ Δ : Ctx} {S : Type} → Sub Γ Δ → Γ ⊢ S → Sub Γ (Δ , S)
+(_ ∷ s) 𝑍     = s
+(σ ∷ _) (𝑆 x) = σ x
 ```
 
 <!---
 ```agda
-infix 9 _∘_
+infix 8 _∷_
+infixr 9 _∘_
 ```
 --->
 
-A well-typed term in `Γ` can be "weakened" to a well-typed term in a context
-`Γ′` by using a weakening substitution. Really, this substitution is the
-renaming substitution between extended contexts. We will use `_≤⊢_` as a
-a shorthand for applying a weakening substitution (and in Agda, this will
-look a lot like an extended judgement: `Γ′≤Γ ≤⊢ t`).
+Using the renaming substitution for context extension, any well-typed term in
+`Γ` can be "weakened" to a well-typed term in a context `Γ′`. `≤⊢` will be used
+as shorthand for the application of a weakening substitution (and in Agda, this
+will look a lot like an extended judgement: `Γ′≤Γ ≤⊢ t`).
 
 ```agda
 weaken : ∀ {Γ′ Γ : Ctx}
        → Γ′ ≤ Γ
          --------
        → Sub Γ′ Γ
-weaken pf = subst-ren (ren-≤ pf)
+weaken pf x = # ρ-≤ pf x
 
 _≤⊢_ : ∀ {Γ′ Γ : Ctx} {T : Type} → Γ′ ≤ Γ → Γ ⊢ T → Γ′ ⊢ T
 pf ≤⊢ t = t [ weaken pf ]
 ```
 
+It will similarly be useful to introduce shorthand for the application of a
+shifting substitution:
+
+```agda
+_↥⊢_ : ∀ {Γ : Ctx} {T : Type} → (S : Type) → Γ ⊢ T → Γ , S ⊢ T
+_ ↥⊢ t = t [ ↥ ]
+```
+
+<!---
+```
+infixr 5 _↥⊢_
+infixr 5 _≤⊢_
+```
+--->
+
+To actually prove results about terms, a number of substitution lemmas will be
+necessary. Their proofs are omitted, though they are directly inspired from the
+[Substitution](https://plfa.github.io/20.07/Substitution/) chapter of PLFA. The
+most import ones are `sub-sub` (substitutions can be composed) and
+`[id]-identity` (the application of the identity substitution is an identity).
+
 <!---
 ```agda
-infixr 5 _≤⊢_
+sub-head : ∀ {Γ Δ : Ctx} {T : Type} {t : Γ ⊢ T} {σ : Sub Γ Δ}
+         → # 𝑍 [ σ ∷ t ] ≡ t
+sub-head = refl
+
+sub-tail : ∀ {Γ Δ : Ctx} {S T : Type} {s : Γ ⊢ S} {σ : Sub Γ Δ}
+         → (↥ ∘ (σ ∷ s)) {T = T} ≡ σ
+sub-tail = refl
+
+sub-η : ∀ {Γ Δ : Ctx} {S T : Type} {σ : Sub Γ (Δ , S)}
+      → (↥ ∘ σ ∷ (# 𝑍 [ σ ])) {T = T} ≡ σ
+sub-η {Δ = Δ} {S} {T} {σ} = extensionality lemma where
+  lemma : ∀ (x : Δ , S ∋ T) → (↥ ∘ σ ∷ (# 𝑍 [ σ ])) x ≡ σ x
+  lemma 𝑍     = refl
+  lemma (𝑆 x) = refl
+
+Z-shift : ∀ {Γ : Ctx} {S T : Type}
+        → (↥ ∷ # 𝑍) ≡ id {Γ , S} {T}
+Z-shift {Γ} {S} {T} = extensionality lemma where
+  lemma : (x : Γ , S ∋ T) → (↥ ∷ # 𝑍) x ≡ id x
+  lemma 𝑍     = refl
+  lemma (𝑆 x) = refl
+
+sub-idL : ∀ {Γ Δ : Ctx} {σ : Sub Γ Δ} {T : Type}
+        → id ∘ σ ≡ σ {T}
+sub-idL = extensionality λ _ → refl
+
+sub-dist : ∀ {Γ Δ Σ : Ctx} {S T : Type} {τ : Sub Γ Δ} {σ : Sub Δ Σ} {s : Δ ⊢ S}
+         → (σ ∷ s) ∘ τ ≡ (σ ∘ τ ∷ (s [ τ ])) {T}
+sub-dist {Σ = Σ} {S} {T} {τ} {σ} {s} = extensionality lemma where
+  lemma : ∀ (x : Σ , S ∋ T) → ((σ ∷ s) ∘ τ) x ≡ ((σ ∘ τ) ∷ (s [ τ ])) x
+  lemma 𝑍     = refl
+  lemma (𝑆 x) = refl
+
+sub-app : ∀ {Γ Δ : Ctx} {σ : Sub Γ Δ} {S T : Type} {r : Δ ⊢ S ⇒ T} {s : Δ ⊢ S}
+        → (r · s) [ σ ] ≡ r [ σ ] · s [ σ ]
+sub-app = refl
+
+cong-ext : ∀ {Γ Δ : Ctx} {ρ ρ′ : Ren Γ Δ} {T : Type}
+         → (∀ {S : Type} → ρ ≡ ρ′ {S})
+         → ∀ {S : Type} → ext ρ {T} {S} ≡ ext ρ′
+cong-ext {Δ = Δ} {ρ} {ρ′} {T} ρ≡ρ′ {S} = extensionality lemma where
+  lemma : ∀ (x : Δ , T ∋ S) → ext ρ x ≡ ext ρ′ x
+  lemma 𝑍                      = refl
+  lemma (𝑆 x) rewrite ρ≡ρ′ {S} = refl
+
+cong-rename : ∀ {Γ Δ : Ctx} {ρ ρ′ : Ren Γ Δ} {T : Type} {t : Δ ⊢ T}
+            → (∀ {S : Type} → ρ ≡ ρ′ {S})
+            → t [ ρ ]ᵣ ≡ t [ ρ′ ]ᵣ
+cong-rename {t = unit} _                                                = refl
+cong-rename {T = T} {# x} ρ≡ρ′ rewrite ρ≡ρ′ {T}                         = refl
+cong-rename {ρ = ρ} {ρ′} {t = ƛ t} ρ≡ρ′
+  rewrite cong-rename {ρ = ext ρ} {ρ′ = ext ρ′} {t = t} (cong-ext ρ≡ρ′) = refl
+cong-rename {t = r · s} ρ≡ρ′
+  rewrite cong-rename {t = r} ρ≡ρ′ | cong-rename {t = s} ρ≡ρ′           = refl
+
+cong-exts : ∀ {Γ Δ : Ctx} {σ σ′ : Sub Γ Δ} {T : Type}
+          → (∀ {S : Type} → σ ≡ σ′ {S})
+          → (∀ {S : Type} → exts σ {T} {S} ≡ exts σ′)
+cong-exts {Δ = Δ} {σ} {σ′} {T} σ≡σ′ {S} = extensionality lemma where
+  lemma : ∀ (x : Δ , T ∋ S) → exts σ x ≡ exts σ′ x
+  lemma 𝑍                      = refl
+  lemma (𝑆 x) rewrite σ≡σ′ {S} = refl
+
+cong-sub : ∀ {Γ Δ : Ctx} {σ σ′ : Sub Γ Δ} {T : Type} {t t′ : Δ ⊢ T}
+         → (∀ {S : Type} → σ ≡ σ′ {S})
+         → t ≡ t′
+         → t [ σ ] ≡ t′ [ σ′ ]
+cong-sub {t = unit} {unit} _ _                                          = refl
+cong-sub {T = T} {t = # x} σ≡σ′ refl rewrite σ≡σ′ {T}                   = refl
+cong-sub {σ = σ} {σ′} {t = ƛ t} σ≡σ′ refl
+  rewrite cong-sub {σ = exts σ} {exts σ′} {t = t} (cong-exts σ≡σ′) refl = refl
+cong-sub {σ = σ} {σ′} {t = r · s} σ≡σ′ refl
+  rewrite cong-sub {σ = σ} {σ′} {t = r} σ≡σ′ refl
+        | cong-sub {σ = σ} {σ′} {t = s} σ≡σ′ refl                       = refl
+
+cong-cons : ∀ {Γ Δ : Ctx} {S : Type} {s s′ : Γ ⊢ S} {σ τ : Sub Γ Δ}
+          → s ≡ s′
+          → (∀ {T : Type} → σ {T} ≡ τ {T})
+          → ∀ {T : Type} → σ ∷ s ≡ (τ ∷ s′) {T}
+cong-cons {Δ = Δ} {S} {s} {s′} {σ} {τ} refl σ≡τ {T} = extensionality lemma where
+  lemma : ∀ (x : Δ , S ∋ T) → (σ ∷ s) x ≡ (τ ∷ s′) x
+  lemma 𝑍                     = refl
+  lemma (𝑆 x) rewrite σ≡τ {T} = refl
+
+cong-seq : ∀ {Γ Δ Σ : Ctx} {τ τ′ : Sub Γ Δ} {σ σ′ : Sub Δ Σ}
+         → (∀ {T : Type} → σ {T} ≡ σ′)
+         → (∀ {T : Type} → τ {T} ≡ τ′)
+         → (∀ {T : Type} → (σ ∘ τ) {T} ≡ σ′ ∘ τ′)
+cong-seq {Σ = Σ} {τ} {τ′} {σ} {σ′} σ≡σ′ τ≡τ′ {T} = extensionality lemma where
+  lemma : ∀ (x : Σ ∋ T) → (σ ∘ τ) x ≡ (σ′ ∘ τ′) x
+  lemma x rewrite σ≡σ′ {T} | cong-sub {t = σ′ x} τ≡τ′ refl = refl
+
+ren-ext : ∀ {Γ Δ : Ctx} {S T : Type} {ρ : Ren Γ Δ}
+        → ren (ext ρ) ≡ exts (ren ρ) {S} {T}
+ren-ext {Δ = Δ} {S} {T} {ρ} = extensionality lemma where
+  lemma : ∀ (x : Δ , S ∋ T) → (ren (ext ρ)) x ≡ exts (ren ρ) x
+  lemma 𝑍     = refl
+  lemma (𝑆 x) = refl
+
+rename-subst-ren : ∀ {Γ Δ : Ctx} {T : Type} {ρ : Ren Γ Δ} {t : Δ ⊢ T}
+                 → t [ ρ ]ᵣ ≡ t [ ren ρ ]
+rename-subst-ren {t = unit}                                           = refl
+rename-subst-ren {t = # x}                                            = refl
+rename-subst-ren {ρ = ρ} {ƛ t}
+  rewrite rename-subst-ren {ρ = ext ρ} {t}
+        | cong-sub {t = t} (ren-ext {ρ = ρ}) refl                     = refl
+rename-subst-ren {ρ = ρ} {r · s}
+  rewrite rename-subst-ren {ρ = ρ} {r} | rename-subst-ren {ρ = ρ} {s} = refl
+
+ren-shift : ∀ {Γ : Ctx} {S T : Type}
+          → ren ↥ᵣ ≡ ↥ {Γ} {S} {T}
+ren-shift {Γ} {S} {T} = extensionality lemma where
+  lemma : ∀ (x : Γ ∋ T) → ren ↥ᵣ x ≡ ↥ x
+  lemma 𝑍     = refl
+  lemma (𝑆 x) = refl
+
+rename-shift : ∀ {Γ : Ctx} {S T : Type} {s : Γ ⊢ S}
+             → s [ ↥ᵣ {T = T} ]ᵣ ≡ s [ ↥ ]
+rename-shift {Γ} {S} {T} {s}
+  rewrite rename-subst-ren {ρ = ↥ᵣ {T = T}} {s}
+        | ren-shift {Γ} {T} {S}                = refl
+
+exts-cons-shift : ∀ {Γ Δ : Ctx} {S T : Type} {σ : Sub Γ Δ}
+                → exts σ {S} {T} ≡ (σ ∘ ↥) ∷ # 𝑍
+exts-cons-shift {Δ = Δ} {S} {T} {σ} = extensionality lemma where
+  lemma : ∀ (x : Δ , S ∋ T) → exts σ x ≡ ((σ ∘ ↥) ∷ # 𝑍) x
+  lemma 𝑍     = refl
+  lemma (𝑆 x) = rename-subst-ren
+
+ext-cons-Z-shift : ∀ {Γ Δ : Ctx} {ρ : Ren Γ Δ} {S T : Type}
+                 → ren (ext ρ {T = S}) ≡ ((ren ρ ∘ ↥) ∷ # 𝑍) {T}
+ext-cons-Z-shift {ρ = ρ} {S} {T}
+  rewrite ren-ext {S = S} {T} {ρ}
+        | exts-cons-shift {S = S} {T} {ren ρ} = refl
+
+sub-abs : ∀ {Γ Δ : Ctx} {S T : Type} {σ : Sub Γ Δ} {t : Δ , S ⊢ T}
+        → (ƛ t) [ σ ] ≡ ƛ t [ (σ ∘ ↥) ∷ # 𝑍 ]
+sub-abs {σ = σ} {t}
+  rewrite cong-sub {t = t} (exts-cons-shift {σ = σ}) refl = refl
+
+exts-ids : ∀ {Γ : Ctx} {S T : Type}
+         → exts id ≡ id {Γ , S} {T}
+exts-ids {Γ} {S} {T} = extensionality lemma where
+  lemma : ∀ (x : Γ , S ∋ T) → exts id x ≡ id x
+  lemma 𝑍     = refl
+  lemma (𝑆 x) = refl
+```
+--->
+
+```agda
+[id]-identity : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
+              → t [ id ] ≡ t
+```
+
+<!---
+```agda
+[id]-identity {t = unit}                                = refl
+[id]-identity {t = # x}                                 = refl
+[id]-identity {T = S ⇒ T} {ƛ t}
+  rewrite cong-sub {t = t} exts-ids refl
+        | [id]-identity {t = t}                         = refl
+[id]-identity {t = r · s}
+  rewrite [id]-identity {t = r} | [id]-identity {t = s} = refl
+
+sub-idR : ∀ {Γ Δ : Ctx} {σ : Sub Γ Δ} {T : Type}
+        → (σ ∘ id) ≡ σ {T}
+sub-idR = extensionality (λ _ → [id]-identity)
+
+compose-ext : ∀ {Γ Δ Σ : Ctx} {ρ : Ren Δ Σ} {ω : Ren Γ Δ} {S T : Type}
+            → (ext ρ) ∘ᵣ (ext ω) ≡ ext (ρ ∘ᵣ ω) {S} {T}
+compose-ext {Σ = Σ} {ρ} {ω} {S} {T} = extensionality lemma where
+  lemma : ∀ (x : Σ , S ∋ T) → ((ext ρ) ∘ᵣ (ext ω)) x ≡ ext (ρ ∘ᵣ ω) x
+  lemma 𝑍     = refl
+  lemma (𝑆 x) = refl
+
+compose-rename : ∀ {Γ Δ Σ : Ctx} {T : Type} {t : Σ ⊢ T} {ω : Ren Γ Δ}
+                   {ρ : Ren Δ Σ}
+               → t [ ρ ]ᵣ [ ω ]ᵣ ≡ t [ ρ ∘ᵣ ω ]ᵣ
+compose-rename {t = unit}                               = refl
+compose-rename {t = # x}                                = refl
+compose-rename {T = S ⇒ T} {ƛ t} {ω} {ρ}
+  rewrite compose-rename {t = t} {ext ω} {ext ρ}
+        | cong-rename {t = t} (compose-ext {ρ = ρ} {ω}) = refl
+compose-rename {t = r · s} {ω} {ρ}
+  rewrite compose-rename {t = r} {ω} {ρ}
+        | compose-rename {t = s} {ω} {ρ}                = refl
+
+commute-subst-rename : ∀ {Γ Δ Σ Φ : Ctx} {T : Type} {t : Σ ⊢ T}
+                         {σ : Sub Γ Δ} {ρ : Ren Δ Σ}
+                         {ρ′ : Ren Γ Φ } {σ′ : Sub Φ Σ}
+                     → (∀ {S : Type} {x : Σ ∋ S} → σ (ρ x) ≡ σ′ x [ ρ′ ]ᵣ)
+                     → t [ ρ ]ᵣ [ σ ] ≡ t [ σ′ ] [ ρ′ ]ᵣ
+commute-subst-rename {t = unit} pf = refl
+commute-subst-rename {t = # x} pf = pf
+commute-subst-rename {Σ = Σ} {T = S ⇒ T} {ƛ t} {σ} {ρ} {ρ′} {σ′} pf =
+  cong ƛ_ (commute-subst-rename {t = t} (λ {_} {x} → H x))
+  where
+    H : ∀ {U : Type} (x : Σ , S ∋ U) → exts σ (ext ρ x) ≡ exts σ′ x [ ext ρ′ ]ᵣ
+    H 𝑍 = refl
+    H (𝑆 x) rewrite pf {x = x}
+                  | compose-rename {t = σ′ x} {↥ᵣ {T = S}} {ρ′}
+                  | compose-rename {t = σ′ x} {ext ρ′ {S}} {↥ᵣ} = refl
+commute-subst-rename {t = r · s} {σ} {ρ} {ρ′} {σ′} pf
+  rewrite commute-subst-rename {t = r} {σ} {ρ} {ρ′} {σ′} pf
+        | commute-subst-rename {t = s} {σ} {ρ} {ρ′} {σ′} pf = refl
+
+sub-𝑆-shift : ∀ {Γ Δ : Ctx} {S T : Type} {σ : Sub Γ (Δ , S)} {x : Δ ∋ T}
+            → σ (𝑆_ {T = T} x) ≡ (↥ ∘ σ) x
+sub-𝑆-shift = refl
+
+exts-seq : ∀ {Γ Δ Σ : Ctx} {τ : Sub Γ Δ} {σ : Sub Δ Σ} {S : Type}
+         → ∀ {T : Type} → (exts σ ∘ exts τ) ≡ exts (σ ∘ τ) {S} {T}
+exts-seq {Σ = Σ} {τ} {σ} {S} {T} = extensionality lemma where
+  lemma : ∀ (x : Σ , S ∋ T) → (exts σ ∘ exts τ) x ≡ exts (σ ∘ τ) x
+  lemma 𝑍  = refl
+  lemma (𝑆 x) rewrite sub-𝑆-shift {S = S} {σ = exts σ ∘ exts τ} {x} =
+    commute-subst-rename {t = σ x} refl
+```
+--->
+
+```agda
+sub-sub : ∀ {Γ Δ Σ : Ctx} {T : Type} {τ : Sub Γ Δ} {σ : Sub Δ Σ} {t : Σ ⊢ T}
+        → t [ σ ] [ τ ] ≡ t [ σ ∘ τ ]
+```
+
+<!---
+```agda
+sub-sub {t = unit} = refl
+sub-sub {t = # x} = refl
+sub-sub {τ = τ} {σ} {ƛ t} =
+  begin
+    (ƛ t) [ σ ] [ τ ]
+  ≡⟨⟩
+    ƛ t [ exts σ ] [ exts τ ]
+  ≡⟨ cong ƛ_ (sub-sub {τ = exts τ} {exts σ} {t}) ⟩
+    ƛ t [ exts σ ∘ exts τ ]
+  ≡⟨ cong ƛ_ (cong-sub {t = t} exts-seq refl) ⟩
+    ƛ t [ exts (σ ∘ τ) ]
+  ∎
+sub-sub {τ = τ} {σ} {r · s}
+  rewrite sub-sub {τ = τ} {σ} {r} | sub-sub {τ = τ} {σ} {s} = refl
+
+sub-assoc : ∀ {Γ Δ Σ Φ : Ctx} {σ : Sub Δ Γ} {τ : Sub Σ Δ} {θ : Sub Φ Σ}
+          → ∀ {T : Type} → (σ ∘ τ) ∘ θ ≡ (σ ∘ τ ∘ θ) {T}
+sub-assoc {Γ} {σ = σ} {τ} {θ} {T} = extensionality lemma where
+  lemma : ∀ (x : Γ ∋ T) → ((σ ∘ τ) ∘ θ) x ≡ (σ ∘ τ ∘ θ) x
+  lemma x rewrite sub-sub {τ = θ} {τ} {t = σ x} = refl
+
+subst-zero-exts-cons : ∀ {Γ Δ : Ctx} {S T : Type} {σ : Sub Γ Δ} {s : Γ ⊢ S}
+                     → exts σ ∘ (id ∷ s) ≡ (σ ∷ s) {T}
+subst-zero-exts-cons {S = S} {T} {σ} {s} =
+  begin
+    exts σ ∘ (id ∷ s)
+  ≡⟨ cong-seq exts-cons-shift refl ⟩
+    ((σ ∘ ↥) ∷ # 𝑍) ∘ (id ∷ s)
+  ≡⟨ sub-dist ⟩
+    ((σ ∘ ↥) ∘ (id ∷ s)) ∷ s
+  ≡⟨ cong-cons refl (sub-assoc {σ = σ}) ⟩
+    (σ ∘ ↥ ∘ (id ∷ s)) ∷ s
+  ≡⟨ cong-cons refl (cong-seq {σ = σ} refl (sub-tail {s = s} {σ = id})) ⟩
+    (σ ∘ id) ∷ s
+  ≡⟨ cong-cons refl (sub-idR {σ = σ}) ⟩
+    σ ∷ s
+  ∎
 ```
 --->
 
 ### Definitional Equality
 
-We still have one language construct left to define -- equality. To explain
-why we will need to define equality, we can first discuss normalization by
-evaluation in more detail. Normalization by evaluation is an algorithm for
-normalization. Normalization is the process of transforming a term into its
-normal form. The normal form of a term is *unique*, being the term with all
-possible reductions (i.e. "computations") applied to it. For any normalization
-algorithm `nf` such that `nf(t)` is the normal form of a term `Γ ⊢ t : T`, we
-would expect the following properties to hold.
+There is still one language construct left to define ─ equality. To explain why
+an embedding of equality in Agda is needed, we can begin discussing
+normalization by evaluation in more detail.
+
+Normalization by evaluation is an algorithm for normalization, the process of
+transforming a term into its normal form. The normal form of a term is *unique*,
+being the term with all possible reductions (i.e. "computations") applied to it.
+For any normalization algorithm `nf` such that `nf(t)` is the normal form of a
+term `Γ ⊢ t : T`, we would expect the following properties to hold.
 
   - `Γ ⊢ nf(t) : T` (well-typedness of normal form)
 
@@ -616,111 +900,79 @@ would expect the following properties to hold.
 
   - `⟦ nf(t) ⟧ = ⟦ t ⟧` (preservation of meaning)
 
-    The `⟦ t ⟧` notation here indicates the *denotation* of `t`, that is,
-    the meaning of `t` (e.g. in some meta-language). Put simply, this property
-    requires that normalizing a term should not change its expected behavior.
+      We want an algorithm for normalization by evaluation to ensure that the
+      normal form of a term that is obtained is _semantically equal_ to the
+      original term. Put simply, this means that the two terms must have the
+      same meaning.
 
-The last property is perhaps the trickiest, because equality of functions is
-undecidable. Instead, we will want to use βη-equivalence. In STLC, we have
-that two terms are βη-equivalent iff they have the same meaning. The same
-applies for System T (which is really a version of STLC with primitive
-recursion), so by extending βη-equivalence to System T so we can actually prove
-the last property. Specifically, we will prove that `Γ ⊢ nf(t) = t : T`, a
-notation used to indicate that the two terms are _definitionally equal_ ─ the
-extension to βη-equivalence that we will be defining and using.
+      The `⟦ t ⟧` notation here indicates the *denotation* of `t`, which is
+      equivalent to its meaning (in some meta-language).
 
-To do so, we will need to actually define operations for β-reductions and
-η-expansions. For this, we will first define two parallel substitutions: the
-identity and incrementing substitutions. These will be used to establish
-β- and η-equivalence, respectively. For the incrementing substitution, we
-will benefit from a shorthand as we did for the weakening substitution.
+Equality of functions is undecidable, so the last property is especially tricky
+to prove for any algorithm. Instead, we will want to use βη-equivalence, or
+_definitional equality_. In STLC, we have that two terms are definitionally
+equal if and only if they have the same meaning. By proving that
+`Γ ⊢ nf(t) = t : T`, that the normal form of a term is definitionally equal to
+the original term, we will be proving that the normal form of a term preserves
+the meaning of the original term.
 
-```agda
-subst-id : ∀ {Γ : Ctx} → Sub Γ Γ
-subst-id = subst-ren ren-id
+To actually define βη-equivalence, we need to first define operations for
+β-reductions and η-expansions.
 
-subst-incr : ∀ {Γ : Ctx} {T : Type} → Sub (Γ , T) Γ
-subst-incr = subst-ren ren-incr
-
-_↑⊢_ : ∀ {Γ : Ctx} {T : Type} → (S : Type) → Γ ⊢ T → Γ , S ⊢ T
-_ ↑⊢ t = t [ subst-incr ]
-```
-
-<!---
-```
-infixr 5 _↑⊢_
-```
---->
-
-A β-reduction will be the application `t [ id , s / x ]` of the identity
-substitution extended with the term `s` that we are substituting for a
-variable `x` in a term `Γ , x:S ⊢ t : T`. We will use the shorthand
-`t [ s / x ]` to refer to the application of this substitution.
+A β-reduction will be the application of a substitution `t [ s / x ]` that
+substitutes the term `s` for the variable `x` in the term `t`. In Agda, this
+substitution will be an extension to the identity substitution with the term
+`s` used for the first term in the substitution. For convenience, we will use
+`t [ s ]₀` (as we are replacing the zeroth term in the identity substitution).
 
 ```agda
-_[_/x] : ∀ {Γ : Ctx} {S T : Type}
-  → Γ , T ⊢ S
-  → Γ ⊢ T
-    ---------
+_[_]₀ : ∀ {Γ : Ctx} {S T : Type}
+  → Γ , S ⊢ T
   → Γ ⊢ S
-s [ t /x] =  s [ subst-id , t ]
+    ---------
+  → Γ ⊢ T
+_[_]₀ {Γ} {S} t s = t [ id ∷ s ]
 ```
 
 <!---
 ```
-infix 8 _[_/x]
+infix 8 _[_]₀
 ```
 --->
 
 η-expansion for a functional term `Γ ⊢ t : S → T` will be an abstraction
 `Γ ⊢ λx . t x : S → T` containing the application of a variable `Γ , x:S ⊢ x :
-S` to the term, which needs to have an incrementing substitution applied to it
-as we are using an intrinsically-typed representation.
+S` to the term `t`. The term `t` needs to have a shifting substitution applied
+to it as we are using an intrinsically-typed representation (in changing the
+context from `Γ` to `Γ , x:S`, the expression `t` itself also changes).
 
 ```agda
 η-expand : ∀ {Γ : Ctx} {S T : Type}
          → Γ ⊢ S ⇒ T
          → Γ ⊢ S ⇒ T
-η-expand t = ƛ t [ subst-incr ] · # 𝑍
+η-expand {S = S} t = ƛ (S ↥⊢ t) · # 𝑍
 ```
 
 With these defined, we can actually introduce definitional equality in Agda.
-The relation is an extension of βη-equivalence for the simply-typed lambda
-calculus that includes the computation rules for the primitive recursion
-operation that differentiates System T from STLC. We use `t == t′` in Agda
-instead of `Γ ⊢ t = t′ : T`, though we will refer to two terms that are
-definitionally equal with the latter.
+We use `t == t′` in Agda instead of `Γ ⊢ t = t′ : T`, though we will refer to
+two terms that are definitionally equal with the latter.
 
 ```agda
 data _==_ : ∀ {Γ : Ctx} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
-
-  -- Computation rules, i.e. β-reductions
-  β-rec-z : ∀ {Γ : Ctx} {T : Type}
-              {z : Γ ⊢ T}
-              {s : Γ ⊢ nat ⇒ T ⇒ T}
-              -----------------------
-            → rec · z · s · zero == z
-
-  β-rec-s : ∀ {Γ : Ctx} {T : Type}
-      {z : Γ ⊢ T}
-      {s : Γ ⊢ nat ⇒ T ⇒ T}
-      {n : Γ ⊢ nat}
-      ----------------------------------------------------
-    → rec · z · s · (suc · n) == s · n · (rec · z · s · n)
-
-  β-ƛ : ∀ {Γ : Ctx} {S T : Type}
+  -- computation rule: beta reduction
+  β : ∀ {Γ : Ctx} {S T : Type}
           {t : Γ , S ⊢ T}
           {s : Γ ⊢ S}
           ----------------------
-        → (ƛ t) · s == t [ s /x]
+        → (ƛ t) · s == t [ s ]₀
 
-  -- Function extensionality, i.e. Γ ⊢ t = Γ ⊢ λx. t x : S ⇒ T
+  -- η-expansion / function extensionality, i.e. Γ ⊢ t = Γ ⊢ λx. t x : S ⇒ T
   η : ∀ {Γ : Ctx} {S T : Type}
         {t : Γ ⊢ S ⇒ T}
         ----------------------
       → t == η-expand t
 
-  -- Compatibility rules
+  -- compatibility rules
   abs-compatible : ∀ {Γ : Ctx} {S T : Type} {t t′ : Γ , S ⊢ T}
                    → t == t′
                      -----------
@@ -733,17 +985,17 @@ data _==_ : ∀ {Γ : Ctx} {T : Type} → Γ ⊢ T → Γ ⊢ T → Set where
                      ----------------
                    → r · s == r′ · s′
 
-  -- Equivalence rules
-  refl : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
+  -- equivalence rules
+  refl⁼⁼ : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
            ------
          → t == t
 
-  sym : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T}
+  sym⁼⁼ : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T}
         → t == t′
           -------
         → t′ == t
 
-  trans : ∀ {Γ : Ctx} {T : Type} {t₁ t₂ t₃ : Γ ⊢ T}
+  trans⁼⁼ : ∀ {Γ : Ctx} {T : Type} {t₁ t₂ t₃ : Γ ⊢ T}
           → t₁ == t₂
           → t₂ == t₃
             --------
@@ -756,11 +1008,10 @@ infix 3 _==_
 ```
 --->
 
-For the readability of some of our proofs, it will be helpful to have the
-ability to use equational reasoning with respect to definitional equality. We
-omit this definition, but it is almost identical to Agda's own equational
-reasoning for propositional equality. It will also be helpful to include the
-fact that propositional equality implies definitional equality.
+For the readability of some of the proofs that will follow, it will be helpful
+to have equational reasoning defined with respect to definitional equality. Its
+definition is almost identical to Agda's own equational reasoning for
+propositional equality, so it is left out in the rendering.
 
 <!---
 ```agda
@@ -772,7 +1023,7 @@ module ==-Reasoning where
 
   begin==_ : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T}
            → t == t′
-             ---------
+             -------
            → t == t′
   begin== pf = pf
 
@@ -780,70 +1031,76 @@ module ==-Reasoning where
           → (t₁ : Γ ⊢ T)
           → t₁ == t₂
           → t₂ == t₃
-            -----
+            --------
           → t₁ == t₃
-  t₁ ==⟨ t₁≡t₂ ⟩ t₂≡t₃  =  trans t₁≡t₂ t₂≡t₃
+  t₁ ==⟨ t₁≡t₂ ⟩ t₂≡t₃  =  trans⁼⁼ t₁≡t₂ t₂≡t₃
 
   _==∎ : ∀ {Γ : Ctx} {T : Type} → (t : Γ ⊢ T)
-         -----
+         ------
        → t == t
-  t ==∎  =  refl
+  t ==∎  =  refl⁼⁼
 ```
 --->
 
+<!---
 ```agda
 open ==-Reasoning public
+```
+--->
 
+Propositional equality implies definitional equality, a fact that will be
+helpful to include here for later use.
+
+```agda
 ≡→== : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T}
      → t ≡ t′
        -------
      → t == t′
-≡→== pf rewrite pf = refl
+≡→== pf rewrite pf = refl⁼⁼
 ```
 
 ### Evaluation
 
 The evaluation, or interpretation, `⟦ t ⟧` of a well-typed term `Γ ⊢ t : T`
 assigns a meaning to `t` by equating it to a semantic object in our meta
-language, using an interpretation of the context `Γ` (an _environment_)
-under which the term `t` is well-typed.
+language, using an interpretation of the context `Γ` (an _environment_) under
+which the term `t` is well-typed.
 
-For types, we can interpret naturals in System T as ℕ, and functions in
-System T as Agda functions, defined inductively on their types.
+For types, we can interpret `𝟙` as Agda's own unit type, `⊤`, and functions as
+Agda functions, with their meaning defined inductively.
 
-    ⟦ nat ⟧ = ℕ
+    ⟦ 𝟙 ⟧ = ⊤
     ⟦ S ⇒ T ⟧ = ⟦ S ⟧ → ⟦ T ⟧
 
-An empty context is interpreted as the unit type (an empty environment), and an
-extension to a context is defined inductively, with the extension itself being
-the interpretation of the type the context is extended with.
+An empty context is interpreted as the unit type (an "empty" environment), and
+an extension to a context is defined inductively, with the extension itself
+being the interpretation of the type the context is extended with.
 
     ⟦ ∅ ⟧ = ⊤
     ⟦ Γ , S ⟧ = ⟦ Γ ⟧ × ⟦ S ⟧
 
-From now on, we will use the metavariable ε to represent environments. The
-interpretation of a variable expects an environment, and is essentially a
+From now on, we will use the metavariable `ε` to represent environments.
+
+The interpretation of a variable expects an environment, and is essentially a
 lookup into the environment for the variable's value:
 
     ⟦ Γ ∋ x:T ⟧ (ε ∈ ⟦ Γ ⟧) ∈ ⟦ T ⟧
     ⟦ Γ , T ∋ x:T ⟧ (ε , a) = a
     ⟦ Γ , y:S ∋ x:T ⟧ (ε , _) = ⟦ Γ ∋ x:T ⟧ ε
 
-The interpretation of a typed term expects an environment as well. We only
-include the evaluation rules for variables, abstractions, and application.
+The interpretation of a typed term expects an environment as well.
 
-    ⟦ Γ ⊢ t : T ⟧ (ε ∈ ⟦Γ⟧) = ⟦ T ⟧
-    ⟦ Γ ⊢ x : T ⟧ ε = ⟦ Γ ∋ x:T ⟧ ε
-    ⟦ Γ ⊢ λx . t : S ⇒ T ⟧ ε  a  = ⟦ Γ , x:S ⊢ t : T ⟧ (ε , a)
-    ⟦ Γ ⊢ r s : T ⟧ ε = (⟦ Γ ⊢ r : S ⇒ T ⟧ ε) (⟦ Γ ⊢ s : S ⟧ ε)
+    ⟦ Γ ⊢ t : T ⟧ (ε ∈ ⟦Γ⟧) ∈ ⟦ T ⟧
+    ⟦ Γ ⊢ unit : 𝟙 ⟧ ε       = tt
+    ⟦ Γ ⊢ x : T ⟧ ε          = ⟦ Γ ∋ x:T ⟧ ε
+    ⟦ Γ ⊢ λx . t : S ⇒ T ⟧ ε = λ a → ⟦ Γ , x:S ⊢ t : T ⟧ (ε , a)
+    ⟦ Γ ⊢ r s : T ⟧ ε        = (⟦ Γ ⊢ r : S ⇒ T ⟧ ε) (⟦ Γ ⊢ s : S ⟧ ε)
 
-Before moving forward, we introduce the record we will use to
-represent interpretations of types and contexts in System T.
-For now, we are only including the interpretation of a context
-as an environment, as our interpretation of types will change
-subtly to better fit our algorithm for normalization by
-evaluation ─ this is also why we have only discussed evaluation
-at a high level.
+Before moving forward, we introduce the record we will use to represent
+interpretations of types and contexts. For now, we will only include the
+interpretation of a context as an environment, as our interpretation of types
+will change subtly to better fit our algorithm for normalization by evaluation ─
+this is also why we have only discussed evaluation at a high level.
 
 ```agda
 record Interpretation (D : Set) : Set₁ where
@@ -860,68 +1117,65 @@ instance
 
 ### Normalization by Evaluation
 
-The key idea behind normalization by evaluation is that we have
-inherently performed some normalization of the term `t` in its
-evaluation -- if `t` was an application `r s`, we are actually
-performing that application and reducing the term. Normalization by
-evaluation as an algorithm takes advantage of this fact.
+The key idea behind normalization by evaluation is that we have inherently
+performed some normalization of the term `t` in its evaluation -- if `t` was an
+application `r s`, we are actually performing that application and reducing the
+term. Normalization by evaluation as an algorithm takes advantage of this fact.
 
 An issue with this view is that evaluation is not actually giving us the normal
-form of a term, but rather its meaning as a semantic object in our meta language.
-An algorithm for normalization by evaluation would need a way to to convert a
-semantic object in our meta language back into a term in the object language.
+form of a term, but rather its meaning as a semantic object in our meta
+language. An algorithm for normalization by evaluation would need a way to to
+convert a semantic object in our meta language back into a term in the object
+language.
 
-Instead, we want to evaluate (i.e. normalize) the parts of the expression
-that actually _can_ be evaluated (such as function application), while leaving
-the parts that cannot intact. Under this view, normalization by evaluation
-becomes the evaluation of an expression with unknowns (i.e. variables) to
-another, possibly simplified, expression with unknowns.
+One way to achieve this is to evaluate (i.e. normalize) the parts of the
+expression that actually _can_ be evaluated (such as function application),
+while leaving the parts that cannot intact. Under this view, normalization by evaluation becomes the evaluation of an expression with unknowns (i.e. variables)
+to another, possibly simplified, expression with unknowns.
 
-To get this behavior, we make a subtle change to the "meaning" of a term
-in the meta language -- instead of terms of type `nat` mapping to the
-Agda data type for natural numbers, we will evaluate them to their normal
-form.
+To get this behavior, we make a subtle change to the "meaning" of a term in the meta language -- instead of terms of type `𝟙` mapping to Agda's unit type, they
+will now evaluate to terms in their normal form.
 
-This is a subtle distinction with a significant impact on the algorithm
-we will define. We can now easily convert back to the object language,
-because in technicality we never left it to begin with.
+This is a subtle distinction with a significant impact on the algorithm we will
+define. We can now easily convert back to the object language, because
+technically we never left it to begin with.
 
-More concretely, we will be mapping a term `Γ ⊢ t : T` to an Agda data
-type used to represent a term in its normal form. Terms in their normal
-form (normal terms) will be defined mutually with terms that are blocked
-on evaluation because they are unknown (neutral terms).
+More concretely, we will be mapping a term `Γ ⊢ t : T` to an Agda data type used
+to represent a term in its normal form. Terms in their normal form (normal
+terms) will be defined mutually with terms that are blocked on evaluation
+because they are unknown (neutral terms).
 
 ```agda
 data Nf : (T : Type) → (Γ : Ctx) → Γ ⊢ T → Set -- Normal terms
 data Ne (T : Type) (Γ : Ctx) : Γ ⊢ T → Set     -- Neutral terms
 ```
 
-Now, the interpretation of a term of type `nat` is what we will want it to be to
-define a suitable algorithm for normalization by evaluation:
+Now, the interpretation of a term of type `𝟙` can be changed to what we would
+want it to be to define a suitable algorithm for normalization by evaluation:
 
-    ⟦ nat ⟧ = Nf nat
+    ⟦ 𝟙 ⟧ = Nf 𝟙
 
 Note that our definition of normal terms is indexed both by a type and a
 context, yet here the interpretation of a type is only indexed by the type
-itself. We will get to this later, but it is for this reason that we have
-not yet written this implementation out in Agda. For now, we can give
-an initial sketch of the algorithm, using a _reflection_ function `↑ᵀ` that
-maps neutral terms of type `T` to semantic objects in `⟦ T ⟧`, and a
-_reification_ function `↓ᵀ` for mapping a semantic object in `⟦ T ⟧` to normal forms
- of type `T`:
+itself. We will get to this later, but it is for this reason that we have again
+not written an implementation out in Agda yet. For now, we can give an initial
+sketch of the algorithm, using a _reflection_ function `↑ᵀ` that maps neutral
+terms of type `T` to semantic objects in `⟦ T ⟧`, and a _reification_ function
+`↓ᵀ` for mapping a semantic object in `⟦ T ⟧` to normal forms of type `T`:
 
-Putting all of these pieces together, we can present (in pseudo-code)
-what an algorithm for normalization by evaluation would do.
+Putting all of these pieces together, we can present (in pseudo-code) what an
+algorithm for normalization by evaluation would do.
 
-    ⟦ nat ⟧ = Nf nat
+    ⟦ 𝟙 ⟧ = Nf 𝟙
+    ⟦ S → T ⟧ = ⟦ S ⟧ → ⟦ T ⟧
 
     ↑ᵀ ∈ Ne T → ⟦ T ⟧
-    ↑ⁿᵃᵗ 𝓊 = 𝓊
-    ↑ˢ⃗ᵗ 𝓊 (a ∈ ⟦ S ⟧) = ↑ᵀ (𝓊 𝓋) , 𝓋 = ↓ˢ a
+    ↑ᵘⁿⁱᵗ 𝓊 = 𝓊
+    ↑ˢ  ⃕ ᵗ 𝓊 (a ∈ ⟦ S ⟧) = ↑ᵀ (𝓊 𝓋) , 𝓋 = ↓ˢ a
     
     ↓ᵀ ∈ ⟦ T ⟧ → Nf T
-    ↓ⁿᵃᵗ 𝓋 = 𝓋
-    ↓ˢ⃗ᵗ f = λx. ↓ᵀ (f(a)) , where a = ↑ᵀ x and x is "fresh"
+    ↓ᵘⁿⁱᵗ 𝓋 = 𝓋
+    ↓ˢ  ⃕ ᵗ f = λx. ↓ᵀ (f(a)) , where a = ↑ᵀ x and x is "fresh"
     
     ↑ᶜᵗˣ ∈ ⟦ Γ ⟧
     ↑∅ = tt
@@ -931,7 +1185,7 @@ what an algorithm for normalization by evaluation would do.
 
 In summary, the algorithm proceeds as follows:
 
-  1) reflect the variables of the context Γ (↑Γ)
+  1) reflect the variables of the context `Γ` (`↑Γ`)
 
   2) interpret the value of the term using the environment
      of reflected variables (`⟦ t ⟧ ↑Γ`)
@@ -939,21 +1193,21 @@ In summary, the algorithm proceeds as follows:
   3) "reify" the interpreted value of the term (`↓ᵀ (⟦ t ⟧ ↑Γ)`),
      returning it to a term in normal form
 
-The "freshness" condition is a key part of why we have not started
-defining a more concrete version of the algorithm, but with this sketch we
-can see how our new interpretation of the type `nat` has benefitted us: we are
+The "freshness" condition in this sketch is a key part of why we have not
+started defining a more concrete version of the algorithm, but with this sketch
+we can see how our new interpretation of the type `𝟙` has benefitted us: we are
 able to evaluate a term, leaving its unknowns "untouched", and once we have
-finished evaluating the term, we are able to convert it back into our object
-language.
+finished evaluating the term, we are easily able to convert it back into our
+object language.
 
-As an initial step in formally defining this algorithm, we can introduce
-the rules for normal and neutral terms in Agda. Going forward, we will be
-using 𝓊 (for "unknown") to refer to neutral terms and 𝓋 (for "value") to
-refer to normal terms.
+As an initial step in formally defining this algorithm, we can introduce the
+rules for normal and neutral terms in Agda. Going forward, we will be using `𝓊`
+(for "unknown") to refer to neutral terms and `𝓋` (for "value") to refer to
+normal terms.
 
 Neutral terms are normal terms in their blocked form. Variables are the "base
-case" for blocked terms. Application on an unknown function to a normal term is
-also blocked, as is recursion on an unknown natural. blocked terms.
+case" for blocked terms, with application of an unknown function to a normal
+term also being blocked.
 
 ```agda
 data Ne T Γ where
@@ -966,27 +1220,15 @@ data Ne T Γ where
          → Nf S Γ 𝓋
            --------------
          → Ne T Γ (𝓊 · 𝓋)
-
-  ne-rec : {𝓋z : Γ ⊢ T} {𝓋s : Γ ⊢ nat ⇒ T ⇒ T} {𝓊 : Γ ⊢ nat}
-         → Nf T Γ 𝓋z
-         → Nf (nat ⇒ T ⇒ T) Γ 𝓋s
-         → Ne nat Γ 𝓊
-           --------------------------
-         → Ne T Γ (rec · 𝓋z · 𝓋s · 𝓊)
 ```
 
-Normal terms are terms in their normal form. `zero`, and `suc` applied to a
-normal term are normalized naturals. An abstraction whose body is normalized
-is itself normalized, as is any neutral term.
+Normal terms are terms in their normal form. `unit` is a normal term, as is an
+abstraction whose body is itself normalized. Any neutral term is also a normal
+term.
 
 ```agda
 data Nf where
-  nf-zero : ∀ {Γ : Ctx} → Nf nat Γ zero
-
-  nf-suc : ∀ {Γ : Ctx} {𝓋 : Γ ⊢ nat}
-         → Nf nat Γ 𝓋
-           ------------------
-         → Nf nat Γ (suc · 𝓋)
+  nf-unit : ∀ {Γ : Ctx} → Nf 𝟙 Γ unit
 
   nf-abs : ∀ {S T : Type} {Γ : Ctx} {𝓋 : Γ , S ⊢ T}
          → Nf T (Γ , S) 𝓋
@@ -1008,28 +1250,29 @@ because of a problem that is more subtle: after we reflect the variable, it may
 later be reified in a different context than it was created. Consider the
 reification of a semantic object `f` with type `(S → T) → U`:
 
-    ↓⁽ˢ⃗ᵗ⁾⃗ᵘ f = λx. ↓ˢ⃗ᵗ (f(a)) , where a = ↑ᵘ x
+    ↓⁽ˢ  ⃕ ᵗ⁾  ⃕ ᵘ f = λx. ↓ˢ  ⃕ ᵗ (f(a)) , where a = ↑ᵘ x
 
 The inner reification evaluates further:
 
-    ↓ˢ⃗ᵗ (f(a)) = λy. ↓ᵗ (f(a)(b)) , where b = ↑ˢ y
+    ↓ˢ  ⃕ ᵗ (f(a)) = λy. ↓ᵗ (f(a)(b)) , where b = ↑ˢ y
 
-Herein lies our problem: when we reflected `x` into our meta language, we had to
-use some context `Γ` to produce the Agda expression `a` with (presumably), the
-type `Nf T Γ`. Later, when we reify `f(a)(b)`, we will arrive at a term that is
-possibly using the variable `x`, but we are now in a different context,
-`Γ, y:S`. This suggests that we need to generalize our reflection of terms in
-the object language over all contexts, so that at reification we can use
-a different context than the one that was used at reflection.
+This example showcases the problem: when we reflected `x` into our meta
+language, we had to (presumably) use some context `Γ` to produce the Agda expression `a` with the type `Nf T Γ`. But later, when we reify `f(a)(b)`, we will
+get a term that is possibly using the variable `x`, but the term is now in a
+different context: `Γ, y:S`.
+
+This suggests that we need to generalize our reflection of terms in the object
+language over all contexts, so that at reification we can use a different
+context than the one that was used at reflection.
 
 It will be the case that we can only actually reify a semantic object using
 a context that is an extension of the context used when that semantic object
 was reflected into the meta language (and with the example above, the reason
 is clear: our algorithm would otherwise not produce a term that is well-typed).
 
-We introduce liftable normal and neutral terms to address this. These are
-normal/neutral terms that are generalized over contexts. Because we cannot
-apply _any_ context to a liftable normal/neutral term, we will need a
+We introduce _liftable_ normal and neutral terms to address this. These are
+normal/neutral terms that are generalized over contexts. That said, because we
+cannot apply _any_ context to a liftable normal/neutral term, we will need a
 placeholder value for some contexts.
 
 ```agda
@@ -1044,18 +1287,19 @@ Nf^ T = ∀ (Γ : Ctx) → ∃[ t ] Nf T Γ t
 
 For convenience, we only use this placeholder for liftable neutral terms.
 This is possible because of how the algorithm for normalization by evaluation
-is designed ─ reification always eta-expands at function type, so there will
-only ever be a need to use a placeholder value at our base type `nat`. For
-liftable normals, we can fallback to using `zero` (which is a valid normal term)
-instead of using our placeholder value. We allow ourselves this convenience
-because in proving the soundness of normalization by evaluation, we will
-be proving that neither the placeholder value nor the fallback of `zero` will
-actually be used.
+is designed ─ reification always η-expands at function type, so there will only
+ever be a need to use a placeholder value at our base type `𝟙`. In the case of
+liftable normals, we can fallback to using `unit` (which is a valid normal term)
+instead of using our placeholder value.
 
-Going forward, we will use 𝓋̂ and 𝓊̂ as the metavariables for liftable normal
-terms and neutral terms respectively, and will append the symbol ^ for the
-"liftable" counterpart of a System T construct. For example, we define the
-overloaded application `(𝓊̂ 𝓋̂)(Γ) = 𝓊̂(Γ)𝓋̂(Γ)` of liftable terms as `_·^_`.
+We allow ourselves this convenience because in proving the soundness of
+normalization by evaluation, we will be proving that neither the placeholder
+value nor the fallback of `unit` will actually be used.
+
+Going forward, we will use `𝓋̂` and `𝓊̂` as the metavariables for liftable normal
+terms and neutral terms respectively, and will append the symbol `^` for the
+"liftable" counterpart of a language construct. For example, we define the
+overloaded application `(𝓊̂ 𝓋̂)(Γ) = 𝓊̂(Γ)𝓋̂(Γ)` of liftable terms as `·^`.
 
 ```agda
 _·^_ : ∀ {S T : Type} → Ne^ (S ⇒ T) → Nf^ S → Ne^ T
@@ -1066,43 +1310,49 @@ _·^_ : ∀ {S T : Type} → Ne^ (S ⇒ T) → Nf^ S → Ne^ T
 ...           | inj₂ tt           = inj₂ tt
 ```
 
-The actual interpretation of the base type `nat` will in fact be an extension to
-Agda's natural numbers that embeds liftable neutrals.
+The actual interpretation of the base type `𝟙` will in fact be an extension to
+Agda's unit type that embeds liftable neutrals: `⊤̂` (pronounced "top hat"). With
+it defined, we can also define the interpretation of types, along with
+the evaluation of terms. These are exactly as was shown earlier in pseudocode.
 
 ```agda
-data ℕ̂ : Set where
-  zero : ℕ̂
-  suc : ℕ̂ → ℕ̂
-  ne : Ne^ nat → ℕ̂
+data ⊤̂ : Set where
+  unit : ⊤̂
+  ne   : Ne^ 𝟙 → ⊤̂
 
 instance
   ⟦Type⟧ : Interpretation Type
-  Interpretation.⟦ ⟦Type⟧ ⟧ nat = ℕ̂
+  Interpretation.⟦ ⟦Type⟧ ⟧ 𝟙 = ⊤̂
   Interpretation.⟦ ⟦Type⟧ ⟧ (S ⇒ T) = ⟦ S ⟧ → ⟦ T ⟧
+
+env-lookup : ∀ {Γ : Ctx} {T : Type} → Γ ∋ T → ⟦ Γ ⟧ → ⟦ T ⟧
+env-lookup {Γ , T} 𝑍     ⟨ _ , a ⟩ = a
+env-lookup {Γ , T} (𝑆 x) ⟨ ε , _ ⟩ = env-lookup x ε
+
+⟦⊢_⟧ : ∀ {Γ : Ctx} {T : Type} → Γ ⊢ T → ⟦ Γ ⟧ → ⟦ T ⟧
+⟦⊢ unit ⟧ _  = unit
+⟦⊢ # x ⟧ ε   = env-lookup x ε
+⟦⊢ ƛ t ⟧ ε a = ⟦⊢ t ⟧ ⟨ ε , a ⟩
+⟦⊢ r · s ⟧ ε = ⟦⊢ r ⟧ ε (⟦⊢ s ⟧  ε)
 ```
 
-We want a way to reify Agda expressions of type `ℕ̂`, for which we will define a
-function `↓ℕ̂`. It is here that given an incompatible context that results in the
-embedded liftable neutral being undefined, it will be necessary fallback to
-`zero`. Once again, this case will be irrelevant and we will prove that it will
-never actually be used in the algorithm for normalization by evaluation.
+We want a way to reify Agda expressions of type `⊤̂`, for which we will define a
+function `↓⊤̂`. It is here that the fallback to `unit` happens, when the context
+that the embedded liftable neutral is being lifted to results in it being
+undefined. This case will be irrelevant and we will prove that it will never
+actually be used in the algorithm for normalization by evaluation by proving
+that the algorithm preserves the meaning of the original term.
 
 ```agda
-↓ℕ̂ : ⟦ nat ⟧ → Nf^ nat
-↓ℕ̂ zero = zero^ where
-  zero^ = (λ _ → ⟨ zero , nf-zero ⟩)
-↓ℕ̂ (suc n) = suc^ (↓ℕ̂ n) where
-  suc^ : Nf^ nat → Nf^ nat
-  suc^ 𝓋̂ Γ =
-    let ⟨ 𝓋 , pf ⟩ = 𝓋̂ Γ in
-    ⟨ suc · 𝓋 , nf-suc pf ⟩
-↓ℕ̂ (ne 𝓊̂) Γ with 𝓊̂ Γ
+↓⊤̂ : ⟦ 𝟙 ⟧ → Nf^ 𝟙
+↓⊤̂ unit = unit^ where
+  unit^ = (λ _ → ⟨ unit , nf-unit ⟩)
+↓⊤̂ (ne 𝓊̂) Γ with 𝓊̂ Γ
 ...            | inj₁ ⟨ 𝓊 , pf ⟩ = ⟨ 𝓊 , nf-neutral pf ⟩
-...            | inj₂ tt         = ⟨ zero , nf-zero ⟩
+...            | inj₂ tt         = ⟨ unit , nf-unit ⟩
 ```
 
-
-Next up is perhaps the most important part of normalization by evaluation,
+Next up is perhaps the most important part of normalization by evaluation:
 reflection and reification. These are mutually recursive, and will each be
 defined by induction on the type `T`.
 
@@ -1110,11 +1360,11 @@ defined by induction on the type `T`.
 
 mutual
   ↑ᵀ : {T : Type} → Ne^ T → ⟦ T ⟧
-  ↑ᵀ {nat} 𝓊̂ = ne 𝓊̂
+  ↑ᵀ {𝟙} 𝓊̂ = ne 𝓊̂
   ↑ᵀ {S ⇒ T} 𝓊̂ a = ↑ᵀ (𝓊̂ ·^ 𝓋̂) where 𝓋̂ = ↓ᵀ a
 
   ↓ᵀ : {T : Type} → ⟦ T ⟧ → Nf^ T
-  ↓ᵀ {nat} = ↓ℕ̂
+  ↓ᵀ {𝟙} = ↓⊤̂
   ↓ᵀ {S ⇒ T} f Γ =
     let ⟨ 𝓋 , pf ⟩ = ↓ᵀ (f a) (Γ , S) in
     ⟨ ƛ 𝓋 , nf-abs pf ⟩
@@ -1122,67 +1372,30 @@ mutual
 ```
 
 For reification at function type, we use the following function which creates a
-"fresh" variable for a context `Γ`. Really, this is just the de Brujin index `𝑍`
-for a context `Γ, x:S`. This will be a liftable variable that can be used in
-a context that is an extension of `Γ, x:S` (and is undefined otherwise). When
-applied to an extension `Γ′` of `Γ, x:S` we can apply the extension renaming to
-the de Brujin index `𝑍` to obtain its corresponding index in the extended
-context.
+"fresh" variable for a context `Γ`. With our de Brujin representation, the fresh
+variable will just be the de Brujin index `𝑍`.
+
+`𝓍̂` will be a liftable variable that can be used in a context that is an
+extension of `Γ , x:S` (and is undefined otherwise). When lifted to an extension
+`Γ′` of `Γ , x:S` we can apply the extension renaming to the de Brujin index `𝑍`
+to obtain its corresponding index in the extended context.
 
 ```
   𝓍̂ : (S : Type) → Ctx → Ne^ S
   𝓍̂ S Γ Γ′
     with Γ′ ≤? (Γ , S)
   ...  | no _          = inj₂ tt
-  ...  | yes pf        = inj₁ ⟨ # x , ne-var x ⟩ where x = ren 𝑍 (ren-≤ pf)
+  ...  | yes pf        = inj₁ ⟨ # x , ne-var x ⟩ where x = ρ-≤ pf 𝑍
 ```
 
-With these two functions in place, we can also define the reflection of a context
-`Γ` into an environment. This will be the reflected environment over which a
-typed term in the context `Γ` will be evaluated.
+With these two functions in place, we can also define the reflection of a
+context `Γ` into an environment, which will be the reflected environment over
+which a typed term in the context `Γ` will be evaluated.
 
 ```agda
 ↑ᶜᵗˣ : ∀ (Γ : Ctx) → ⟦ Γ ⟧
 ↑ᶜᵗˣ ∅       = tt
 ↑ᶜᵗˣ (Γ , T) = ⟨ ↑ᶜᵗˣ Γ  , ↑ᵀ (𝓍̂ T Γ) ⟩
-```
-
-The interpretation of recursion in System T must work with liftable neutrals (as
-the interpretation of `nat` has them embedded), for this which we can use
-reflection and reification.
-
-```agda
-rec^ : ∀ {T : Type} → Nf^ T → Nf^ (nat ⇒ T ⇒ T) → Ne^ nat → Ne^ T
-rec^ 𝓋̂z 𝓋̂s 𝓊̂ Γ with 𝓊̂ Γ
-... | inj₂ tt           = inj₂ tt
-... | inj₁ ⟨ 𝓊 , pf-𝓊 ⟩ =
-  let ⟨ 𝓋z , pf-𝓋z ⟩ = 𝓋̂z Γ in
-  let ⟨ 𝓋s , pf-𝓋s ⟩ = 𝓋̂s Γ in
-  inj₁ ⟨ rec · 𝓋z · 𝓋s · 𝓊 , ne-rec pf-𝓋z pf-𝓋s pf-𝓊 ⟩
-
-⟦rec⟧ : ∀ {T : Type} → ⟦ T ⇒ (nat ⇒ T ⇒ T) ⇒ nat ⇒ T ⟧
-⟦rec⟧ z s zero       = z
-⟦rec⟧ z s (suc n)    = s n (⟦rec⟧ z s n)
-⟦rec⟧ {T} z s (ne 𝓊̂) =
-  ↑ᵀ (rec^ 𝓋̂z 𝓋̂s 𝓊̂) where 𝓋̂z = ↓ᵀ z ; 𝓋̂s = ↓ᵀ s
-```
-
-Evaluation can now actually be defined in Agda, having been blocked by a lack of
-an interpretation for primitive recursion. It is exactly as was shown earlier
-in pseudo-code.
-
-```agda
-⟦_∋Γ⟧ : ∀ {Γ : Ctx} {T : Type} → Γ ∋ T → ⟦ Γ ⟧ → ⟦ T ⟧
-⟦_∋Γ⟧ {Γ , T} 𝑍 ⟨ _ , a ⟩     = a
-⟦_∋Γ⟧ {Γ , T} (𝑆 x) ⟨ ε , _ ⟩ = ⟦ x ∋Γ⟧ ε
-
-⟦⊢_⟧ : ∀ {Γ : Ctx} {T : Type} → Γ ⊢ T → ⟦ Γ ⟧ → ⟦ T ⟧
-⟦⊢ zero ⟧ _  = zero
-⟦⊢ suc ⟧ _   = suc
-⟦⊢ rec ⟧ _   = ⟦rec⟧
-⟦⊢ # x ⟧     = ⟦ x ∋Γ⟧
-⟦⊢ ƛ t ⟧ ε a = ⟦⊢ t ⟧ ⟨ ε , a ⟩
-⟦⊢ r · s ⟧ ε = ⟦⊢ r ⟧ ε (⟦⊢ s ⟧  ε)
 ```
 
 Finally, the algorithm for normalization by evaluation is as follows:
@@ -1195,35 +1408,21 @@ nf : ∀ {Γ : Ctx} {T : Type} → Γ ⊢ T → Γ ⊢ T
 nf t = let ⟨ t′ , _ ⟩ = nbe t in t′
 ```
 
-And here we have some examples of the algorithm in action, reusing our
-examples from earlier.
+And here we have some examples of the algorithm in action, reusing an example
+from earlier.
 
 ```agda
--- normal form of (λx. x) zero is zero
-nf-ex1 : nf ex1 ≡ zero
+-- normal form of (λx. x) unit is unit
+nf-ex1 : nf ex1 ≡ unit
 nf-ex1 with ex1
-...       | _   = refl
-
--- normal form of suc ((λx. x) zero) is suc zero
-nf-ex2 : nf ex2 ≡ (suc · zero)
-nf-ex2 with ex2
-...       | _   = refl
-
--- normal form of x:nat, y:nat ⊢ suc ((λz. suc y) x)
--- is x:nat, y:nat ⊢ suc (suc y)
-nf-ex3 : nf ex3 ≡ (suc · (suc · # (𝑍)))
-nf-ex3 with ex3
 ...       | _   = refl
 ```
 
 ### Correctness
 
 We wish for our algorithm for normalization by evaluation to be both complete
-and sound. We will describe exactly what this means, but it is for the purpose
-of proving these properties that we introduced definitional equality.
-Specifically, we will need the property that if terms are definitionally equal,
-then they must have the same interpretation. We include this property as a
-postulate.
+and sound. First, we include as a postulate the property that if terms are
+definitionally equal, then they must have the same interpretation.
 
 ```agda
 postulate
@@ -1232,8 +1431,9 @@ postulate
          → ⟦⊢ t ⟧ ε ≡ ⟦⊢ t′ ⟧ ε
 ```
 
-We consider our algorithm for normalization by evaluation if two terms that are
-definitionally equal (and thus have the same meaning) have the same normal form:
+We consider our algorithm for normalization by evaluation complete if two terms
+that are definitionally equal (and thus have the same meaning) have the same
+normal form:
 
     Γ ⊢ t = t′ : T implies nf(t) = nf(t′)
 
@@ -1250,344 +1450,34 @@ completeness : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T}
 completeness {Γ} t==t′ rewrite ==→⟦≡⟧ {ε = ↑ᶜᵗˣ Γ} t==t′ = refl
 ```
 
-Separately, the soundness properties that we want from this algorithm are the
-following:
+As for the soundness properties that we want from this algorithm:
 
   - `Γ ⊢ nf(t) : T` (well-typedness)
-      We are using an intrinsically typed
-      representation of terms, so this property is
-      given to us automatically
+
+      We are using an intrinsically typed representation of terms, so this
+      property is given to us automatically
 
   - `⟦ nf(t) ⟧ = ⟦ t ⟧` (preservation of meaning)
-      We want an algorithm for normalization by evaluation to ensure that the
-      normal form of a term that is obtained is _semantically equal_ to the
-      original term, i.e. the two terms have the same meaning. As discussed,
-      equality of functional terms in Agda is undecidable, for which we have
-      introduced definitional equality (which implies semantic equality). Even
-      proving that `Γ ⊢ nf(t) = t : T` is difficult, and we will have to use a
-      logical relation to prove it. We do so in the following section.
+
+      As discussed, equality of functional terms in Agda is undecidable, for
+      which we have introduced definitional equality. Even proving that
+      `Γ ⊢ nf(t) = t : T` is difficult, and we will have to use a
+      logical relation to prove it in the following section
 
   - `nf(nf(t)) = nf(t)` (idempotency)
+
       This follows directly from the preservation of
       meaning and completeness properties of the algorithm:
 
       By the soundness property of preservation of meaning,
-      we have `Γ ⊢ nf t = t : T`, which implies `nf (nf t) = nf(t)`
-      by completeness
-
-<!--
-
-The following are lemmas that will be necessary for proving the definitional
-equality of a term and its normal form as obtained by normalization by
-evaluation.
-
-First, a few properties about the `≤` relation, which are all required to prove
-irrelevance of proof for the relation.
-
-```agda
-invert-≤ : ∀ {Γ Γ′ : Ctx} {T : Type}
-         → Γ′ ≤ Γ , T
-           ----------
-         → Γ′ ≤ Γ
-invert-≤ ≤-id = ≤-ext ≤-id
-invert-≤ (≤-ext x) = ≤-ext (invert-≤ x)
-
-≤-ext-uniq-T : ∀ {Γ Γ′ : Ctx} {S T : Type}
-           → Γ′ ≤ Γ , T
-           → Γ′ ≤ Γ , S
-             ----------
-           → T ≡ S
-
-≤-antisym : ∀ {Γ Γ′ : Ctx}
-          → Γ ≤ Γ′
-          → Γ′ ≤ Γ
-            ------
-          → Γ ≡ Γ′
-
-Γ≰Γ,T : ∀ {Γ : Ctx} {T : Type} → ¬ (Γ ≤ Γ , T)
-
-≤-ext-uniq-T ≤-id ≤-id = refl
-≤-ext-uniq-T ≤-id (≤-ext c) = ⊥-elim (Γ≰Γ,T c)
-≤-ext-uniq-T (≤-ext c) ≤-id = ⊥-elim (Γ≰Γ,T c)
-≤-ext-uniq-T (≤-ext p₁) (≤-ext p₂)
-  rewrite ≤-ext-uniq-T p₁ p₂ = refl
-
-≤-antisym ≤-id Γ′≤Γ = refl
-≤-antisym (≤-ext Γ≤Γ′) ≤-id = refl
-≤-antisym (≤-ext {T = T₁} p₁) (≤-ext {T = T₂} p₂)
-  with invert-≤ p₁ | invert-≤ p₂
-... | ≤→         | ≤←
-  with ≤-antisym ≤→ ≤←
-... | refl
-  rewrite ≤-ext-uniq-T p₁ p₂ = refl
-
-Γ≰Γ,T {Γ} {T} Γ≤Γ,T with ≤-ext {T = T} (≤-id {Γ})
-... | Γ,T≤Γ
-  with ≤-antisym Γ≤Γ,T Γ,T≤Γ
-... | ()
-
--- Proof of context extension is irrelevant, and any
--- two proofs that a context is an extension of another
--- are equivalent
-≤-pf-irrelevance : ∀ {Γ′ Γ : Ctx}
-       → (pf₁ : Γ′ ≤ Γ)
-       → (pf₂ : Γ′ ≤ Γ)
-       → pf₁ ≡ pf₂
-≤-pf-irrelevance ≤-id ≤-id = refl
-≤-pf-irrelevance ≤-id (≤-ext pf) = ⊥-elim (Γ≰Γ,T pf)
-≤-pf-irrelevance (≤-ext pf) ≤-id = ⊥-elim (Γ≰Γ,T pf)
-≤-pf-irrelevance (≤-ext pf₁) (≤-ext pf₂) rewrite ≤-pf-irrelevance pf₁ pf₂ = refl
-
--- Context extension is transitive
-≤-trans : ∀ {Σ Δ Γ : Ctx}
-        → Σ ≤ Δ
-        → Δ ≤ Γ
-          -------
-        → Σ ≤ Γ
-≤-trans ≤-id ≤-id = ≤-id
-≤-trans ≤-id (≤-ext pf) = ≤-ext pf
-≤-trans (≤-ext pf) ≤-id = ≤-ext pf
-≤-trans (≤-ext pf₁) (≤-ext pf₂) = ≤-ext (≤-trans pf₁ (≤-ext pf₂))
-```
-
-Substitution / renaming lemmas, a lot of these are directly inspired by the
- σ algebra equations / σ algebra of substitutions in
-[this](https://plfa.github.io/Substitution/) chapter of PLFA.
-
-```agda
-_∘ᵣ_ : ∀ {Γ Δ Σ : Ctx} → Ren Δ Σ → Ren Γ Δ → Ren Γ Σ
-∅       ∘ᵣ ω = ∅
-(ρ , x) ∘ᵣ ω = ρ ∘ᵣ ω , ren x ω
-
-infixl 6 _∘ᵣ_
-
-sub-head : ∀ {Γ Δ : Ctx} {T : Type} {t : Γ ⊢ T} {σ : Sub Γ Δ}
-         → # 𝑍 [ σ , t ] ≡ t
-sub-head = refl
-
-Z-shift : ∀ {Γ : Ctx} {S : Type}
-        → (subst-incr , # 𝑍) ≡ subst-id {Γ , S}
-Z-shift = refl
-
-sub-dist : ∀ {Γ Δ Σ : Ctx} {S : Type} {τ : Sub Γ Δ} {σ : Sub Δ Σ} {s : Δ ⊢ S}
-         → (σ , s) ∘ τ ≡ (σ ∘ τ , s [ τ ])
-sub-dist = refl
-
-sub-app : ∀ {Γ Δ : Ctx} {σ : Sub Γ Δ} {S T : Type} {r : Δ ⊢ S ⇒ T} {s : Δ ⊢ S}
-        → (r · s) [ σ ] ≡ r [ σ ] · s [ σ ]
-sub-app = refl
-
-cong-ext : ∀ {Γ Δ : Ctx} {ρ ρ′ : Ren Γ Δ} {T : Type}
-         → ρ ≡ ρ′
-          → _≡_ {A = Ren (Γ , T) (Δ , T)} (ρ ↥ᵣ , 𝑍) (ρ′ ↥ᵣ , 𝑍)
-cong-ext ρ≡ρ′ rewrite ρ≡ρ′ = refl
-
-cong-rename : ∀ {Γ Δ : Ctx} {ρ ρ′ : Ren Γ Δ} {T : Type} {t : Δ ⊢ T}
-            → ρ ≡ ρ′
-            → t [ ρ ]ᵣ ≡ t [ ρ′ ]ᵣ
-cong-rename ρ≡ρ′ rewrite ρ≡ρ′ = refl
-
-cong-exts : ∀ {Γ Δ : Ctx} {σ σ′ : Sub Γ Δ} {T : Type}
-          → σ ≡ σ′
-          → _≡_ {A = Sub (Γ , T) (Δ , T)} (σ ↥ , # 𝑍) (σ′ ↥ , # 𝑍)
-cong-exts σ≡σ′ rewrite σ≡σ′ = refl
-
-cong-sub : ∀ {Γ Δ : Ctx} {σ σ′ : Sub Γ Δ} {T : Type} {t t′ : Δ ⊢ T}
-         → σ ≡ σ′
-         → t ≡ t′
-         → t [ σ ] ≡ t′ [ σ′ ]
-cong-sub σ≡σ′ t≡t′ rewrite σ≡σ′ | t≡t′ = refl
-
-cong-sub-zero : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T}
-              → t ≡ t′
-              → _≡_ {A = Sub Γ (Γ , T)} (subst-id , t) (subst-id , t′)
-cong-sub-zero t≡t′ rewrite t≡t′ = refl
-
-cong-cons : ∀ {Γ Δ : Ctx} {T : Type} {t t′ : Γ ⊢ T} {σ σ′ : Sub Γ Δ}
-          → t ≡ t′
-          → σ ≡ σ′
-          → _≡_ {A = Sub Γ (Δ , T)} (σ , t) (σ′ , t′)
-cong-cons t≡t′ σ≡σ′ rewrite t≡t′ | σ≡σ′ = refl
-
-cong-seq : ∀ {Γ Δ Σ : Ctx} {τ τ′ : Sub Γ Δ} {σ σ′ : Sub Δ Σ}
-         → σ ≡ σ′
-         → τ ≡ τ′
-         → σ ∘ τ ≡ σ′ ∘ τ′
-cong-seq σ≡σ′ τ≡τ′ rewrite σ≡σ′ | τ≡τ′ = refl
-
-≡-,-invertᵣ : ∀ {Γ Δ : Ctx} {T : Type} {ρ ρ′ : Ren Γ Δ} {x : Γ ∋ T}
-            → _≡_ {A = Ren Γ (Δ , T)} (ρ , x) (ρ′ , x)
-            → ρ ≡ ρ′
-≡-,-invertᵣ refl = refl
-
--- Renaming a lookup judgement is equivalent to applying the
--- renaming to a variable with that lookup judgement
-ren≡[x]ᵣ : ∀ {Γ Δ : Ctx} {T : Type} {x : Δ ∋ T} {ρ : Ren Γ Δ}
-         → # (ren x ρ) ≡ # x [ ρ ]ᵣ
-ren≡[x]ᵣ {x = 𝑍} {ρ , y} = refl
-ren≡[x]ᵣ {x = 𝑆 x} {ρ , y} = ren≡[x]ᵣ {x = x} {ρ}
-
--- Applying a shifted renaming to a variable is equivalent
--- to incrementing the original renaming of the variable's
--- lookup judgemnet:
---   # x [ σ ↥ ] ≡ 𝑆 (rename x σ) (where σ is a renaming substitution)
-shift-var : ∀ {Γ Δ : Ctx} {S T : Type} {x : Γ ∋ T} {ρ : Ren Δ Γ}
-          → # x [ subst-ren (_↥ᵣ {T = S} ρ) ] ≡ # (𝑆 (ren x ρ))
-shift-var {x = 𝑍} {_ , _} = refl
-shift-var {x = 𝑆 x} {ρ , _} = shift-var {x = x} {ρ}
-
--- Specialized version of the previous lemma
-shift-rename : ∀ {Γ Δ : Ctx} {S T : Type} {x : Γ ∋ T} {ρ : Ren Δ Γ}
-             → ren x (_↥ᵣ {T = S} ρ) ≡ 𝑆 (ren x ρ)
-shift-rename {x = 𝑍} {_ , _} = refl
-shift-rename {x = 𝑆 x} {ρ , _} = shift-rename {x = x} {ρ}
-
--- Renaming with the identity renaming has no effect
-rename-id : ∀ {Γ : Ctx} {T : Type} {x : Γ ∋ T}
-          → ren x ren-id ≡ x
-rename-id {x = 𝑍} = refl
-rename-id {x = (𝑆_ {_} {S} x)}
-  rewrite shift-rename {S = S} {x = x} {ρ = ren-id} | rename-id {x = x} = refl
-
--- Shifting is commutative between renaming/substitution: a shifted
--- renaming substitution is equivalent to a substitution created from
--- a shifted renaming
-shift-rename-subst : ∀ {Γ Δ : Ctx} {T : Type} {ρ : Ren Γ Δ}
-                   → subst-ren (_↥ᵣ {T = T} ρ) ≡ _↥ {T = T} (subst-ren ρ)
-shift-rename-subst {ρ = ∅} = refl
-shift-rename-subst {T = T} {ρ = _,_ {S = S} ρ x}
-  rewrite shift-rename-subst {T = T} {ρ = ρ}
-        | ≡-sym (ren≡[x]ᵣ {x = x} {ρ = _↥ᵣ {T = T} ren-id})
-        | shift-rename {S = T} {x = x} {ρ = ren-id}
-        | rename-id {x = x}                                 = refl
-
-rename-subst-ren : ∀ {Γ Δ : Ctx} {T : Type} {ρ : Ren Γ Δ} {t : Δ ⊢ T}
-                   → t [ ρ ]ᵣ ≡ t [ subst-ren ρ ]
-rename-subst-ren {t = zero} = refl
-rename-subst-ren {t = suc} = refl
-rename-subst-ren {t = rec} = refl
-rename-subst-ren {ρ = _ , _} {# 𝑍} = refl
-rename-subst-ren {ρ = ρ , _} {# 𝑆 x}
-  rewrite rename-subst-ren {ρ = ρ} {# x} = refl
-rename-subst-ren {T = S ⇒ T} {ρ} {ƛ t}
-  rewrite rename-subst-ren {ρ = ρ ↥ᵣ , 𝑍} {t}
-        | shift-rename-subst {T = S} {ρ = ρ} = refl
-rename-subst-ren {ρ = ρ} {r · s}
-  rewrite rename-subst-ren {ρ = ρ} {r}
-        | rename-subst-ren {ρ = ρ} {s} = refl
-
-shift≡∘incr : ∀ {Γ Δ : Ctx} {σ : Sub Γ Δ} {T : Type}
-             → σ ↥ ≡ σ ∘ subst-incr {T = T}
-shift≡∘incr {σ = ∅}                                       = refl
-shift≡∘incr {Γ} {σ = _,_ {S = S} σ s} {T}
-  rewrite shift≡∘incr {σ = σ} {T = T}
-        | rename-subst-ren {ρ = ren-incr {Γ} {T}} {t = s} = refl
-
-ext-cons-shift : ∀ {Γ Δ : Ctx} {T : Type} {σ : Sub Γ Δ}
-               → _≡_ {A = Sub (Γ , T) (Δ , T)} (σ ↥ , # 𝑍) (σ ∘ subst-incr , # 𝑍)
-ext-cons-shift {σ = ∅}                               = refl
-ext-cons-shift {Γ} {T = T} {σ , s}
-  rewrite rename-subst-ren {ρ = ren-incr {Γ} {T}} {s}
-        | shift≡∘incr {σ = σ} {T = T}                 = refl
-
-ext-cons-Z-shift : ∀ {Γ Δ : Ctx} {ρ : Ren Γ Δ} {T : Type}
-                → subst-ren (ρ ↥ᵣ , 𝑍) ≡ subst-ren ρ ∘ subst-incr , # 𝑍 {T = T}
-ext-cons-Z-shift = cong-cons refl (≡-trans shift-rename-subst shift≡∘incr)
-
--- Lemma for expanding an identity substitution once
-id≡id↑,x : ∀ {Γ : Ctx} {T : Type} → subst-id {Γ , T} ≡ (_↥ {T = T} subst-id , # 𝑍)
-id≡id↑,x {∅} = refl
-id≡id↑,x {Γ , T} {S}
-  rewrite id≡id↑,x {Γ} {T}
-        | shift-rename-subst {Γ , T} {Γ} {S} {ρ = ren-id ↥ᵣ} = refl
-
--- The identity substititon has no effect
-[id]-identity : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
-              → t [ subst-id ] ≡ t
-[id]-identity {t = zero} = refl
-[id]-identity {t = suc} = refl
-[id]-identity {t = rec} = refl
-[id]-identity {t = # 𝑍} = refl
-[id]-identity {t = # (𝑆_ {_} {S} x)}
-  rewrite shift-var {S = S} {x = x} {ρ = ren-id} | rename-id {x = x} = refl
-[id]-identity {Γ} {T} {ƛ_ {S} t}
-  rewrite ≡-sym (id≡id↑,x {Γ} {S}) | [id]-identity {t = t} = refl
-[id]-identity {t = r · s}
-  rewrite [id]-identity {t = r} | [id]-identity {t = s} = refl
-
--- sub-idR
-id-compose-identity : ∀ {Γ Δ : Ctx} {σ : Sub Γ Δ}
-                    → σ ∘ subst-id ≡ σ
-id-compose-identity {σ = ∅} = refl
-id-compose-identity {σ = σ , s}
-  rewrite id-compose-identity {σ = σ} | [id]-identity {t = s} = refl
-
-ren-ren≡ren∘ : ∀ {Γ Δ Σ : Ctx} {T : Type} {ω : Ren Γ Δ} {ρ : Ren Δ Σ}
-                 {x : Σ ∋ T}
-             → ren (ren x ρ) ω ≡ ren x (ρ ∘ᵣ ω)
-ren-ren≡ren∘ {ρ = ρ , x} {x = 𝑍}       = refl
-ren-ren≡ren∘ {ω = ω} {ρ , _} {x = 𝑆 x} = ren-ren≡ren∘ {ω = ω} {ρ} {x}
-
-compose-ext : ∀ {Γ Δ Σ : Ctx} {ω : Ren Γ Δ} {ρ : Ren Δ Σ} {T : Type}
-  → _≡_ {A = Ren (Γ , T) (Σ , T)} ((ρ ↥ᵣ , 𝑍) ∘ᵣ (ω ↥ᵣ , 𝑍)) ((ρ ∘ᵣ ω) ↥ᵣ , 𝑍)
-compose-ext {ρ = ∅} = refl
-compose-ext {ω = ω} {_,_ {S = S} ρ x} {T}
-  rewrite ≡-,-invertᵣ (compose-ext {ω = ω} {ρ} {T})
-        | shift-rename {S = T} {x = x} {ω}         = refl
-
-compose-rename : ∀ {Γ Δ Σ : Ctx} {T : Type} {t : Σ ⊢ T} {ω : Ren Γ Δ}
-                   {ρ : Ren Δ Σ}
-               → t [ ρ ]ᵣ [ ω ]ᵣ ≡ t [ ρ ∘ᵣ ω ]ᵣ
-compose-rename {t = zero} = refl
-compose-rename {t = suc} = refl
-compose-rename {t = rec} = refl
-compose-rename {t = # x} {ω} {ρ} rewrite ren-ren≡ren∘ {ω = ω} {ρ} {x} = refl
-compose-rename {t = ƛ_ {S = S} t} {ω} {ρ}
-  rewrite compose-rename {t = t} {ω ↥ᵣ , 𝑍} {ρ ↥ᵣ , 𝑍}
-        | compose-ext {ω = ω} {ρ} {S}                 = refl
-compose-rename {t = r · s} {ω} {ρ}
-  rewrite compose-rename {t = r} {ω} {ρ} | compose-rename {t = s} {ω} {ρ} = refl
-
--- TODO
-postulate
-  sub-tail : ∀ {Γ Δ : Ctx}  {T : Type} {t : Γ ⊢ T} {σ : Sub Γ Δ}
-           → subst-incr ∘ (σ , t) ≡ σ
-
--- sub-idL
-id-compose-identityˡ : ∀ {Γ Δ : Ctx} {σ : Sub Γ Δ}
-                     → subst-id ∘ σ ≡ σ
-id-compose-identityˡ {σ = ∅}                                  = refl
-id-compose-identityˡ {σ = σ , t} rewrite sub-tail {t = t} {σ} = refl
-
-sub-η : ∀ {Γ Δ : Ctx} {S T : Type} {σ : Sub Γ (Δ , S)}
-      → (subst-incr ∘ σ  , # 𝑍 [ σ ]) ≡ σ
-sub-η {σ = ∅ , x}                                                  = refl
-sub-η {S = S} {σ = σ , r , s} rewrite sub-tail {T = S} {s} {σ , r} = refl
-
--- TODO
-postulate
-  subst-compose : ∀ {Γ Δ Σ : Ctx} {T : Type} {τ : Sub Γ Δ} {σ : Sub Δ Σ}
-                    {t : Σ ⊢ T}
-                → t [ σ ] [ τ ] ≡ t [ σ ∘ τ ]
-
-subst-compose-↥ : ∀ {Γ Δ Σ : Ctx} {S : Type} {τ : Sub Γ Δ}
-                    {σ : Sub Δ Σ} {s : Γ ⊢ S}
-                → (σ ↥) ∘ (τ , s) ≡ σ ∘ τ
-subst-compose-↥ {Σ = ∅} {σ = ∅} = refl
-subst-compose-↥ {Δ = Δ} {Σ , T} {S} {τ} {σ , t} {s}
-  rewrite subst-compose-↥ {τ = τ} {σ} {s}
-        | rename-subst-ren {ρ = ren-incr {T = S}} {t}
-        | subst-compose {τ = τ , s} {σ = subst-incr} {t}
-        | sub-tail {t = s} {τ}                           = refl
-```
--->
+      we will have `Γ ⊢ nf t = t : T`, which will in turn imply
+      `nf (nf t) = nf(t)` by the algorithm's completeness
 
 ### Soundness
 
 To prove that the algorithm for normalization by evaluation implemented
-preserves the meaning of a program (⟦ nf(t) ⟧ = ⟦ t ⟧, which we will just refer
-to as soundness from now on), we will prove that a term is definitionally equal
-to its normal form:
+preserves the meaning of a program, we will prove that a term is
+definitionally equal to its normal form:
 
    Γ ⊢ t = nf(t) : T
 
@@ -1600,8 +1490,8 @@ This new property we wish to prove expands to:
 To prove this, we will establish a logical relation `Γ ⊢ t : T Ⓡ a` between a
 well-typed term `Γ ⊢ t : T` and a semantic object in our meta language
 `a ∈ ⟦ T ⟧` such that it implies `Γ ⊢ t = ↓ᵀ a Γ : T`. Later, we will prove that
-`Γ ⊢ t : T Ⓡ ⟦ t ⟧ ↑Γ` (finishing our proof) but we will focus on the logical
-relation itself for now.
+`Γ ⊢ t : T Ⓡ ⟦ t ⟧ ↑Γ` (which will then finish our proof), but we will focus on
+the logical relation itself for now.
 
 For defining the relation in Agda, we will need to first define some other
 relations. The first such relation we define "lifts" definitional equality to
@@ -1626,85 +1516,48 @@ Formally, this relation represents the condition `Γ ⊢ 𝓊 = 𝓊̂(Γ) : T`,
 that a term `𝓊` is definitionally equal to the liftable neutral `𝓊̂` lifted to
 the context `Γ`.
 
-The logical relation `Γ ⊢ t : T Ⓡ a` will be defined inductively on types. For
-Agda's termination checking, we will need to define the logical relation at type
-`nat` separately. At type `nat`, the relation is defined as:
+The logical relation `Γ ⊢ t : T Ⓡ a` will be defined inductively on types. At
+type `𝟙`, the relation is defined as:
 
-      Γ ⊢ t : nat Ⓡ 𝓋̂ ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = 𝓋̂(Γ′) : nat
+      Γ ⊢ t : 𝟙 Ⓡ 𝓋̂ ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = 𝓋̂(Γ′) : 𝟙
 
-In other words, `t` is logically related to a semantic object `𝓋̂ ∈ ℕ̂` if and only
-if the term is definitionally equal to `𝓋̂` when lifted to any context `Γ′` that
-is an extension of `Γ`.
+In other words, `t` is logically related to a semantic object `𝓋̂ ∈ ⊤̂` if and
+only the term is definitionally equal to `𝓋̂` when lifted to any context `Γ′`
+that is an extension of `Γ`.
 
-In Agda, we define this relation as `_Ⓝ_` We define `Ⓝ` mutually with `==ℕ̂`, a
-relation representing the condition `Γ′ ⊢ t = 𝓋̂(Γ′) : nat` we have just shown,
-which lifts definitional equality to be over naturals with embedded liftable
-neutrals, as was done with `_==^_`.
+For this condition, we also need to define a relation lifting definitional
+equality to the unit type with embedded liftable neutrals, as was done with
+`_==^_`.
 
 ```agda
-mutual
-  _Ⓝ_ : ∀ {Γ : Ctx} → Γ ⊢ nat → ⟦ nat ⟧ → Set
-  _Ⓝ_ {Γ} n 𝓋̂ =
-    ∀ {Γ′ : Ctx}
-    → (Γ′≤Γ : Γ′ ≤ Γ)
-      ---------------
-    → Γ′≤Γ ≤⊢ n ==ℕ̂ 𝓋̂
-
-  _==ℕ̂_ : ∀ {Γ : Ctx} → Γ ⊢ nat → ⟦ nat ⟧ → Set
-  _==ℕ̂_ {Γ} t zero = t == zero
-  _==ℕ̂_ {Γ} t (suc 𝓋̂) = ∃[ n ] t == suc · n × n Ⓝ 𝓋̂
-  _==ℕ̂_ {Γ} t (ne 𝓊̂) = t ==^ 𝓊̂
+_==⊤̂_ : ∀ {Γ : Ctx} → Γ ⊢ 𝟙 → ⟦ 𝟙 ⟧ → Set
+_==⊤̂_ {Γ} t unit   = t == unit
+_==⊤̂_ {Γ} t (ne 𝓊̂) = t ==^ 𝓊̂
 ```
 
 <!---
 ```
-infix 4 _Ⓝ_
-infix 3 _==ℕ̂_
+infix 3 _==⊤̂_
 ```
 --->
-
-For the last part of our proof, we will be generalizing `Ⓡ` to relate more than
-just terms and semantic objects, so we will be using a record type generalized
-over any two Agda types to define the relation.
-
-```agda
-record Relation (A B : Set) : Set₁ where
-  field
-    rel : A → B → Set
-
-open Relation ⦃...⦄ public
-
-_Ⓡ_ : ∀ {A B : Set} ⦃ _ : Relation A B ⦄ → A → B → Set
-_Ⓡ_ = rel
-```
-
-<!---
-```
-infix 4 _Ⓡ_
-```
---->
-
-#### Logical relation between terms and semantic objects
 
 With these in place, we can start defining the logical relation `Ⓡ` between
-terms and semantic objects by induction on types, using `Ⓝ` for the base type
-`nat`. For function types, the relation is defined as:
+terms and semantic objects. For function types, the relation is defined as:
 
     Γ ⊢ r : S → T Ⓡ f ⇔ ∀ Γ′ ≤ Γ. Γ′ ⊢ s : S Ⓡ a ⇒ Γ′ ⊢ r s : T Ⓡ f(a)
 
 The relation is written so that it sort of expands functions, reducing our proof
-that a functional term in System T is logically related to a function in Agda to
+that a functional term in STLC is logically related to a function in Agda to
 only having to prove that given related arguments, the functional term and the
 function in Agda both produce related results. Again, this is generalized over
-all extensions of the context `Γ` ─ while our final results will only be
+all extensions of the context `Γ`. While our final results will only be
 concerned with the context `Γ`, to prove these results we will need the relation
 to be strengthened in this way.
 
 ```agda
-instance
-  Ⓡ-Terms : ∀ {Γ : Ctx} {T : Type} → Relation (Γ ⊢ T) ⟦ T ⟧
-  Relation.rel (Ⓡ-Terms {T = nat}) t 𝓋̂   = t Ⓝ 𝓋̂
-  Relation.rel (Ⓡ-Terms {Γ} {S ⇒ T}) r f =
+_Ⓡ_ : ∀ {Γ : Ctx} {T : Type} → Γ ⊢ T → ⟦ T ⟧ → Set
+_Ⓡ_ {Γ} {𝟙} t 𝓋̂ = ∀ {Γ′ : Ctx} → (Γ′≤Γ : Γ′ ≤ Γ) → Γ′≤Γ ≤⊢ t ==⊤̂ 𝓋̂
+_Ⓡ_ {Γ} {S ⇒ T} r f =
     ∀ {Γ′ : Ctx}
     → (Γ′≤Γ : Γ′ ≤ Γ)
     → ∀ {s : Γ′ ⊢ S} {a : ⟦ S ⟧}
@@ -1713,54 +1566,60 @@ instance
     → (Γ′≤Γ ≤⊢ r) · s Ⓡ f a
 ```
 
+<!---
+```
+infix 4 _Ⓡ_
+```
+--->
+
 As the logical relation between terms and semantic objects is defined using
 definitional equality, it is transitive with respect to definitional equality.
-This is the first lemma we will prove using equational reasoning for definitional
-equality. As for most proofs related to the logical relation `Ⓡ` between terms
-and semantic objects, we prove it by induction on types, and do a case analysis
-at type `nat` on the semantic object `a ∈ ℕ̂`. The proof makes use of a lemma
-that has been omitted, `==-subst`, which postulates that if two terms are
-definitionally equal, the terms with the same substitution applied are still
+This is the first lemma we will prove using equational reasoning for
+definitional equality. As for most proofs related to the logical relation `Ⓡ`
+between terms and semantic objects, we prove it by induction on types, and do a
+case analysis at type `𝟙` on the semantic object `a ∈ ⊤̂`. The proof makes use of
+a lemma whose proof has been omitted, `==-subst`: if two terms are
+definitionally equal , the terms with the same substitution applied are still
 definitionally equal.
 
 ```agda
 ==-subst : ∀ {Γ Δ : Ctx} {T : Type} {t t′ : Γ ⊢ T} {σ : Sub Δ Γ}
-         → t == t′
-         → t [ σ ] == t′ [ σ ]
+           → t == t′
+           → t [ σ ] == t′ [ σ ]
 ```
+
 <!---
 ```agda
-==-subst β-rec-z = trans β-rec-z refl
-==-subst β-rec-s = trans β-rec-s refl
-==-subst {t = (ƛ t) · s} {σ = σ} β-ƛ
-  rewrite subst-compose {τ = σ} {σ = subst-id , s} {t = t}
-        | id-compose-identityˡ {σ = σ} =
-  trans
-    β-ƛ
+
+==-subst {σ = σ} (β {t = t} {s})
+  rewrite sub-sub {τ = σ} {id ∷ s} {t} =
+  trans⁼⁼
+    β
     (≡→==
-      (≡-trans
-        (subst-compose {t = t})
+      (trans
+        (sub-sub {t = t})
         (cong-sub {t = t}
-          (cong-cons
-            refl
-            (≡-trans
-              subst-compose-↥
-              id-compose-identity))
+          (trans
+            subst-zero-exts-cons
+            (sym sub-dist))
           refl)))
-==-subst {T = S ⇒ T} {t} {σ = σ} η
-  rewrite subst-compose {τ = _↥ {T = S} σ , # 𝑍} {subst-incr} {t}
-        | sub-tail {t = # 𝑍 {T = S}} {σ ↥}                        =
-    trans η (≡→== lemma)
-  where
-    lemma : ƛ t [ σ ] [ subst-incr ] · # 𝑍 ≡ ƛ t [ σ ↥ ] · # 𝑍
-    lemma rewrite subst-compose {τ = subst-incr {T = S}} {σ} {t}
-                | shift≡∘incr {σ = σ} {T = S}                    = refl
+==-subst {Γ} {T = S ⇒ T} {t} {σ = σ} η
+  rewrite sub-sub {τ = exts σ} {↥ {T = S}} {t} =
+  trans⁼⁼
+    η
+    (abs-compatible
+      (app-compatible
+        (≡→==
+          (trans
+            (sub-sub {τ = ↥} {σ} {t})
+            (cong-sub {t = t} (extensionality λ{_ → sym rename-shift}) refl)))
+        refl⁼⁼))
 ==-subst (abs-compatible t==t′) = abs-compatible (==-subst t==t′)
-==-subst (app-compatible r==s r′==s′) =
-  app-compatible (==-subst r==s) (==-subst r′==s′)
-==-subst refl = refl
-==-subst (sym t==t′) = sym (==-subst t==t′)
-==-subst (trans t₁==t₂ t₂==t₃) = trans (==-subst t₁==t₂) (==-subst t₂==t₃)
+==-subst (app-compatible r==r′ s==s′) =
+  app-compatible (==-subst r==r′) (==-subst s==s′)
+==-subst refl⁼⁼ = refl⁼⁼
+==-subst (sym⁼⁼ t==t′) = sym⁼⁼ (==-subst t==t′)
+==-subst (trans⁼⁼ t₁==t₂ t₂==t₃) = trans⁼⁼ (==-subst t₁==t₂) (==-subst t₂==t₃)
 ```
 --->
 
@@ -1770,64 +1629,77 @@ definitionally equal.
            → t Ⓡ a
              -------
            → t′ Ⓡ a
-==-Ⓡ-trans {T = nat} {t} {t′} {zero} t==t′ pf Γ′≤Γ =
+==-Ⓡ-trans {T = 𝟙} {t} {t′} {unit} t==t′ pf Γ′≤Γ =
   begin==
     Γ′≤Γ ≤⊢ t′
-  ==⟨ sym (==-subst t==t′) ⟩
+  ==⟨ sym⁼⁼ (==-subst t==t′) ⟩
     Γ′≤Γ ≤⊢ t
   ==⟨ pf Γ′≤Γ ⟩
-    zero
+    unit
   ==∎
-==-Ⓡ-trans {T = nat} {t} {t′} {suc a} t==t′ pf Γ′≤Γ =
-  let ⟨ n , ⟨ t==sn , n==a ⟩ ⟩ = pf Γ′≤Γ in
-  let t′==sn = begin==
-                 Γ′≤Γ ≤⊢ t′
-               ==⟨ sym (==-subst t==t′) ⟩
-                 Γ′≤Γ ≤⊢ t
-               ==⟨ t==sn ⟩
-                 suc · n
-               ==∎
-  in
-  ⟨ n , ⟨ t′==sn , n==a ⟩ ⟩
-==-Ⓡ-trans {T = nat} {t} {t′} {ne 𝓊̂} t==t′ pf {Γ′} Γ′≤Γ
+==-Ⓡ-trans {T = 𝟙} {t} {t′} {ne 𝓊̂} t==t′ pf {Γ′} Γ′≤Γ
   with 𝓊̂ Γ′          | pf Γ′≤Γ
-... | inj₁ ⟨ 𝓊 , _ ⟩ | t==𝓊 =
+... | inj₁ ⟨ 𝓊 , _ ⟩ | t==𝓊    =
   begin==
     Γ′≤Γ ≤⊢ t′
-  ==⟨ sym (==-subst t==t′) ⟩
+  ==⟨ sym⁼⁼ (==-subst t==t′) ⟩
     Γ′≤Γ ≤⊢ t
   ==⟨ t==𝓊 ⟩
     𝓊
   ==∎
-==-Ⓡ-trans {T = S ⇒ T} {r} {r′} r==r′ pf Γ′≤Γ sⓇa = ==-Ⓡ-trans r·s==r′·s r·sⓇfa
+==-Ⓡ-trans {T = S ⇒ T} {r} {r′} r==r′ pf Γ′≤Γ sⓇa =
+  ==-Ⓡ-trans r·s==r′·s r·sⓇfa
   where
-    r·s==r′·s = app-compatible (==-subst r==r′) refl
+    r·s==r′·s = app-compatible (==-subst r==r′) refl⁼⁼
     r·sⓇfa = pf Γ′≤Γ sⓇa
 ```
 
 Additionally, because we have defined the relation so that its implication holds
 for all extensions of a context, we can "weaken" the logical relation
 `Γ ⊢ t : T Ⓡ a` for all `Γ′ ≤ Γ`, having that `Γ′ ⊢ t : T Ⓡ a` holds as well.
-For this proof, we use another postulated lemma that weakening a term `t` twice
-is equivalent to weakening it once with a composed weakening substitution.
+For this proof, we use another lemma, `weaken-compose`, whose proof has also
+been omitted: weakening a term `t` twice is equivalent to weakening it once with
+a composed weakening substitution.
 
 <!---
 ```agda
--- TODO
+ρ-≤-compose : ∀ {Γ″ Γ′ Γ : Ctx} {T : Type}
+            → (Γ″≤Γ′ : Γ″ ≤ Γ′)
+            → (Γ′≤Γ : Γ′ ≤ Γ)
+            → (x : Γ ∋ T)
+            → ρ-≤ Γ″≤Γ′ (ρ-≤ Γ′≤Γ x) ≡ ρ-≤ (≤-trans Γ″≤Γ′ Γ′≤Γ) x
+ρ-≤-compose ≤-id ≤-id _                    = refl
+ρ-≤-compose (≤-ext _) ≤-id _               = refl
+ρ-≤-compose ≤-id (≤-ext _) _               = refl
+ρ-≤-compose (≤-ext Γ″≤Γ′) (≤-ext Γ′≤Γ) x
+  rewrite ρ-≤-compose Γ″≤Γ′(≤-ext Γ′≤Γ) x  = refl
+
 ```
 --->
-```agda
-postulate
-  weaken-compose : ∀ {Σ Δ Γ : Ctx} {T : Type}
-    → (Σ≤Δ : Σ ≤ Δ)
-    → (Δ≤Γ : Δ ≤ Γ)
-    → (t : Γ ⊢ T)
-    → Σ≤Δ ≤⊢ Δ≤Γ ≤⊢ t ≡ (≤-trans Σ≤Δ Δ≤Γ) ≤⊢ t
 
+```agda
+weaken-compose : ∀ {Γ″ Γ′ Γ : Ctx} {T : Type}
+               → (Γ″≤Γ′ : Γ″ ≤ Γ′)
+               → (Γ′≤Γ : Γ′ ≤ Γ)
+               → (t : Γ ⊢ T)
+               → Γ″≤Γ′ ≤⊢ Γ′≤Γ ≤⊢ t ≡ (≤-trans Γ″≤Γ′ Γ′≤Γ) ≤⊢ t
+```
+
+<!---
+```agda
+weaken-compose Γ″≤Γ′ Γ′≤Γ t
+  rewrite sub-sub {τ = weaken Γ″≤Γ′} {weaken Γ′≤Γ} {t} =
+    cong-sub {t = t}
+      (extensionality λ{x → cong #_ (ρ-≤-compose Γ″≤Γ′ Γ′≤Γ x)})
+      refl
+```
+--->
+
+```agda
 Ⓡ-weaken : ∀ {Γ′ Γ : Ctx} {T : Type} {Γ′≤Γ : Γ′ ≤ Γ} {t : Γ ⊢ T} {a : ⟦ T ⟧}
       → t Ⓡ a
       → Γ′≤Γ ≤⊢ t Ⓡ a
-Ⓡ-weaken {T = nat} {Γ′≤Γ} {t} pf Γ″≤Γ′
+Ⓡ-weaken {T = 𝟙} {Γ′≤Γ} {t} pf Γ″≤Γ′
   rewrite weaken-compose Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ)
 Ⓡ-weaken {T = S ⇒ T} {Γ′≤Γ} {t} pf Γ″≤Γ′ sⓇa
   rewrite weaken-compose Γ″≤Γ′ Γ′≤Γ t = pf (≤-trans Γ″≤Γ′ Γ′≤Γ) sⓇa
@@ -1845,9 +1717,11 @@ the soundness of normalization by evaluation. We formalize them with the
 following lemmas, which we will prove mutually (as reflection and reification
 are themselves defined mutually) by induction on types.
 
-The first lemma is:
+The first lemma is that if the liftable variable `𝓊̂` is definitionally equal
+to a term `𝓊` for all contexts `Γ′ ≤ Γ`, then `𝓊` is logically related to the
+reflection of `𝓊̂`:
 
-    (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : T) ⇒ Γ ⊢ 𝓊 : T Ⓡ ↑ᵀ 𝓊̂
+    (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ′) : T) ⇒ Γ ⊢ 𝓊 : T Ⓡ ↑ᵀ 𝓊̂
 
 ```agda
 ==^→Ⓡ↑ : ∀ {Γ : Ctx} {T : Type} {𝓊 : Γ ⊢ T} {𝓊̂ : Ne^ T}
@@ -1859,8 +1733,8 @@ The first lemma is:
 ```
 
 A consequence of this lemma is that `Γ , x:T ⊢ x Ⓡ ↑ᵀ 𝓍̂ Γ`, which we can
-define in Agda now as it will be a lemma we will need for proving the next
-lemma we will introduce.
+define in Agda now as it will be necessary for proving the next lemma we will
+introduce.
 
 ```agda
 xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Ctx} {T : Type}
@@ -1868,7 +1742,9 @@ xⓇ↑ᵀ𝓍̂ : ∀ {Γ : Ctx} {T : Type}
       → # 𝑍 {Γ} {T} Ⓡ ↑ᵀ (𝓍̂ T Γ)
 ```
 
-The second lemma we need is:
+The second lemma is that if `Γ ⊢ t : T` and `a ∈ ⟦ T ⟧` are logically related,
+then `t` is definitionally equal to the reification of `a` for all contexts
+`Γ′ ≤ Γ`:
 
     Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ′ : T
 
@@ -1885,33 +1761,33 @@ logically related to a semantic object, then it is definitionally equal to the
 reification of said object. It is stronger than we need it to be, but again this
 is necessary to actually prove the implication.
 
-We will start by proving the first lemma focusing on each case of the proof
+We will start by proving the first lemma, focusing on each case of the proof
 separately, before moving on to proving the second lemma. Again, the first
 lemma is:
 
     (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : T) ⇒ Γ ⊢ 𝓊 : T Ⓡ ↑ᵀ 𝓊̂
 
-We prove this by induction on the type `T`. At type `nat`, our proof is
-immediate, as `Γ ⊢ u : nat Ⓡ ↑ⁿᵃᵗ 𝓊̂` is defined as:
+We prove this by induction on the type `T`. At type `𝟙`, our proof is
+immediate, as `Γ ⊢ u : 𝟙 Ⓡ ↑ᵘⁿⁱᵗ 𝓊̂` is defined as:
 
-    ∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : nat
+    ∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : 𝟙
 
 Which is exactly our given proof.
 
 ```agda
-==^→Ⓡ↑ {T = nat} pf Γ′≤Γ = pf Γ′≤Γ
+==^→Ⓡ↑ {T = 𝟙} pf Γ′≤Γ = pf Γ′≤Γ
 ```
 
 At type `S → T`, the proof is more complicated. We want to prove that:
 
 
-    (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : S → T) ⇒ Γ ⊢ 𝓊 : S → T Ⓡ ↑ˢ⃗ᵗ 𝓊̂
+    (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : S → T) ⇒ Γ ⊢ 𝓊 : S → T Ⓡ ↑ˢ  ⃕ ᵗ 𝓊̂
 
 By definition of `Ⓡ`, this expands to:
 
     (∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ) : S → T) ⇒
       ∀ Γ′ ≤ Γ. Γ′ ⊢ s Ⓡ a ⇒
-        Γ′ ⊢ 𝓊 s Ⓡ (↑ˢ⃗ᵗ 𝓊̂) a
+        Γ′ ⊢ 𝓊 s Ⓡ (↑ˢ  ⃕ ᵗ 𝓊̂) a
 
 This simplifies further by the definition of reflection:
 
@@ -1926,11 +1802,11 @@ Our induction hypothesis gives us that at type `T`, the following holds:
 
 With our induction hypothesis, our new goal is to prove only that:
 
-    Γ″ ⊢ 𝓊 s = (𝓊̂ · (↓ˢ a)) Γ″ : T
+    ∀ Γ″ ≤ Γ′. Γ″ ⊢ 𝓊 s = (𝓊̂ · (↓ˢ a)) Γ″ : T
 
-for any `Γ″` that is an extension of `Γ′` (which itself extends `Γ`). Note that
-`(𝓊̂ · (↓ˢ a)) Γ″` is equivalent to `𝓊̂(Γ″) · (↓ˢ a)(Γ″)` (application of liftable
-neutrals is overloaded), so the final form of the property we have to prove is:
+Note that `(𝓊̂ · (↓ˢ a)) Γ″` is equivalent to `𝓊̂(Γ″) · (↓ˢ a)(Γ″)` (application
+of liftable neutrals is overloaded), so the final form of the property we have
+to prove is:
 
     Γ″ ⊢ 𝓊 s = 𝓊̂(Γ″) · ↓ˢ a Γ″ : T
 
@@ -1940,13 +1816,11 @@ only prove that:
     Γ″ ⊢ 𝓊 = 𝓊̂(Γ″) : S → T
     Γ″ ⊢ s = ↓ˢ a Γ″ : S
 
-The first property is our given evidence, and the second property follows from
-the second lemma we will be proving:
+The first property is our given evidence. We can use our other given proof (that
+`Γ′ ⊢ s : S Ⓡ a`) with the the second lemma we will be proving to prove the
+second property:
 
-    Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ′ : T
-
-We have that `Γ′ ⊢ s : S Ⓡ a`, so we can apply this lemma to arrive at the
-second property we need. The proof in Agda is as described above:
+    Γ′ ⊢ s : T Ⓡ a ⇒ ∀ Γ″ ≤ Γ′. Γ″ ⊢ s = ↓ᵀ a Γ″ : T
 
 ```agda
 ==^→Ⓡ↑ {T = _ ⇒ _} {𝓊} {𝓊̂} pf {Γ′} Γ′≤Γ {s} {a} sⓇa =
@@ -1960,11 +1834,11 @@ second property we need. The proof in Agda is as described above:
       ... | inj₁ ⟨ 𝓊″ , _ ⟩ | 𝓊==𝓊″                   =
         begin==
           Γ″≤Γ′ ≤⊢ (Γ′≤Γ ≤⊢ 𝓊) · s
-        ==⟨ app-compatible (≡→== (weaken-compose Γ″≤Γ′ Γ′≤Γ 𝓊)) refl ⟩
+        ==⟨ app-compatible (≡→== (weaken-compose Γ″≤Γ′ Γ′≤Γ 𝓊)) refl⁼⁼ ⟩
           (Γ″≤Γ ≤⊢ 𝓊) · (Γ″≤Γ′ ≤⊢ s)
-        ==⟨ app-compatible 𝓊==𝓊″ refl ⟩
+        ==⟨ app-compatible 𝓊==𝓊″ refl⁼⁼ ⟩
           𝓊″ · (Γ″≤Γ′ ≤⊢ s)
-        ==⟨ app-compatible refl s==↓ᵀaΓ″ ⟩
+        ==⟨ app-compatible refl⁼⁼ s==↓ᵀaΓ″ ⟩
           𝓊″ · proj₁ (↓ᵀ a Γ″)
         ==∎
         where
@@ -1977,39 +1851,28 @@ This brings us to our second lemma:
     Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ′ : T
 
 It will similarly be proven by induction on the type `T`. First, let us prove
-the lemma for the type `nat`. At type `nat`, our lemma simplifies (by definition
+the lemma for the type `𝟙`. At type `𝟙`, our lemma simplifies (by definition
 of `Ⓡ`) to:
 
-    (∀ Γ′ ≤ Γ. Γ′ ⊢ t : T = a (Γ′)) ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ⁿᵃᵗ a Γ′ : T
+    (∀ Γ′ ≤ Γ. Γ′ ⊢ t : T = a (Γ′)) ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵘⁿⁱᵗ a Γ′ : T
 
-We can prove this separately as a lemma, this time by induction on the semantic
-object `a ∈ ℕ̂`, as `↓ⁿᵃᵗ` is defined by recursion on expressions of type `ℕ̂`.
-The lemma makes up the first part of our proof, after which we can move on to
-our inductive step.
+We can break this down further into a case analysis on `a`, which can be either
+`unit` or an embedded liftable neutral `𝓊̂`. In both cases, we can use our given
+proof.
 
 ```agda
-==ℕ̂→==↓ᵀ : ∀ {Γ : Ctx} {n : Γ ⊢ nat} {a : ⟦ nat ⟧}
-         → n ==ℕ̂ a
-           -------------------
-         → n == proj₁ (↓ᵀ a Γ)
-==ℕ̂→==↓ᵀ {a = zero} pf with ↓ᵀ {nat} zero
+Ⓡ→==↓ {T = 𝟙} {a = unit} pf with ↓ᵀ {𝟙} unit
 ... | _ = pf
-==ℕ̂→==↓ᵀ {Γ} {a = suc a} ⟨ n , ⟨ m==sn , n==a ⟩ ⟩
-  with ↓ᵀ {nat} (suc a) | ==ℕ̂→==↓ᵀ {a = a} (n==a ≤-id)
-... | _                 | pf
-  rewrite [id]-identity {t = n} = trans m==sn (app-compatible refl pf)
-==ℕ̂→==↓ᵀ {Γ} {t} {ne 𝓊̂} pf
-  with 𝓊̂ Γ           | pf
-... | inj₁ ⟨ 𝓊 , _ ⟩ | t==𝓊 = t==𝓊
+Ⓡ→==↓ {Γ′} {T = 𝟙} {a = ne 𝓊̂} pf Γ′≤Γ
+  with 𝓊̂ Γ′           | pf Γ′≤Γ
+... | inj₁ ⟨ 𝓊 , _ ⟩  | t==𝓊 = t==𝓊
 ```
-
-With this lemma, we can proceed to our proof by induction on types.
 
 For the case where we are at a function type `S → T`, our lemma now simplifies
 to:
 
     (∀ Γ′ ≤ Γ. Γ′ ⊢ x : S Ⓡ a ⇒ Γ′ ⊢ t x : T Ⓡ f a) ⇒
-      ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ˢ⃗ᵗ f Γ′
+      ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ˢ  ⃕ ᵗ f Γ′
 
 We can once again expand out the definition of reification at type `S → T`,
 simplifying the lemma to:
@@ -2036,50 +1899,18 @@ Our given proof further simplifies this goal to simply proving that
 of the first lemma that we are proving mutually, and here we can use that lemma
 to finish our proof.
 
-The proof in Agda additionally needs to use some substitution lemmas to deal
-with the weakening substitutions applied to terms when extending a context.
-The proofs for these lemmas are left out in the rendering as well, as they are
-mostly a result of the formalization of substitutions. That said,
-`weaken-incr≡↥`, postulating that applying an incrementing substitution to a
-term that already has a weakening substitution is equivalent to shifting the
-weakening substitution is not fully proven at the moment (it depends on a lemma
-that applying two weakening substitutions is equivalent to applying a composed
-weakening substitution).
-
 ```agda
-weaken-incr≡↥ : ∀ {Γ Γ′ : Ctx} {Γ′≤Γ : Γ′ ≤ Γ} {S T : Type} {t : Γ ⊢ T}
-         → S ↑⊢ (t [ weaken Γ′≤Γ ]) ≡ t [ subst-ren (ren-≤ Γ′≤Γ ↥ᵣ) ]
-```
-
-<!---
-```agda
-weaken-incr≡↥ {Γ′≤Γ = ≤-id} {t = t} rewrite [id]-identity {t = t} = refl
-weaken-incr≡↥ {Γ′≤Γ = ≤-ext {T = S₁} Γ′≤Γ} {S₂} {t = t}
-  rewrite ≡-sym (weaken-incr≡↥ {Γ′≤Γ = Γ′≤Γ} {S₁} {t = t})
-        | weaken-compose (≤-ext {T = S₁} ≤-id) Γ′≤Γ t
-        | weaken-compose
-            (≤-ext {T = S₂} ≤-id)
-            (≤-trans (≤-ext {T = S₁} ≤-id) Γ′≤Γ)
-            t
-        | ≤-pf-irrelevance
-            (≤-trans (≤-ext ≤-id) (≤-trans (≤-ext ≤-id) Γ′≤Γ))
-            (≤-ext {T = S₂} (≤-ext {T = S₁} Γ′≤Γ))             = refl
-```
---->
-
-```agda
-Ⓡ→==↓ {T = nat} {a = a} pf Γ′≤Γ = ==ℕ̂→==↓ᵀ {a = a} (pf Γ′≤Γ)
 Ⓡ→==↓ {Γ′} {T = S ⇒ _} {t} {f} pf Γ′≤Γ =
   begin==
     Γ′≤Γ ≤⊢ t
   ==⟨ η ⟩
-    ƛ (S ↑⊢ Γ′≤Γ ≤⊢ t) · # 𝑍
+    ƛ (S ↥⊢ Γ′≤Γ ≤⊢ t) · # 𝑍
   ==⟨
     abs-compatible (
       begin==
-        (S ↑⊢ Γ′≤Γ ≤⊢ t) · # 𝑍
-      ==⟨ app-compatible subst-lemma refl ⟩
-        (≤-ext Γ′≤Γ ≤⊢ t) [ subst-id ] · # 𝑍
+        (S ↥⊢ Γ′≤Γ ≤⊢ t) · # 𝑍
+      ==⟨ app-compatible subst-lemma refl⁼⁼ ⟩
+        (≤-ext Γ′≤Γ ≤⊢ t) [ id ] · # 𝑍
       ==⟨ Ⓡ→==↓ (pf (≤-ext Γ′≤Γ) xⓇa) ≤-id ⟩
         proj₁ (↓ᵀ (f a) (Γ′ , S))
       ==∎
@@ -2091,141 +1922,49 @@ weaken-incr≡↥ {Γ′≤Γ = ≤-ext {T = S₁} Γ′≤Γ} {S₂} {t = t}
     xⓇa = xⓇ↑ᵀ𝓍̂ {Γ′} {S}
 
     subst-lemma =
-      ≡→== (≡-trans (weaken-incr≡↥ {Γ′≤Γ = Γ′≤Γ} {t = t}) (≡-sym [id]-identity))
+      ≡→== (trans
+             (sub-sub {τ = ↥} {weaken Γ′≤Γ} {t})
+             (sym [id]-identity))
 ```
 
 Lastly, we can quickly derive the lemma `Γ , x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂ Γ` used in the
-previous lemma using `(∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ′) : T) ⇒ Γ ⊢ 𝓊 Ⓡ ↑ᵀ 𝓊̂`. Again, we
-use a lemma we have left out in the rendering ─ that any proof of context
-extension is equivalent.
+previous lemma using `(∀ Γ′ ≤ Γ. Γ′ ⊢ 𝓊 = 𝓊̂(Γ′) : T) ⇒ Γ ⊢ 𝓊 Ⓡ ↑ᵀ 𝓊̂`. The proof requires an additional lemma, `≤-pf-irrelevance`, stating that any proof of
+context extension is equivalent.
+
+```agda
+≤-pf-irrelevance : ∀ {Γ′ Γ : Ctx}
+                 → (pf₁ : Γ′ ≤ Γ)
+                 → (pf₂ : Γ′ ≤ Γ)
+                 → pf₁ ≡ pf₂
+≤-pf-irrelevance ≤-id ≤-id               = refl
+≤-pf-irrelevance ≤-id (≤-ext pf)         = ⊥-elim (Γ≰Γ,T pf)
+≤-pf-irrelevance (≤-ext pf) ≤-id         = ⊥-elim (Γ≰Γ,T pf)
+≤-pf-irrelevance (≤-ext pf₁) (≤-ext pf₂)
+  rewrite ≤-pf-irrelevance pf₁ pf₂       = refl
+```
 
 ```agda
 xⓇ↑ᵀ𝓍̂ {_} {T} = ==^→Ⓡ↑ x==𝓍̂ where
   x==𝓍̂ : ∀ {Γ Γ′ : Ctx}
-       → (Γ′≤Γ,T : Γ′ ≤ (Γ , T))
+       → (Γ′≤Γ,T : Γ′ ≤ Γ , T)
        → Γ′≤Γ,T ≤⊢ # 𝑍 ==^ 𝓍̂ T Γ
   x==𝓍̂ {Γ} {Γ′} pf
     with Γ′ ≤? (Γ , T)
-  ... | no ¬pf         = ¬pf pf
+  ... | no ¬pf                           = ¬pf pf
   ... | yes pf′
     with 𝓍̂ T Γ | ≤-pf-irrelevance pf pf′
   ... | _      | refl
-    with ren-≤ pf′
-  ...| _ , _       = refl
+    with ρ-≤ pf′ 𝑍
+  ...| _                                 = refl⁼⁼
 ```
-
-Before moving forward to the last part of our overall proof that the normal form
-of a term obtained by normaliztion by evaluation is definitionally equal, we
-also need to show that  `Γ ⊢ rec : T → (nat → T → T) → nat → T Ⓡ ⟦rec⟧`, as one
-of the terms that `t` can be in our desired property `Γ ⊢ t Ⓡ ⟦t⟧ ↑Γ` is `rec`.
-Essentially, we need proof that our interpretation of `rec` is sound to prove
-the overall soundness of normalization by evaluation. We omit this proof, as it
-is rather involved, but it is again available in the source code.
-
-```agda
-recⓇ⟦rec⟧ : ∀ {Γ : Ctx} {T : Type} → rec {Γ} {T} Ⓡ ⟦rec⟧
-```
-
-<!---
-```agda
-recⓇ⟦rec⟧ Γ′≤Γ {z} pf Γ″≤Γ′ pf′ Γ‴≤Γ″ {s = n} {zero} pf″
-
-  with pf″ ≤-id
-... | n==zero
-  rewrite [id]-identity {t = n} =
-  ==-Ⓡ-trans (app-compatible refl (sym n==zero))
-    (==-Ⓡ-trans (sym β-rec-z) zⓇa)
-    where
-      Γ‴≤Γ′ = ≤-trans Γ‴≤Γ″ Γ″≤Γ′
-      subst-lemma = ≡→== (≡-sym (weaken-compose Γ‴≤Γ″ Γ″≤Γ′ z))
-      zⓇa = ==-Ⓡ-trans subst-lemma (Ⓡ-weaken {Γ′≤Γ = Γ‴≤Γ′} pf)
-
-recⓇ⟦rec⟧ Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {as} pf′ Γ‴≤Γ″ {m} {suc an} pf″
-  with pf″ ≤-id
-... | ⟨ n , ⟨ m==san , nⓇan ⟩ ⟩
-  rewrite [id]-identity {t = m} =
-    ==-Ⓡ-trans (app-compatible refl (sym m==san))
-      (==-Ⓡ-trans (sym β-rec-s) s·n·recⓇas·an·⟦rec⟧)
-  where
-    subst-lemma₁ = [id]-identity {t = Γ‴≤Γ″ ≤⊢ s}
-    subst-lemma₂ = [id]-identity {t = n}
-
-    rec·z·s·n = (Γ‴≤Γ″ ≤⊢ (Γ″≤Γ′ ≤⊢ rec · z) · s) · n
-
-    ih : rec·z·s·n Ⓡ ⟦rec⟧ az as an
-    ih = recⓇ⟦rec⟧ Γ′≤Γ pf Γ″≤Γ′ {s = s} pf′ Γ‴≤Γ″ {s = n} {an} nⓇan
-
-    s·n·recⓇas·an·⟦rec⟧ : (Γ‴≤Γ″ ≤⊢ s) · n · rec·z·s·n Ⓡ as an (⟦rec⟧ az as an)
-    s·n·recⓇas·an·⟦rec⟧ with pf′ Γ‴≤Γ″ {n} nⓇan ≤-id ih
-    ... | pf
-      rewrite subst-lemma₁ | subst-lemma₂ = pf
-
-recⓇ⟦rec⟧ {_} {T} Γ′≤Γ {z} {az} pf Γ″≤Γ′ {s} {as} pf′ {Γ‴} Γ‴≤Γ″ {n} {ne 𝓊̂} pf″ =
-  ==^→Ⓡ↑ rec==^rec^ where
-    rec==^rec^ : ∀ {Γ⁗ : Ctx}
-      → (Γ⁗≤Γ‴ : Γ⁗ ≤ Γ‴)
-      → Γ⁗≤Γ‴ ≤⊢ (Γ‴≤Γ″ ≤⊢ (Γ″≤Γ′ ≤⊢ rec · z) · s) · n ==^ rec^ (↓ᵀ az) (↓ᵀ as) 𝓊̂
-    rec==^rec^ {Γ⁗} Γ⁗≤Γ‴
-      with 𝓊̂ Γ⁗          | pf″ Γ⁗≤Γ‴
-    ... | inj₁ ⟨ _ , _ ⟩ | n==𝓊 =
-      app-compatible
-        (app-compatible
-          (app-compatible
-            refl
-            (z==↓ᵀaz))
-          (trans
-            η
-            (abs-compatible
-              (trans
-                η
-                (abs-compatible  s·x₁·x₂==↓ᵀas·↑ᵀ𝓍̂₁·↑ᵀ𝓍̂₂)))))
-      n==𝓊
-      where
-        Γ‴≤Γ′ = ≤-trans Γ‴≤Γ″ Γ″≤Γ′
-        Γ⁗≤Γ″ = ≤-trans Γ⁗≤Γ‴ Γ‴≤Γ″
-        Γ⁗,nat≤Γ⁗ = ≤-ext {T = nat} Γ⁗≤Γ″
-        Γ⁗,nat,T≤Γ⁗ = ≤-ext {T = T} Γ⁗,nat≤Γ⁗
-        Γ⁗,nat,T≤Γ⁗,nat = ≤-ext {T = T} (≤-id {Γ⁗ , nat})
-
-        subst-lemma₁ = ≡-sym (weaken-incr≡↥ {Γ′≤Γ = Γ⁗≤Γ″} {S = nat} {t = s})
-        subst-lemma₂ =
-          ≡-sym (weaken-compose Γ⁗≤Γ‴ Γ‴≤Γ″ s)
-        subst-lemma₃ = [id]-identity {t = T ↑⊢ nat ↑⊢ Γ⁗≤Γ‴ ≤⊢ Γ‴≤Γ″ ≤⊢ s}
-
-        𝓍̂₁ = 𝓍̂ nat Γ⁗
-        𝓍̂₂ = 𝓍̂ T (Γ⁗ , nat)
-
-        s·x₁·x₂Ⓡas·↑ᵀ𝓍̂₁↑ᵀ𝓍̂₂ =
-          pf′ Γ⁗,nat≤Γ⁗ {s = # 𝑍} {a = ↑ᵀ {nat} (𝓍̂ nat Γ⁗)} (xⓇ↑ᵀ𝓍̂ {Γ⁗} {nat})
-            Γ⁗,nat,T≤Γ⁗,nat xⓇ↑ᵀ𝓍̂
-
-        s·x₁·x₂==↓ᵀas·↑ᵀ𝓍̂₁·↑ᵀ𝓍̂₂ :
-          (T ↑⊢ nat ↑⊢ Γ⁗≤Γ‴ ≤⊢ Γ‴≤Γ″ ≤⊢ s) · # (𝑆 𝑍) · # 𝑍 ==
-            proj₁ (↓ᵀ (as (↑ᵀ 𝓍̂₁) (↑ᵀ 𝓍̂₂)) (Γ⁗ , nat , T))
-        s·x₁·x₂==↓ᵀas·↑ᵀ𝓍̂₁·↑ᵀ𝓍̂₂
-          with s·x₁·x₂Ⓡas·↑ᵀ𝓍̂₁↑ᵀ𝓍̂₂
-        ... | pf-Ⓡ
-          with Ⓡ→==↓ pf-Ⓡ ≤-id
-        ... | pf-==↓ᵀ
-          rewrite subst-lemma₁ | subst-lemma₂ | subst-lemma₃ = pf-==↓ᵀ
-
-        subst-lemma₄ = ≡-sym (weaken-compose Γ⁗≤Γ‴ Γ‴≤Γ′ z)
-        subst-lemma₅  = ≡-sym (weaken-compose Γ‴≤Γ″ Γ″≤Γ′ z)
-
-        z==↓ᵀaz : Γ⁗≤Γ‴ ≤⊢ Γ‴≤Γ″ ≤⊢ Γ″≤Γ′ ≤⊢ z == proj₁ (↓ᵀ az Γ⁗)
-        z==↓ᵀaz
-          with Ⓡ→==↓ {Γ⁗} pf (≤-trans Γ⁗≤Γ‴ Γ‴≤Γ′)
-        ... | pf
-          rewrite subst-lemma₄ | subst-lemma₅ = pf
-```
---->
 
 Let's focus on one of the lemmas we have proven:
 
     Γ ⊢ t : T Ⓡ a ⇒ ∀ Γ′ ≤ Γ. Γ′ ⊢ t = ↓ᵀ a Γ : T
 
-We have defined our logical relation with the property that this lemma gives us
-that:
+We have defined our logical relation with the goal of having the following case
+of this property:
+
     Γ ⊢ t : T Ⓡ a ⇒ Γ ⊢ t = ↓ᵀ a Γ : T
 
 We now need to show that:
@@ -2240,93 +1979,72 @@ form as obtained from our algorithm for normalization by evaluation:
 To prove `Γ ⊢ t : T Ⓡ ⟦t⟧ ↑Γ`, we will need to extend our logical relation to
 include substitutions and environments.
 
-The relation `Γ ⊢ σ : Δ Ⓡ ε` between a parallel substitution `Γ ⊢ σ : Δ` and an
-environment `ε ∈ ⟦ Δ ⟧` will be defined inductively, though this time by
-induction on `σ`.
-
-A substitution from the empty context is always logically related to an empty
-environment, while an extension to a substition `(σ , s / x)` is logically
-related to an environment `(ε , a)` if `σ` is logically related to `ε` and `s`
-is logically related to `a`.
+A parallel substitution `Γ ⊢ σ : Δ` will be logically related to an environment
+`ε ∈ ⟦ Δ ⟧` if every term that the substitution `σ` is substituting for the
+context `Δ` is logically related to the corresponding semantic object in the
+environment `ε`. In Agda, we will use `Ⓡˢ` as `Ⓡ` is already reserved for terms
+and semantic objects, though we will refer to the relation as `Γ ⊢ σ : Δ Ⓡ ε`.
 
 ```agda
-instance
-  Ⓡ-Sub : ∀ {Γ Δ : Ctx} → Relation (Sub Γ Δ) (⟦ Δ ⟧)
-  Relation.rel Ⓡ-Sub ∅ tt              = ⊤
-  Relation.rel Ⓡ-Sub (σ , s) ⟨ ε , a ⟩ = σ Ⓡ ε × s Ⓡ a
+_Ⓡˢ_ : ∀ {Γ Δ : Ctx} → Sub Γ Δ → ⟦ Δ ⟧ → Set
+_Ⓡˢ_ {Δ = Δ} σ ε = ∀ {T : Type} → (x : Δ ∋ T) → σ x Ⓡ env-lookup x ε
 ```
 
-A consequence of defining the logical relation between substitutions and
-environments by induction on `σ` is that we have that a logical relation for a
-shifted substitution holds if the logical relation holds for the original
-substitution. Intuitively, this makes sense because our relation is really only
-concerned with the context `Δ`, which remains unchanged between a shifted
-substitution `Γ , x:T ⊢ σ ↑ : Δ` and the original substitution `Γ ⊢ σ : Δ`.
-This lemma (specifically its special case for a renaming substitution, which
-is easier to prove) will come in handy later on. We can prove it by induction
-on the renaming substitution itself. Here again we use some substitution lemmas
-whose definitions are omitted, but the proof is by induction on the renaming
-substitution.
+<!---
+```agda
+infix 4 _Ⓡˢ_
+```
+--->
+
+Similarly as for the logical relation between terms and semantic objects, if a
+logical relation holds between a substitution and an environment, it holds for
+any weakening of the substitution. The proof is immediate using `Ⓡ-weaken`.
 
 ```agda
-Ⓡ-↥ : ∀ {Γ Δ : Ctx} {T : Type} {ρ : Ren Γ Δ} {ε : ⟦ Δ ⟧}
-      → subst-ren ρ Ⓡ ε
-      → subst-ren (_↥ᵣ {T = T} ρ) Ⓡ ε
-Ⓡ-↥ {ρ = ∅} pf                                   = tt
-Ⓡ-↥ {T = T} {ρ = _ , x} {⟨ _ , a ⟩} ⟨ pf , xⓇa ⟩ = ⟨ Ⓡ-↥ pf , ↑⊢xⓇa ⟩
-  where
-    subst-lemma₁ = shift-var {S = T} {x = x} {ρ = ren-id}
-    subst-lemma₂ = rename-id {x = x}
-
-    Γ,T≤Γ = ≤-ext {T = T} ≤-id
-
-    ↑⊢xⓇa : # (𝑆 x) Ⓡ a
-    ↑⊢xⓇa
-      with Ⓡ-weaken {Γ′≤Γ = Γ,T≤Γ} {t = # x} xⓇa
-    ... | pf
-      rewrite subst-lemma₁ | subst-lemma₂ = pf
+Ⓡˢ-weaken : ∀ {Γ′ Γ Δ : Ctx} {Γ′≤Γ : Γ′ ≤ Γ} {σ : Sub Γ Δ} {ε : ⟦ Δ ⟧}
+           → σ Ⓡˢ ε
+           → σ ∘ (weaken Γ′≤Γ) Ⓡˢ ε
+Ⓡˢ-weaken {Γ′≤Γ = Γ′≤Γ} σⓇε x = Ⓡ-weaken {Γ′≤Γ = Γ′≤Γ} (σⓇε x)
 ```
 
-A generalization of this is, similarly as for logical relations between terms
-and semantic objects, that if a logical relation holds between a substitution
-and an environment, it holds for any weakening of the substitution (as weakening
-is really a series of shifts). We prove this by induction on the substitution,
-applying the `Ⓡ-weaken` lemma for the logical relation between terms and
-semantic objects for each term in the substitution.
-
-```agda
-sub-Ⓡ-weaken : ∀ {Γ′ Γ Δ : Ctx} {Γ′≤Γ : Γ′ ≤ Γ} {σ : Sub Γ Δ} {ε : ⟦ Δ ⟧}
-        → σ Ⓡ ε
-        → σ ∘ (weaken Γ′≤Γ) Ⓡ ε
-sub-Ⓡ-weaken {σ = ∅} x                            = tt
-sub-Ⓡ-weaken {Γ′≤Γ = Γ′≤Γ} {σ , s} ⟨ σⓇε , sⓇa ⟩ =
-  ⟨ sub-Ⓡ-weaken {Γ′≤Γ = Γ′≤Γ} σⓇε , Ⓡ-weaken {Γ′≤Γ = Γ′≤Γ} sⓇa ⟩
-```
-
-These two lemmas will be necessary for our proofs, which we are now ready to
-begin laying out. We introduce the semantic typing judgement `Γ ⊨ t : T`:
+With the logical relation extended to substitutions and environments, we can
+introduce the semantic typing judgement `Δ ⊨ t : T`. For any substitution
+`Γ ⊢ σ : Δ` that is logically related to an environment `ε ∈ ⟦ Δ ⟧`,
+`Γ ⊢ t [ σ ] : T` must be logically related to `⟦ t ⟧ ε`.
 
 ```agda
 _⊨_ : ∀ {T : Type} → (Γ : Ctx) → Γ ⊢ T → Set
 _⊨_ {T} Γ t =
   ∀ {Δ : Ctx} {σ : Sub Δ Γ} {ε : ⟦ Γ ⟧}
-  → σ Ⓡ ε
+  → σ Ⓡˢ ε
     -------
   → t [ σ ] Ⓡ ⟦⊢ t ⟧ ε
 ```
 
-That is, `Γ ⊨ t : T` is a judgement implying that if a substitution is logically
-related to an environment, then the application of that substitution to a term
-is logically related to the evaluation of that term under the environment. By
-induction on the typing judgement `Γ ⊢ t : T`, we can prove the semantic typing
-judgement `Γ ⊨ t : T`. This is called the fundamental lemma of logical
-relations. For `zero` and `suc`, the cases follow immediately from how we have
-defined the logical relation between terms and semantic objects. For `rec`, we
-can use our earlier lemma. In the case of variables, the proof is essentially a
-lookup into the environment for the semantic object that the variable is
-logically related to, using our proof that `Γ ⊢ σ : Δ Ⓡ ε`). Application follows
-from our inductive hypotheses, leaving us at the abstraction case, which is the
-most complicated to prove.
+Using the semantic typing judgement, we will be able to derive that
+`Γ ⊢ t Ⓡ ⟦ t ⟧ ↑Γ`. By induction on the typing judgement `Δ ⊢ t : T`, we can
+prove the semantic typing judgement `Δ ⊨ t : T` for a substitution `Γ ⊢ σ : Δ`
+that is logically related to an environment `ε`; this is called the fundamental
+lemma of logical relations.
+
+For `unit`, the proof follows immediately from how we have defined the logical
+relation between terms and semantic objects at type `𝟙`. In the case of
+variables, the given proof is exactly what we need. Application follows from our
+inductive hypotheses, leaving us at the abstraction case, which is the most
+complicated to prove. Here are the first three cases:
+
+```agda
+fundamental-lemma : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
+                  → Γ ⊨ t
+fundamental-lemma {t = unit} σⓇε _ = refl⁼⁼
+fundamental-lemma {t = # x} σⓇε = σⓇε x
+fundamental-lemma {t = r · s} {σ = σ} σⓇˢε
+  with fundamental-lemma {t = r} σⓇˢε | fundamental-lemma {t = s} σⓇˢε
+... | Γ⊨r                              | Γ⊨s
+  with Γ⊨r ≤-id Γ⊨s
+... | pf
+  rewrite [id]-identity {t = r [ σ ]} = pf
+```
 
 In the case of an abstraction `Γ ⊢ λx. t : S → T`, we want to prove:
     Γ ⊢ σ : Δ Ⓡ ε ⇒
@@ -2336,7 +2054,7 @@ By the definition of the application of a substitution to an abstraction, as
 well as the definition of evaluation of an abstraction, this simplifies to:
 
     Γ ⊢ σ : Δ Ⓡ ε ⇒
-      Γ ⊢ λx. t [ σ ↥ , x / x ] : S → T Ⓡ f
+      Γ ⊢ λx. t [ exts σ ] : S → T Ⓡ f
         (where f = λ a → ⟦ Γ , x: S ⊢ t : T ⟧ (ε , a))
 
 We can also expand this using the definition of `Ⓡ` for functions (and
@@ -2344,130 +2062,157 @@ immediately reducing the application of `f` to `a`):
 
     Γ ⊢ σ : Δ Ⓡ ε ⇒
       ∀ Γ′ ≤ Γ. Γ′ ⊢ s : S Ⓡ a ⇒
-        Γ′ ⊢ (λx. t [ σ ↥ , x / x ]) · s : T Ⓡ ⟦ Γ , x:S ⊢ t : T ⟧ (ε , a)
+        Γ′ ⊢ (λx. t [ exts σ ]) · s : T Ⓡ ⟦ Γ , x:S ⊢ t : T ⟧ (ε , a)
 
 Already, this is a tricky property to parse. To start, we can use our lemma
-that `Ⓡ` is transitive with respect to definitional equality, and use the `β-ƛ`
-rule to reduce `(λx. t [ σ ↑ , x/x ]) · s` to `t [ σ ↑ , x / x ] [s / x]`. Now,
-we need only prove:
+that `Ⓡ` is transitive with respect to definitional equality, and use the `β`
+rule to reduce `(λx. t [ exts σ ]) · s` to `t [ exts σ ] [ s / x ]`. Now, we
+need only prove:
 
-    Γ′ , x:S ⊢ t [ σ ↥ , x / x ] [ s / x ] : T Ⓡ ⟦ Γ , x:S ⊢ t : T ⟧ (ε , a)
+    Γ′ , x:S ⊢ t [ exts σ ] [ s / x ] : T Ⓡ ⟦ Γ , x:S ⊢ t : T ⟧ (ε , a)
 
-Here, we can use a substitution lemma to reduce these two substitutions, giving
-us:
+Here, we can use a few substitution lemma to compose these two substitutions and
+reduce them into just `σ ∷ s`, giving us:
 
-    Γ′ , x:S ⊢ t [ σ ↥ , s / x ] : T Ⓡ ⟦ Γ , x:S ⊢ t : T ⟧ (ε , a)
+    Γ′ , x:S ⊢ t [ σ ∷ s ] : T Ⓡ ⟦ Γ , x:S ⊢ t : T ⟧ (ε , a)
 
-Now, the property we want to show actually looks like our induction hypothesis.
-With it, we have that we only need to show that:
+The property we want to show now looks like our induction hypothesis! Using the
+induction hypothesis, we only need to show that:
 
-     Γ′ , x:S ⊢ (σ ↥ , s / x) : Δ Ⓡ (ε , a)
+     Γ′ , x:S ⊢ σ ∷ s : (Δ , x:S) Ⓡ (ε , a)
 
-This expands to proving both:
+In other words, we need to prove that for any variable `x` in the context
+`Δ , x : S` that `σ` is substituting a term for, the term being substituted for
+that variable must be logically related to its corresponding semantic object in
+the environment `(ε , a)`. We can do a case analysis on `x` to break this down
+further. The first case is what the relation simplifies to in the case that the
+variable being substituted for is `𝑍` ─ all that needs to be proven is that the
+term being substituted for the first variable in `Δ , x : S` (which is `s`) is
+logically related to the first semantic object in `(ε , a)`. In other words,
+for this case, what needs to be proven is:
 
-     Γ′ , x:S ⊢ σ ↥ : Δ Ⓡ ε
-     Γ′ ⊢ s : S Ⓡ a
+    Γ′ ⊢ s : S Ⓡ a
 
-The first follows from our earlier lemma that if a substitution is logically
-related to an environment, then so is a shifting of the substitution. The
-second property follows from our given proof. With that, our abstraction case is
-proven. In reality, there are a few other substitution lemmas that our
-formalization forces us to use, but they are mostly irrelevant to the proofs
-themselves at a high-level, having again to do mostly with the weakening
-substitutions applied at the switching of contexts. [^1]
+This is already our given proof, so this case follows immediately. The second
+case is what the relation simplifies to in the case that the variable being
+substituted for is in `Δ`, meaning `x` is `𝑆 x`:
+
+    Γ′ ⊢ (σ ∷ s) (𝑆 x) : U Ⓡ env-lookup x ε
+
+Here, we need to use a few substitution lemmas (which have been omitted as their
+proofs are unrelated to the logical relation itself) to rewrite this to:
+
+    Γ′ ⊢ σ x : U Ⓡ env-lookup x ε
+
+This is again already given to us from our given proof that `Γ ⊢ σ : Δ Ⓡ ε`.
+There is one small problem: we are now considering the context `Γ′` while our
+given proof is over the context `Γ`. There was, in fact, an implict _weakening_
+of `σ` in the changing of contexts (and it would be more correct to have been
+writing `σ ∘ weaken Γ′≤Γ`, though the explanation used `σ` for simplicity).
+Here, we can use the earlier lemma that if a substitution is logically related
+to an environment, then so is a weakening of the substitution. With that, the
+abstraction case is proven. Note that, in Agda, the expressions for
+`t [ exts σ ]` and `σ ∷ s` are a little more complicated, mainly because of
+the implicit weakening of the substitution `σ`.
 
 ```agda
-fundamental-lemma : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
-                  → Γ ⊨ t
-fundamental-lemma {t = zero} σⓇε _ = refl
-fundamental-lemma {t = suc} σⓇε Δ′≤Δ {s} {a} pf {Δ″} Δ″≤Δ′ =
-  ⟨ Δ″≤Δ′ ≤⊢ s , ⟨ refl , s==a ⟩ ⟩
+fundamental-lemma {Γ} {S ⇒ T} {ƛ t} {σ = σ} {ε} σⓇε Γ′≤Γ {s} {a} sⓇa =
+  ==-Ⓡ-trans (sym⁼⁼ β) t[exts-σ][s/x]Ⓡ⟦t⟧⟨ε,a⟩
   where
-    s==a : ∀ {Δ‴ : Ctx} → (Δ‴≤Δ″ : Δ‴ ≤ Δ″) → Δ‴≤Δ″ ≤⊢ Δ″≤Δ′ ≤⊢ s ==ℕ̂ a
-    s==a Δ‴≤Δ″
-      with pf (≤-trans Δ‴≤Δ″ Δ″≤Δ′)
-    ... | pf
-      rewrite weaken-compose Δ‴≤Δ″ Δ″≤Δ′ s = pf
-fundamental-lemma {t = rec {T}} _ = recⓇ⟦rec⟧
-fundamental-lemma {t = # 𝑍} {σ = _ , _ } {⟨ _ , _ ⟩} ⟨ _ , xⓇa ⟩ = xⓇa
-fundamental-lemma {t = # (𝑆 x)} {σ = _ , _} {⟨ _ , _ ⟩} ⟨ σⓇε , _ ⟩ =
-  fundamental-lemma {t = # x} σⓇε
-fundamental-lemma {t = ƛ t} {σ = σ} {ε} σⓇε Γ′≤Γ {s} {a} sⓇa =
-  ==-Ⓡ-trans (sym β-ƛ) t[σ↥,x/x][s/x]Ⓡ⟦t⟧⟨ε,a⟩
-  where
-    subst-lemma₁ =
-      subst-compose {τ = subst-id , s} {weaken Γ′≤Γ ↥ , # 𝑍} {t [ σ ↥ , # 𝑍 ]}
-    subst-lemma₂ =
-     subst-compose {τ = ((weaken Γ′≤Γ ↥) ∘ (subst-id , s)) , s} {σ ↥ , # 𝑍} {t}
+    t[exts-σ] = t [ exts σ ] [ exts (weaken Γ′≤Γ) ]
+    σ∷s = exts σ ∘ exts (weaken Γ′≤Γ) ∘ (id ∷ s)
+```
 
-    t[σ↥,x/x] = t [ σ ↥ , # 𝑍 ] [ weaken Γ′≤Γ ↥ , # 𝑍 ]
+<!---
+```agda
+    subst-lemma₁ : ∀ {U : Type} {x : Γ ∋ U} → σ∷s (𝑆 x) ≡ (σ ∘ weaken Γ′≤Γ) x
+    subst-lemma₁ {x = x} =
+      begin
+        σ∷s (𝑆 x)
+      ≡⟨ sub-𝑆-shift {σ = σ∷s} {x} ⟩
+        (↥ ∘ σ∷s) x
+      ≡⟨⟩
+        (↥ ∘ exts σ ∘ (exts (weaken Γ′≤Γ) ∘ (id ∷ s))) x
+      ≡⟨ cong-app (cong-seq {σ = ↥ ∘ exts σ} refl subst-zero-exts-cons) x ⟩
+        (↥ ∘ exts σ ∘ (weaken Γ′≤Γ ∷ s)) x
+      ≡⟨ cong-app (cong-seq {σ = ↥} refl (cong-seq {σ = exts σ} exts-cons-shift refl)) x ⟩
+        (↥ ∘ ((σ ∘ ↥) ∷ # 𝑍) ∘ (weaken Γ′≤Γ ∷ s)) x
+      ≡⟨ cong-app (sym (sub-assoc {σ = ↥} {(σ ∘ ↥) ∷ # 𝑍} {weaken Γ′≤Γ ∷ s})) x ⟩
+        ((↥ ∘ ((σ ∘ ↥) ∷ # 𝑍)) ∘ (weaken Γ′≤Γ ∷ s)) x
+      ≡⟨ cong-app (cong-seq (sub-tail {s = # 𝑍} {σ ∘ ↥}) refl) x ⟩
+        ((σ ∘ ↥) ∘ (weaken Γ′≤Γ ∷ s)) x
+      ≡⟨ cong-app (sub-assoc {σ = σ} {↥} {weaken Γ′≤Γ ∷ s}) x ⟩
+        (σ ∘ ↥ ∘ (weaken Γ′≤Γ ∷ s)) x
+      ≡⟨ cong-app (cong-seq {σ = σ} refl (sub-tail {s = s} {weaken Γ′≤Γ})) x ⟩
+        (σ ∘ weaken Γ′≤Γ) x
+      ∎
 
-    subst-lemma₃ = subst-compose-↥ {τ = subst-id} {weaken Γ′≤Γ} {s}
-    subst-lemma₄ = subst-compose-↥ {τ = weaken Γ′≤Γ ∘ subst-id} {σ} {s}
-    subst-lemma₅ = id-compose-identity {σ = weaken Γ′≤Γ}
+    subst-lemma₂ = sub-sub {τ = id ∷ s} {exts (weaken Γ′≤Γ)} {t [ exts σ ]}
+    subst-lemma₃ = sub-sub {τ = exts (weaken Γ′≤Γ) ∘ (id ∷ s)} {exts σ} {t}
+```
+--->
 
-    σ′ = ((σ ↥) ∘ (((weaken Γ′≤Γ ↥) ∘ (subst-id , s)) , s))
+```agda
+    σ∷sⓇ⟨ε,a⟩ : σ∷s  Ⓡˢ ⟨ ε , a ⟩
+    σ∷sⓇ⟨ε,a⟩ 𝑍 = sⓇa
+    σ∷sⓇ⟨ε,a⟩ (𝑆_ {T = U} x) rewrite subst-lemma₁ {x = x} =
+      Ⓡˢ-weaken {Γ′≤Γ = Γ′≤Γ} σⓇε x
 
-    σ′Ⓡε : σ′  Ⓡ ε
-    σ′Ⓡε rewrite subst-lemma₃ | subst-lemma₄ | subst-lemma₅ =
-      sub-Ⓡ-weaken {Γ′≤Γ = Γ′≤Γ} σⓇε
-
-    t[σ↥,x/x][s/x]Ⓡ⟦t⟧⟨ε,a⟩ : t[σ↥,x/x] [ s /x] Ⓡ ⟦⊢ t ⟧ ⟨ ε , a ⟩
-    t[σ↥,x/x][s/x]Ⓡ⟦t⟧⟨ε,a⟩ rewrite subst-lemma₁ | subst-lemma₂ =
-        fundamental-lemma {t = t} ⟨ σ′Ⓡε , sⓇa ⟩
-fundamental-lemma {t = r · s} {σ = σ} σⓇε
-  with fundamental-lemma {t = r} σⓇε | fundamental-lemma {t = s} σⓇε
-... | Γ⊨r                             | Γ⊨s
-  with Γ⊨r ≤-id Γ⊨s
-... | pf
-  rewrite [id]-identity {t = r [ σ ]} = pf
+    t[exts-σ][s/x]Ⓡ⟦t⟧⟨ε,a⟩ : t[exts-σ] [ s ]₀ Ⓡ ⟦⊢ t ⟧ ⟨ ε , a ⟩
+    t[exts-σ][s/x]Ⓡ⟦t⟧⟨ε,a⟩ rewrite subst-lemma₂ | subst-lemma₃ =
+        fundamental-lemma {t = t} σ∷sⓇ⟨ε,a⟩
 ```
 
 Separately, we have that the identity substitution is logically related to
 our environment of reflected variables, `Γ ⊢ id : Γ Ⓡ ↑Γ`. We prove this by
-induction, again using the lemma that `Γ, x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂ Γ` for every
-variable being substituted for itself. For our inductive step:
-
-    Γ , x : T ⊢ id ↥ , x / x : Γ , x : T`
-
-The inductive hypothesis actually gives us proof that `Γ ⊢ id : Γ Ⓡ ↑Γ`. What
-we really want is proof that `Γ , x : T ⊢ id ↥ : Γ Ⓡ Γ`. Here, we use the lemma
-that if a logical relation holds for a substitution and an environment, it also
-holds for a shifting of the substitution (`Ⓡ-↥`), transforming our inductive
-hypothesis into our goal.
+induction on the variable being substituted for, using the lemma that
+`Γ , x:T ⊢ x : T Ⓡ ↑ᵀ 𝓍̂ Γ` for the base case. For the inductive step, there is
+a need to weaken the inductive hypothesis (which gives us that
+`Γ ⊢ y : T Ⓡ ↑ᵀ 𝓍̂ Γ`) to the context `Γ , x:S`.
 
 ```agda
 idⓇ↑Γ : ∀ {Γ : Ctx}
-       → subst-id Ⓡ (↑ᶜᵗˣ Γ)
-idⓇ↑Γ {∅}     = tt
-idⓇ↑Γ {Γ , T} = ⟨ Ⓡ-↥ {T = T} idⓇ↑Γ , xⓇ↑ᵀ𝓍̂ ⟩
+       → id Ⓡˢ (↑ᶜᵗˣ Γ)
+idⓇ↑Γ 𝑍             = xⓇ↑ᵀ𝓍̂
+idⓇ↑Γ {Γ , T} (𝑆 x) = Ⓡ-weaken {Γ′≤Γ = Γ,T≤Γ} {t = # x} (idⓇ↑Γ {Γ} x) where
+  Γ,T≤Γ = ≤-ext {T = T} ≤-id
 ```
 
-Now, we arrive at the soundness of our algorithm for normalization by
+Now, we can arrive at the soundness of our algorithm for normalization by
 evaluation. We have `Γ ⊢ id : Γ Ⓡ ↑Γ`, and using the fundamental lemma with
 the identity substitution gives us:
 
     Γ ⊢ t [ id ] Ⓡ ⟦ t ⟧ ↑Γ
 
-Note also that `t [ id ] ≡ t`. Using the lemma that logical relation between a
+Note also that `t [ id ] ≡ t`. Using the lemma that a logical relation between a
 term and a semantic object implies the definitional equality of the term to the
 reification of the semantic object, we have:
 
     Γ ⊢ t = ↓ᵀ (⟦ t ⟧ ↑Γ) Γ : T
 
-Thus, our algorithm for normalization by evaluation is sound and preserves the
-meaning of a term that it normalizes.
+Thus, our algorithm for normalization by evaluation preserves the meaning of a
+term that it normalizes. By extension, the algorithm is also idempotent (as we
+have already shown it is complete), so the algorithm as a whole satisifies the
+soundness properties we wanted.
 
 ```agda
-soundness : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
-          → t == nf t
-soundness {Γ} {T} {t}
+nf-== : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
+      → t == nf t
+nf-== {Γ} {T} {t}
   with fundamental-lemma {t = t} (idⓇ↑Γ {Γ})
 ... | tⓇ⟦t⟧↑Γ
   with Ⓡ→==↓ tⓇ⟦t⟧↑Γ ≤-id
 ... | t==↓ᵀ⟦t⟧↑Γ
-  rewrite [id]-identity {t = t [ subst-id ]}
-        | [id]-identity {t = t}              = t==↓ᵀ⟦t⟧↑Γ
+  rewrite [id]-identity {t = t [ id ]}
+        | [id]-identity {t = t}                = t==↓ᵀ⟦t⟧↑Γ
+
+nf-preserves-meaning : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T} {ε : ⟦ Γ ⟧}
+                     → ⟦⊢ t ⟧ ε ≡ ⟦⊢ nf t ⟧ ε
+nf-preserves-meaning {t = t} = ==→⟦≡⟧ (nf-== {t = t})
+
+nf-idempotent : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
+              → nf t ≡ nf (nf t)
+nf-idempotent {t = t} = completeness (nf-== {t = t})
 ```
 
 ### Conclusion
@@ -2478,8 +2223,8 @@ cannot be evaluated (i.e. "unknowns") unchanged while still evaluating the parts
 of the term that we do know how to reduce. The algorithm is both complete and
 sound with respect to definitional equality, as we have proven. Completeness
 followed quickly from the definition of the algorithm, while soundness required
-a more in-depth proof involving the use of logical relations and the fundamental
-lemma of logical relations.
+a more in-depth proof involving the use of logical relations and their
+fundamental lemma.
 
 In his habilitation thesis, Andreas Abel goes on to introduce the algorithm for
 the untyped lambda calculus, from which he continues to build upon, arriving at
@@ -2492,7 +2237,7 @@ in a language other than Agda.
 
 #### Unicode
 
-This site uses the following unicode[^2]:
+This site uses the following unicode in its Agda source code[^1]:
 
     λ  U+03BB  GREEK SMALL LETTER LAMBDA (\Gl)
     ⊥  U+22A5  UP TACK (\bot)
@@ -2527,6 +2272,10 @@ This site uses the following unicode[^2]:
     ↥  U+21A5  UPWARDS ARROW FROM BAR (\u-|)
     Σ  U+03A3  GREE CAPITAL LETTER SIGMA (\GS)
     ∘  U+2218  RING OPERATOR (\o)
+    ω  U+03C9  GREEK SMALL LETTER OMEGA (\Go)
+    ∷  U+2237  PROPORTION (\::)
+    θ  U+03B8  GREEK SMALL LETTER THETA (\Gth)
+    Φ  U+03A6  GREEK CAPITAL LETTER PHI (\Gf)
     ⟦  U+27E6  MATHEMATICAL LEFT WHITE SQUARE BRACKET (\[[)
     ⟦  U+27E7  MATHEMATICAL RIGHT WHITE SQUARE BRACKET (\]])
     β  U+03B2  GREEK SMALL LETTER BETA (\Gb)
@@ -2538,35 +2287,17 @@ This site uses the following unicode[^2]:
     𝓋  U+1D4CB  MATHEMATICAL SCRIPT SMALL V (\Mcv)
     ↑  U+2191  UPWARDS ARROW (\u)
     ᵀ  U+1D40  MODIFIER LETTER CAPITAL T (\^T)
-    ⁿ  U+207F  SUPERSCRIPT LATIN SMALL LETTER N (\^n)
-    ᵃ  U+1D43  MODIFIER LETTER SMALL A (\^a)
-    ᵗ  U+1D57  MODIFIER LETTER SMALL T (\^t)
-    ˢ  U+02E2  MODIFIER LETTER SMALL S (\^s)
-    ⃗  U+20D7  COMBINING RIGHT ARROW ABOVE (\^r)
     ↓  U+2193  DOWNWARDS ARROW (\d)
     ᶜ  U+1D9C  MODIFIER LETTER SMALL C (\^c)
+    ᵗ  U+1D57  MODIFIER LETTER SMALL T (\^t)
     ˣ  U+02E3  MODIFIER LETTER SMALL X (\^x)
     ̂  U+0302  COMBINING CIRCUMFLEX ACCENT (\^)
-    ℕ  U+2115  DOUBLE STRUCK CAPITAL N (\bN)
     𝓍  U+1D4CD  MATHEMATICAL SCRIPT SMALL X (\Mcx)
     ≰  U+2270  NEITHER LESS THAN NOR EQUAL TO (\len)
     ₃  U+2083  SUBSCRIPT 3 (\_3)
-    ⇔  U+21D4  LEFT RIGHT DOUBLE ARROW (\<=>)
-    Ⓝ  U+24C3  CIRCLED LATIN CAPITAL LETTER N (\(n)2)
     Ⓡ  U+24C7  CIRCLED LATIN CAPITAL LETTER R (\(r)2)
     ″  U+2033  DOUBLE PRIME (\'2)
-    ‴  U+2034  TRIPLE PRIME (\'3)
-    ⁗  U+2057  QUADRUPLE PRIME (\'4)
 
 #### References
 
-[^1]: Note that there is a subtle detail here left out, we are implicitly
-considering a substitution using `Γ′` but the original substitution is
-`Γ ⊢ σ : Δ`. This gets a little too into the details of our substitutions, but
-we are writing out `σ ↥` when really we should write out
-`(σ ∘ weaken Γ′ ≤ Γ) ↥`. In the end, our reasoning still follows because the
-composition of a weakening onto a substitution is really equivalent to shifting
-it by that many extensions, and again ─ shifts do not affect the logical
-relation between a substitution and an environment.
-
-[^2]: ̂ (`\^`) may be displayed on top of another character when written after it (e.g. `\Mcu\^` produces 𝓊̂)
+[^1]: ̂ (`\^`) may be displayed on top of another character when written after it (e.g. `\Mcu\^` produces 𝓊̂)
