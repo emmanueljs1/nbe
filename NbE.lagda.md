@@ -1409,10 +1409,66 @@ and sound. First, we include as a postulate the property that if terms are
 definitionally equal, then they must have the same interpretation.
 
 ```agda
-postulate
-  ==→⟦≡⟧ : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T} {ε : ⟦ Γ ⟧}
-         → t == t′
-         → ⟦⊢ t ⟧ ε ≡ ⟦⊢ t′ ⟧ ε
+cong-eval : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T} {ε : ⟦ Γ ⟧}
+          → t ≡ t′
+          → ⟦⊢ t ⟧ ε ≡ ⟦⊢ t′ ⟧ ε
+cong-eval = {!!}
+
+↥-eval-drop : ∀ {Γ Δ : Ctx} {S T : Type} {σ : Sub Γ Δ} {t : Δ ⊢ T} {ε : ⟦ Γ ⟧} {a : ⟦ S ⟧}
+            → ⟦⊢ t [ σ ] ⟧ ε ≡ ⟦⊢ t [ σ ] [ ↥ ] ⟧ ⟨ ε , a ⟩
+↥-eval-drop {t = unit} = refl
+↥-eval-drop {σ = σ} {# x} {ε} {a}
+  with σ x
+... | unit = refl
+... | # x = refl
+... | ƛ t =
+  begin
+    ⟦⊢ ƛ t ⟧ ε
+  ≡⟨ cong-eval (sym ([id]-identity {t = ƛ t})) ⟩
+    ⟦⊢ (ƛ t) [ id ] ⟧ ε
+  ≡⟨ ↥-eval-drop {σ = id} {ƛ t} ⟩
+    ⟦⊢ (ƛ t) [ id ] [ ↥ ] ⟧ ⟨ ε , a ⟩
+  ≡⟨ cong-eval (cong-sub refl ([id]-identity {t = ƛ t})) ⟩
+    ⟦⊢ (ƛ t) [ ↥ ] ⟧ ⟨ ε , a ⟩
+  ∎
+... | r · s = {!!}
+↥-eval-drop {t = ƛ t} = extensionality ? where
+{-
+  lemma : {!!}
+  lemma with ↥-eval-drop {t = t}
+  ...      | ih = {!!}
+-}
+↥-eval-drop {t = t · t₁} = {!!}
+
+β-meaning-preserving : ∀ {Γ : Ctx} {S T : Type} {t : Γ , S ⊢ T} {s : Γ ⊢ S}
+                         {ε : ⟦ Γ ⟧}
+                     → ⟦⊢ t [ s ]₀ ⟧ ε ≡ ⟦⊢ t ⟧ ⟨ ε , ⟦⊢ s ⟧ ε ⟩
+β-meaning-preserving {t = unit}    = refl
+β-meaning-preserving {t = # 𝑍}     = refl
+β-meaning-preserving {t = # (𝑆 x)} = refl
+β-meaning-preserving {t = ƛ t} {s} {ε} = {!!}
+{-
+  with β-meaning-preserving {t = t} {{!!}} {⟨ ε , ⟦⊢ s ⟧ ε ⟩}
+...  | ih = extensionality lemma where
+  lemma : {!!}
+  lemma a = {!!}
+-}
+β-meaning-preserving {t = t · t₁} = {!!}
+
+==→⟦≡⟧ : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T} {ε : ⟦ Γ ⟧}
+       → t == t′
+       → ⟦⊢ t ⟧ ε ≡ ⟦⊢ t′ ⟧ ε
+==→⟦≡⟧ {ε = ε} (β {t = t} {s = s})
+  with ⟦⊢ t ⟧ ⟨ ε , ⟦⊢ s ⟧ ε ⟩ | ⟦⊢ t [ s ]₀ ⟧ ε
+... | h | h1 = {!!}
+==→⟦≡⟧ η = extensionality λ _ → ↥-eval-drop
+==→⟦≡⟧ {ε = ε} (abs-compatible t==t′) =
+  extensionality λ a → ==→⟦≡⟧ {ε = ⟨ ε , a ⟩} t==t′
+==→⟦≡⟧ {ε = ε} (app-compatible r==r′ s==s′)
+  rewrite ==→⟦≡⟧ {ε = ε} r==r′ | ==→⟦≡⟧ {ε = ε} s==s′ = refl
+==→⟦≡⟧ refl⁼⁼ = refl
+==→⟦≡⟧ (sym⁼⁼ t′==t) = sym (==→⟦≡⟧ t′==t)
+==→⟦≡⟧ (trans⁼⁼ t₁==t₂ t₂==t₃) = trans (==→⟦≡⟧ t₁==t₂) (==→⟦≡⟧ t₂==t₃)
 ```
 
 We consider our algorithm for normalization by evaluation complete if two terms
