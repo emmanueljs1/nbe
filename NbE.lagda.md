@@ -1043,23 +1043,24 @@ being the interpretation of the type the context is extended with.
     ⟦ ∅ ⟧ = ⊤
     ⟦ Γ , S ⟧ = ⟦ Γ ⟧ × ⟦ S ⟧
 
-From now on, we will use the metavariable `ε` for environments.
+We will use the lowercase Greek letter of a context to refer to its environment
+(e.g. `γ` is an environment for `Γ`).
 
 The interpretation of a variable expects an environment, and is essentially a
 lookup into the environment for the variable's value:
 
-    ⟦ Γ ∋ x:T ⟧ (ε ∈ ⟦ Γ ⟧) ∈ ⟦ T ⟧
-    ⟦ Γ , T ∋ x:T ⟧ (ε , a) = a
-    ⟦ Γ , y:S ∋ x:T ⟧ (ε , _) = ⟦ Γ ∋ x:T ⟧ ε
+    ⟦ Γ ∋ x:T ⟧ (γ ∈ ⟦ Γ ⟧) ∈ ⟦ T ⟧
+    ⟦ Γ , T ∋ x:T ⟧ (γ , a) = a
+    ⟦ Γ , y:S ∋ x:T ⟧ (γ , _) = ⟦ Γ ∋ x:T ⟧ γ
 
 The interpretation of a typed term expects an environment as well, evaluating
 the term by using the environment for the variables that the term is using.
 
-    ⟦ Γ ⊢ t : T ⟧ (ε ∈ ⟦Γ⟧) ∈ ⟦ T ⟧
-    ⟦ Γ ⊢ unit : 𝟙 ⟧ ε       = tt
-    ⟦ Γ ⊢ x : T ⟧ ε          = ⟦ Γ ∋ x:T ⟧ ε
-    ⟦ Γ ⊢ λx . t : S ⇒ T ⟧ ε = λ a → ⟦ Γ , x:S ⊢ t : T ⟧ (ε , a)
-    ⟦ Γ ⊢ r s : T ⟧ ε        = (⟦ Γ ⊢ r : S ⇒ T ⟧ ε) (⟦ Γ ⊢ s : S ⟧ ε)
+    ⟦ Γ ⊢ t : T ⟧ (γ ∈ ⟦Γ⟧) ∈ ⟦ T ⟧
+    ⟦ Γ ⊢ unit : 𝟙 ⟧ γ       = tt
+    ⟦ Γ ⊢ x : T ⟧ γ          = ⟦ Γ ∋ x:T ⟧ γ
+    ⟦ Γ ⊢ λx . t : S ⇒ T ⟧ γ = λ a → ⟦ Γ , x:S ⊢ t : T ⟧ (γ , a)
+    ⟦ Γ ⊢ r s : T ⟧ γ        = (⟦ Γ ⊢ r : S ⇒ T ⟧ γ) (⟦ Γ ⊢ s : S ⟧ γ)
 
 Before moving forward, we introduce the record we will use to represent
 interpretations of types and contexts. For now, we will only include the
@@ -1301,13 +1302,13 @@ instance
 
 env-lookup : ∀ {Γ : Ctx} {T : Type} → Γ ∋ T → ⟦ Γ ⟧ → ⟦ T ⟧
 env-lookup {Γ , T} 𝑍     ⟨ _ , a ⟩ = a
-env-lookup {Γ , T} (𝑆 x) ⟨ ε , _ ⟩ = env-lookup x ε
+env-lookup {Γ , T} (𝑆 x) ⟨ γ , _ ⟩ = env-lookup x γ
 
 ⟦⊢_⟧ : ∀ {Γ : Ctx} {T : Type} → Γ ⊢ T → ⟦ Γ ⟧ → ⟦ T ⟧
 ⟦⊢ unit ⟧ _  = unit
-⟦⊢ # x ⟧ ε   = env-lookup x ε
-⟦⊢ ƛ t ⟧ ε a = ⟦⊢ t ⟧ ⟨ ε , a ⟩
-⟦⊢ r · s ⟧ ε = ⟦⊢ r ⟧ ε (⟦⊢ s ⟧  ε)
+⟦⊢ # x ⟧ γ   = env-lookup x γ
+⟦⊢ ƛ t ⟧ γ a = ⟦⊢ t ⟧ ⟨ γ , a ⟩
+⟦⊢ r · s ⟧ γ = ⟦⊢ r ⟧ γ (⟦⊢ s ⟧  γ)
 ```
 
 To reify an Agda expressions of type `⊤̂`, we will define a function `↓⊤̂`. It is
@@ -1405,15 +1406,97 @@ module AlgorithmExample where
 ### Correctness
 
 We wish for our algorithm for normalization by evaluation to be both complete
-and sound. First, we include as a postulate the property that if terms are
-definitionally equal, then they must have the same interpretation.
+and sound. First, we need to prove the property that if two terms are
+definitionally equal, then they must have the same interpretation. This proof
+is omitted in the rendering as well ─ it is an adaptation of the proof of
+soundness of reduction with respect to denotational semantics in PLFA seen
+in [this](https://plfa.github.io/Soundness/) chapter.
+
+<!---
+```agda
+_⊩ʳ_~_ : ∀ {Γ Δ : Ctx} → ⟦ Γ ⟧ → Ren Γ Δ → ⟦ Δ ⟧ → Set
+_⊩ʳ_~_ {Δ = Δ} γ ρ δ =
+  ∀ {T : Type} (x : Δ ∋ T) → env-lookup (ρ x) γ ≡ env-lookup x δ
+
+rename-preserves-meaning : ∀ {Γ Δ : Ctx} {T : Type} {γ : ⟦ Γ ⟧} {δ : ⟦ Δ ⟧}
+                             {t : Δ ⊢ T} {ρ : Ren Γ Δ}
+                         → γ ⊩ʳ ρ ~ δ
+                         → ⟦⊢ t [ ρ ]ʳ ⟧ γ ≡ ⟦⊢ t ⟧ δ
+rename-preserves-meaning {t = unit} pf = refl
+rename-preserves-meaning {t = # x} pf = pf x
+rename-preserves-meaning {T = S ⇒ _} {γ} {δ} {ƛ t} {ρ} pf = extensionality lemma
+ where
+ lemma : ∀ (a : ⟦ S ⟧) → ⟦⊢ t [ ext ρ ]ʳ ⟧ ⟨ γ , a ⟩ ≡ ⟦⊢ t ⟧ ⟨ δ , a ⟩
+ lemma a =
+   rename-preserves-meaning {t = t} {ext ρ} (λ where
+                                              𝑍     → refl
+                                              (𝑆 x) → pf x)
+rename-preserves-meaning {t = r · s} {ρ} pf
+  rewrite rename-preserves-meaning {t = r} {ρ} pf
+        | rename-preserves-meaning {t = s} {ρ} pf = refl
+
+_⊩_~_ : ∀ {Γ Δ : Ctx} → ⟦ Γ ⟧ → Sub Γ Δ → ⟦ Δ ⟧ → Set
+_⊩_~_ {Δ = Δ} γ σ δ = ∀ {T : Type} (x : Δ ∋ T) → ⟦⊢ σ x ⟧ γ ≡ env-lookup x δ
+
+subst-exts : ∀ {Γ Δ : Ctx} {S : Type} {γ : ⟦ Γ ⟧} {a : ⟦ S ⟧} {σ : Sub Γ Δ}
+               {δ : ⟦ Δ ⟧}
+           → γ ⊩ σ ~ δ
+           → ⟨ γ , a ⟩ ⊩ exts σ ~ ⟨ δ , a ⟩
+subst-exts _ 𝑍 = refl
+subst-exts {σ = σ} pf (𝑆 x) rewrite sym (pf x) =
+  rename-preserves-meaning {t = σ x} {↥ʳ} λ _ → refl
+
+subst-preserves-meaning : ∀ {Γ Δ : Ctx} {T : Type} {γ : ⟦ Γ ⟧} {δ : ⟦ Δ ⟧}
+                            {σ : Sub Γ Δ} {t : Δ ⊢ T}
+                        → γ ⊩ σ ~ δ
+                        → ⟦⊢ t [ σ ] ⟧ γ ≡ ⟦⊢ t ⟧ δ
+subst-preserves-meaning {t = unit} x = refl
+subst-preserves-meaning {t = # x} pf = pf x
+subst-preserves-meaning {T = S ⇒ T} {γ} {δ} {σ} {ƛ t} pf = extensionality lemma
+  where
+  lemma : ∀ (a : ⟦ S ⟧) → ⟦⊢ t [ exts σ ] ⟧ ⟨ γ , a ⟩ ≡ ⟦⊢ t ⟧ ⟨ δ , a ⟩
+  lemma a = subst-preserves-meaning {σ = exts σ} {t = t} (subst-exts pf)
+subst-preserves-meaning {σ = σ} {r · s} pf
+  rewrite subst-preserves-meaning {σ = σ} {r} pf
+        | subst-preserves-meaning {σ = σ} {s} pf = refl
+
+β-preserves-meaning : ∀ {Γ : Ctx} {S T : Type} {γ : ⟦ Γ ⟧} {s : Γ ⊢ S}
+                        {t : Γ , S ⊢ T}
+                    → ⟦⊢ t ⟧ ⟨ γ , ⟦⊢ s ⟧ γ ⟩ ≡ ⟦⊢ t [ s ]₀ ⟧ γ
+β-preserves-meaning {Γ} {S} {γ = γ} {s} {t} =
+  sym (subst-preserves-meaning {γ = γ} {⟨ γ , a ⟩} {id ∷ s} {t} lemma)
+  where
+  a = ⟦⊢ s ⟧ γ
+  lemma : ∀ {T : Type}
+        → (x : Γ , S ∋ T)
+        → ⟦⊢ (id ∷ s) x ⟧ γ ≡ env-lookup x ⟨ γ , a ⟩
+  lemma 𝑍     = refl
+  lemma (𝑆 x) = refl
+```
+--->
 
 ```agda
-postulate
-  ==→⟦≡⟧ : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T} {ε : ⟦ Γ ⟧}
-         → t == t′
-         → ⟦⊢ t ⟧ ε ≡ ⟦⊢ t′ ⟧ ε
+==→⟦≡⟧ : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T} {γ : ⟦ Γ ⟧}
+       → t == t′
+       → ⟦⊢ t ⟧ γ ≡ ⟦⊢ t′ ⟧ γ
 ```
+
+<!---
+```
+==→⟦≡⟧ {γ = γ} (β {t = t} {s = s}) = β-preserves-meaning {γ = γ} {s} {t}
+==→⟦≡⟧ {T = S ⇒ _} {t = t} {γ = γ} η = extensionality lemma where
+  lemma : ∀ (a : ⟦ S ⟧) → ⟦⊢ t ⟧ γ a ≡ ⟦⊢ t [ ↥ ] ⟧ ⟨ γ , a ⟩ a
+  lemma a rewrite sym (subst-preserves-meaning
+                        {γ = ⟨ γ , a ⟩} {γ} {↥} {t} λ{ _ → refl}) = refl
+==→⟦≡⟧ {γ = γ} (abs-compatible t==t′) =
+  extensionality (λ a → ==→⟦≡⟧ {γ = ⟨ γ , a ⟩} t==t′)
+==→⟦≡⟧ {γ = γ} (app-compatible r==r′ s==s′)
+  rewrite ==→⟦≡⟧ {γ = γ} r==r′ | ==→⟦≡⟧ {γ = γ} s==s′ = refl
+==→⟦≡⟧ refl⁼⁼ = refl
+==→⟦≡⟧ (sym⁼⁼ t′==t) = sym (==→⟦≡⟧ t′==t)
+==→⟦≡⟧ (trans⁼⁼ t₁==t₂ t₂==t₃) = trans (==→⟦≡⟧ t₁==t₂) (==→⟦≡⟧ t₂==t₃)
+```
+--->
 
 We consider our algorithm for normalization by evaluation complete if two terms
 that are definitionally equal (and thus have the same meaning) have the same
@@ -1431,7 +1514,7 @@ This follows directly from `Γ ⊢ t = t′ : T` implying that `⟦ t ⟧ = ⟦ 
 completeness : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T}
              → t == t′
              → nf t ≡ nf t′
-completeness {Γ} t==t′ rewrite ==→⟦≡⟧ {ε = ↑ᶜᵗˣ Γ} t==t′ = refl
+completeness {Γ} t==t′ rewrite ==→⟦≡⟧ {γ = ↑ᶜᵗˣ Γ} t==t′ = refl
 ```
 
 As for the soundness properties that we wanted from the algorithm:
@@ -1970,14 +2053,14 @@ To prove `Γ ⊢ t : T Ⓡ ⟦t⟧ ↑Γ`, we will need to extend our logical re
 include substitutions and environments.
 
 A parallel substitution `Γ ⊢ σ : Δ` will be logically related to an environment
-`ε ∈ ⟦ Δ ⟧` if every term that the substitution `σ` is substituting for the
+`δ ∈ ⟦ Δ ⟧` if every term that the substitution `σ` is substituting for the
 context `Δ` is logically related to the corresponding semantic object in the
-environment `ε`. In Agda, we will use `Ⓡˢ` as `Ⓡ` is already reserved for terms
-and semantic objects, though we will refer to the relation as `Γ ⊢ σ : Δ Ⓡ ε`.
+environment `δ`. In Agda, we will use `Ⓡˢ` as `Ⓡ` is already reserved for terms
+and semantic objects, though we will refer to the relation as `Γ ⊢ σ : Δ Ⓡ δ`.
 
 ```agda
 _Ⓡˢ_ : ∀ {Γ Δ : Ctx} → Sub Γ Δ → ⟦ Δ ⟧ → Set
-_Ⓡˢ_ {Δ = Δ} σ ε = ∀ {T : Type} → (x : Δ ∋ T) → σ x Ⓡ env-lookup x ε
+_Ⓡˢ_ {Δ = Δ} σ δ = ∀ {T : Type} → (x : Δ ∋ T) → σ x Ⓡ env-lookup x δ
 ```
 
 <!---
@@ -1991,29 +2074,28 @@ logical relation holds between a substitution and an environment, it holds for
 any weakening of the substitution. The proof is immediate using `Ⓡ-weaken`.
 
 ```agda
-Ⓡˢ-weaken : ∀ {Γ′ Γ Δ : Ctx} {Γ′≤Γ : Γ′ ≤ Γ} {σ : Sub Γ Δ} {ε : ⟦ Δ ⟧}
-           → σ Ⓡˢ ε
-           → σ ∘ (weaken Γ′≤Γ) Ⓡˢ ε
-Ⓡˢ-weaken {Γ′≤Γ = Γ′≤Γ} σⓇε x = Ⓡ-weaken {Γ′≤Γ = Γ′≤Γ} (σⓇε x)
+Ⓡˢ-weaken : ∀ {Γ′ Γ Δ : Ctx} {Γ′≤Γ : Γ′ ≤ Γ} {σ : Sub Γ Δ} {δ : ⟦ Δ ⟧}
+           → σ Ⓡˢ δ
+           → σ ∘ (weaken Γ′≤Γ) Ⓡˢ δ
+Ⓡˢ-weaken {Γ′≤Γ = Γ′≤Γ} σⓇδ x = Ⓡ-weaken {Γ′≤Γ = Γ′≤Γ} (σⓇδ x)
 ```
 
 With the logical relation extended to substitutions and environments, we can
 introduce the semantic typing judgement `Δ ⊨ t : T`: for any substitution
-`Γ ⊢ σ : Δ` that is logically related to an environment `ε ∈ ⟦ Δ ⟧`,
-`Γ ⊢ t[σ] : T` must be logically related to `⟦ t ⟧ ε`. Using the semantic typing
+`Γ ⊢ σ : Δ` that is logically related to an environment `δ ∈ ⟦ Δ ⟧`,
+`Γ ⊢ t[σ] : T` must be logically related to `⟦ t ⟧ δ`. Using the semantic typing
 judgement, we will be able to derive that `Γ ⊢ t Ⓡ ⟦ t ⟧ ↑Γ`.
 
 ```agda
-_⊨_ : ∀ {T : Type} → (Γ : Ctx) → Γ ⊢ T → Set
-_⊨_ {T} Γ t =
-  ∀ {Δ : Ctx} {σ : Sub Δ Γ} {ε : ⟦ Γ ⟧}
-  → σ Ⓡˢ ε
+_⊨_ : ∀ {T : Type} → (Δ : Ctx) → Δ ⊢ T → Set
+_⊨_ {T} Δ t =
+  ∀ {Γ : Ctx} {σ : Sub Γ Δ} {δ : ⟦ Δ ⟧}
+  → σ Ⓡˢ δ
     -------
-  → t [ σ ] Ⓡ ⟦⊢ t ⟧ ε
+  → t [ σ ] Ⓡ ⟦⊢ t ⟧ δ
 ```
 
-We can prove the semantic typing judgement `Δ ⊨ t : T` for a substitution
-`Γ ⊢ σ : Δ` that is logically related to an environment `ε` by induction on the
+We can prove the semantic typing judgement `Δ ⊨ t : T` by induction on the
 typing judgement `Δ ⊢ t : T`; this is called the fundamental lemma of logical
 relations.
 
@@ -2024,13 +2106,13 @@ inductive hypotheses, leaving us at the abstraction case, which is the most
 complicated to prove. Here are the first three cases:
 
 ```agda
-fundamental-lemma : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
-                  → Γ ⊨ t
-fundamental-lemma {t = unit} σⓇε _ = refl⁼⁼
-fundamental-lemma {t = # x} σⓇε = σⓇε x
-fundamental-lemma {t = r · s} {σ = σ} σⓇˢε
-  with fundamental-lemma {t = r} σⓇˢε | fundamental-lemma {t = s} σⓇˢε
-... | Γ⊨r                              | Γ⊨s
+fundamental-lemma : ∀ {Δ : Ctx} {T : Type} {t : Δ ⊢ T}
+                  → Δ ⊨ t
+fundamental-lemma {t = unit} σⓇδ _ = refl⁼⁼
+fundamental-lemma {t = # x} σⓇδ = σⓇδ x
+fundamental-lemma {t = r · s} {σ = σ} σⓇδ
+  with fundamental-lemma {t = r} σⓇδ | fundamental-lemma {t = s} σⓇδ
+... | Γ⊨r                             | Γ⊨s
   with Γ⊨r ≤-id Γ⊨s
 ... | pf
   rewrite [id]-identity {t = r [ σ ]} = pf
@@ -2038,49 +2120,49 @@ fundamental-lemma {t = r · s} {σ = σ} σⓇˢε
 
 In the case of an abstraction `Γ ⊢ λx. t : S → T`, we want to prove:
 
-    Γ ⊢ σ : Δ Ⓡ ε ⇒
-      Γ ⊢ (λx. t)[σ] : S → T Ⓡ ⟦ Γ ⊢ λx. t : S → T ⟧ ε
+    Γ ⊢ σ : Δ Ⓡ δ ⇒
+      Γ ⊢ (λx. t)[σ] : S → T Ⓡ ⟦ Γ ⊢ λx. t : S → T ⟧ δ
 
 By the definition of the application of a substitution to an abstraction, as
 well as the definition of evaluation of an abstraction, this simplifies to:
 
-    Γ ⊢ σ : Δ Ⓡ ε ⇒
+    Γ ⊢ σ : Δ Ⓡ δ ⇒
       Γ ⊢ λx. t[exts σ] : S → T Ⓡ f
     
-          where f = λ a → ⟦ Γ, x:S ⊢ t : T ⟧ (ε , a)
+          where f = λ a → ⟦ Γ, x:S ⊢ t : T ⟧ (δ , a)
 
 We can also expand this using the definition of `Ⓡ` for functions (and
 immediately reducing the application of `f` to `a`):
 
-    Γ ⊢ σ : Δ Ⓡ ε ⇒
+    Γ ⊢ σ : Δ Ⓡ δ ⇒
       ∀ Γ′ ≤ Γ. Γ′ ⊢ s : S Ⓡ a ⇒
-        Γ′ ⊢ (λx. t[exts σ]) · s : T Ⓡ ⟦ Γ, x:S ⊢ t : T ⟧ (ε , a)
+        Γ′ ⊢ (λx. t[exts σ]) · s : T Ⓡ ⟦ Γ, x:S ⊢ t : T ⟧ (δ , a)
 
 Already, this is a tricky property to parse. To start, we can use our lemma
 that `Ⓡ` is transitive with respect to definitional equality, and use the `β`
 rule to reduce `(λx. t[exts σ]) · s` to `t[exts σ][s/x]`. Now, we need only
 prove:
 
-    Γ′ ⊢ t[exts σ][s/x] : T Ⓡ ⟦ Γ, x:S ⊢ t : T ⟧ (ε , a)
+    Γ′ ⊢ t[exts σ][s/x] : T Ⓡ ⟦ Γ, x:S ⊢ t : T ⟧ (δ , a)
 
 Here, we can use a few substitution lemma to compose these two substitutions and
 reduce them into just `σ ∷ s`, giving us:
 
-    Γ′ ⊢ t [σ ∷ s] : T Ⓡ ⟦ Γ, x:S ⊢ t : T ⟧ (ε , a)
+    Γ′ ⊢ t [σ ∷ s] : T Ⓡ ⟦ Γ, x:S ⊢ t : T ⟧ (δ , a)
 
 The property we want to show now looks like our induction hypothesis! Using the
 induction hypothesis, we only need to show that:
 
-     Γ′ ⊢ σ ∷ s : (Δ, x:S) Ⓡ (ε , a)
+     Γ′ ⊢ σ ∷ s : (Δ, x:S) Ⓡ (δ , a)
 
 In other words, we need to prove that for any variable `x` in the context
 `Δ, x:S` that `σ` is substituting a term for, the term being substituted for
 that variable must be logically related to its corresponding semantic object in
-the environment `(ε , a)`. We can do a case analysis on `x` to break this down
+the environment `(δ , a)`. We can do a case analysis on `x` to break this down
 further. The first case is what the relation simplifies to in the case that the
 variable being substituted for is `𝑍` ─ all that needs to be proven is that the
 term being substituted for the first variable in `Δ, x:S` (which is `s`) is
-logically related to the first semantic object in `(ε , a)`. In other words,
+logically related to the first semantic object in `(δ , a)`. In other words,
 for this case, what needs to be proven is:
 
     Γ′ ⊢ s : S Ⓡ a
@@ -2089,14 +2171,14 @@ This is already our given proof, so this case follows immediately. The second
 case is what the relation simplifies to in the case that the variable being
 substituted for is in `Δ`, meaning `x` is `𝑆 x`:
 
-    Γ′ ⊢ (σ ∷ s) (𝑆 x) : U Ⓡ env-lookup x ε
+    Γ′ ⊢ (σ ∷ s) (𝑆 x) : U Ⓡ env-lookup x δ
 
 Here, we need to use a few substitution lemmas (which have been omitted as their
 proofs are unrelated to the logical relation itself) to rewrite this to:
 
-    Γ′ ⊢ σ x : U Ⓡ env-lookup x ε
+    Γ′ ⊢ σ x : U Ⓡ env-lookup x δ
 
-This is again already given to us from our given proof that `Γ ⊢ σ : Δ Ⓡ ε`.
+This is again already given to us from our given proof that `Γ ⊢ σ : Δ Ⓡ δ`.
 There is one small problem: we are now considering the context `Γ′` while our
 given proof is over the context `Γ`. There was, in fact, an implict _weakening_
 of `σ` in the changing of contexts (and it would be more correct to have been
@@ -2111,11 +2193,11 @@ been omitted (and for convenience, we use the variables `t[exts-σ]` and `σ∷s
 whose definitions are also omitted).
 
 ```agda
-fundamental-lemma {Γ} {S ⇒ T} {ƛ t} {σ = σ} {ε} σⓇε {Γ′} Γ′≤Γ {s} {a} sⓇa =
-  ==-Ⓡ-trans (sym⁼⁼ β) t[exts-σ][s/x]Ⓡ⟦t⟧⟨ε,a⟩
+fundamental-lemma {Δ} {S ⇒ T} {ƛ t} {σ = σ} {δ} σⓇδ {Γ′} Γ′≤Γ {s} {a} sⓇa =
+  ==-Ⓡ-trans (sym⁼⁼ β) t[exts-σ][s/x]Ⓡ⟦t⟧⟨δ,a⟩
   where
     t[exts-σ] : Γ′ , S ⊢ T
-    σ∷s : Sub Γ′ (Γ , S)
+    σ∷s : Sub Γ′ (Δ , S)
 ```
 
 <!---
@@ -2123,7 +2205,7 @@ fundamental-lemma {Γ} {S ⇒ T} {ƛ t} {σ = σ} {ε} σⓇε {Γ′} Γ′≤�
     t[exts-σ] = t [ exts σ ] [ exts (weaken Γ′≤Γ) ]
     σ∷s = exts σ ∘ exts (weaken Γ′≤Γ) ∘ (id ∷ s)
 
-    subst-lemma₁ : ∀ {U : Type} {x : Γ ∋ U} → σ∷s (𝑆 x) ≡ (σ ∘ weaken Γ′≤Γ) x
+    subst-lemma₁ : ∀ {U : Type} {x : Δ ∋ U} → σ∷s (𝑆 x) ≡ (σ ∘ weaken Γ′≤Γ) x
     subst-lemma₁ {x = x} =
       begin
         σ∷s (𝑆 x)
@@ -2151,14 +2233,14 @@ fundamental-lemma {Γ} {S ⇒ T} {ƛ t} {σ = σ} {ε} σⓇε {Γ′} Γ′≤�
 --->
 
 ```agda
-    σ∷sⓇ⟨ε,a⟩ : σ∷s  Ⓡˢ ⟨ ε , a ⟩
-    σ∷sⓇ⟨ε,a⟩ 𝑍 = sⓇa
-    σ∷sⓇ⟨ε,a⟩ (𝑆_ {T = U} x) rewrite subst-lemma₁ {x = x} =
-      Ⓡˢ-weaken {Γ′≤Γ = Γ′≤Γ} σⓇε x
+    σ∷sⓇ⟨δ,a⟩ : σ∷s  Ⓡˢ ⟨ δ , a ⟩
+    σ∷sⓇ⟨δ,a⟩ 𝑍 = sⓇa
+    σ∷sⓇ⟨δ,a⟩ (𝑆_ {T = U} x) rewrite subst-lemma₁ {x = x} =
+      Ⓡˢ-weaken {Γ′≤Γ = Γ′≤Γ} σⓇδ x
 
-    t[exts-σ][s/x]Ⓡ⟦t⟧⟨ε,a⟩ : t[exts-σ] [ s ]₀ Ⓡ ⟦⊢ t ⟧ ⟨ ε , a ⟩
-    t[exts-σ][s/x]Ⓡ⟦t⟧⟨ε,a⟩ rewrite subst-lemma₂ | subst-lemma₃ =
-        fundamental-lemma {t = t} σ∷sⓇ⟨ε,a⟩
+    t[exts-σ][s/x]Ⓡ⟦t⟧⟨δ,a⟩ : t[exts-σ] [ s ]₀ Ⓡ ⟦⊢ t ⟧ ⟨ δ , a ⟩
+    t[exts-σ][s/x]Ⓡ⟦t⟧⟨δ,a⟩ rewrite subst-lemma₂ | subst-lemma₃ =
+        fundamental-lemma {t = t} σ∷sⓇ⟨δ,a⟩
 ```
 
 Separately, we have that the identity substitution is logically related to
@@ -2203,8 +2285,8 @@ nf-== {Γ} {T} {t}
   rewrite [id]-identity {t = t [ id ]}
         | [id]-identity {t = t}                = t==↓ᵀ⟦t⟧↑Γ
 
-nf-preserves-meaning : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T} {ε : ⟦ Γ ⟧}
-                     → ⟦⊢ t ⟧ ε ≡ ⟦⊢ nf t ⟧ ε
+nf-preserves-meaning : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T} {γ : ⟦ Γ ⟧}
+                     → ⟦⊢ t ⟧ γ ≡ ⟦⊢ nf t ⟧ γ
 nf-preserves-meaning {t = t} = ==→⟦≡⟧ (nf-== {t = t})
 
 nf-idempotent : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
@@ -2284,6 +2366,7 @@ This site uses the following unicode in its Agda source code[^1]:
     ⦄  U+2984  RIGHT WHITE CURLY BRACKET (\}})
     𝓊  U+1D4CA  MATHEMATICAL SCRIPT SMALL U (\Mcu)
     𝓋  U+1D4CB  MATHEMATICAL SCRIPT SMALL V (\Mcv)
+    γ  U+03B3  GREEK SMALL LETTER GAMMA (\Gg)
     ↑  U+2191  UPWARDS ARROW (\u)
     ᵀ  U+1D40  MODIFIER LETTER CAPITAL T (\^T)
     ↓  U+2193  DOWNWARDS ARROW (\d)
@@ -2296,6 +2379,7 @@ This site uses the following unicode in its Agda source code[^1]:
     ₃  U+2083  SUBSCRIPT 3 (\_3)
     Ⓡ  U+24C7  CIRCLED LATIN CAPITAL LETTER R (\(r)2)
     ″  U+2033  DOUBLE PRIME (\'2)
+    δ  U+03B4  GREEK SMALL LETTER DELTA (\Gd)
 
 #### References
 
