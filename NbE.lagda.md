@@ -1415,10 +1415,10 @@ in [this](https://plfa.github.io/Soundness/) chapter.
 <!---
 
 A renaming `Γ ⊢ ρ : Δ` relates an environment `γ ∈ ⟦ Γ ⟧` to an environment
-`δ ∈ ⟦ Δ ⟧` if the semantic object in `γ` for `ρ x` is equivalent to the
+`δ ∈ ⟦ Δ ⟧` iff the semantic object in `γ` for `ρ x` is equivalent to the
 semantic object in `δ` for `x` for any variable `x` in the context `Δ`:
 
-    γ ⊩ʳ ρ ~ δ ⇔ ∀ x. ⟦ Γ ∋ (ρ x):T ⟧ γ ≡ ⟦ Δ ∋ x:T ⟧ δ
+    γ ⊩ ρ ~ δ ⇔ ∀ x. ⟦ Γ ∋ (ρ x):T ⟧ γ ≡ ⟦ Δ ∋ x:T ⟧ δ
 
 ```agda
 _⊩ʳ_~_ : ∀ {Γ Δ : Ctx} → ⟦ Γ ⟧ → Ren Γ Δ → ⟦ Δ ⟧ → Set
@@ -1449,9 +1449,11 @@ rename-preserves-meaning {t = r · s} {ρ} pf
 ```
 
 A substitution `Γ ⊢ σ : Δ` relates an environment `γ ∈ ⟦ Γ ⟧` to an environment
-`δ ∈ ⟦ Δ ⟧` if for every variable `x` in the context `Δ`, the evaluation of
+`δ ∈ ⟦ Δ ⟧` iff for every variable `x` in the context `Δ`, the evaluation of
 `σ x` under the environment `γ` is equivalent to the semantic object in `δ`
-corresponding to the variable `x`.
+corresponding to the variable `x`:
+
+    γ ⊩ σ ~ δ ⇔ ∀ x. ⟦⊢ σ x ⟧ γ ≡ ⟦⊢ Δ ∋ x:T ⟧ δ
 
 ```agda
 _⊩_~_ : ∀ {Γ Δ : Ctx} → ⟦ Γ ⟧ → Sub Γ Δ → ⟦ Δ ⟧ → Set
@@ -2311,7 +2313,8 @@ reification of the semantic object, we have:
 Thus, our algorithm for normalization by evaluation preserves the meaning of a
 term that it normalizes. By extension, the algorithm is also idempotent (as we
 have already shown it is complete), so the algorithm as a whole satisifies the
-soundness properties we wanted.
+soundness properties we wanted (as a reminder, the well-typedness of the
+algorithm is given automatically with our intrinsically typed representation).
 
 ```agda
 nf-== : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
@@ -2331,6 +2334,10 @@ nf-preserves-meaning {t = t} = ==→⟦≡⟧ (nf-== {t = t})
 nf-idempotent : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T}
               → nf t ≡ nf (nf t)
 nf-idempotent {t = t} = completeness (nf-== {t = t})
+
+soundness : ∀ {Γ : Ctx} {T : Type} {t : Γ ⊢ T} {γ : ⟦ Γ ⟧ }
+          → (⟦⊢ t ⟧ γ ≡ ⟦⊢ nf t ⟧ γ) × (nf t ≡ nf (nf t))
+soundness {t = t} = ⟨ nf-preserves-meaning {t = t} , nf-idempotent {t = t} ⟩
 ```
 
 ### Conclusion
