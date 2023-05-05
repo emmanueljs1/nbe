@@ -1413,31 +1413,55 @@ soundness of reduction with respect to denotational semantics in PLFA seen
 in [this](https://plfa.github.io/Soundness/) chapter.
 
 <!---
+
+A renaming `Γ ⊢ ρ : Δ` relates an environment `γ ∈ ⟦ Γ ⟧` to an environment
+`δ ∈ ⟦ Δ ⟧` if the semantic object in `γ` for `ρ x` is equivalent to the
+semantic object in `δ` for `x` for any variable `x` in the context `Δ`:
+
+    γ ⊩ʳ ρ ~ δ ⇔ ∀ x. ⟦ Γ ∋ (ρ x):T ⟧ γ ≡ ⟦ Δ ∋ x:T ⟧ δ
+
 ```agda
 _⊩ʳ_~_ : ∀ {Γ Δ : Ctx} → ⟦ Γ ⟧ → Ren Γ Δ → ⟦ Δ ⟧ → Set
 _⊩ʳ_~_ {Δ = Δ} γ ρ δ =
   ∀ {T : Type} (x : Δ ∋ T) → env-lookup (ρ x) γ ≡ env-lookup x δ
+```
 
+Any renaming that satisfies this relation preserves meaning between
+environments.
+
+```agda
 rename-preserves-meaning : ∀ {Γ Δ : Ctx} {T : Type} {γ : ⟦ Γ ⟧} {δ : ⟦ Δ ⟧}
                              {t : Δ ⊢ T} {ρ : Ren Γ Δ}
                          → γ ⊩ʳ ρ ~ δ
                          → ⟦⊢ t [ ρ ]ʳ ⟧ γ ≡ ⟦⊢ t ⟧ δ
 rename-preserves-meaning {t = unit} pf = refl
 rename-preserves-meaning {t = # x} pf = pf x
-rename-preserves-meaning {T = S ⇒ _} {γ} {δ} {ƛ t} {ρ} pf = extensionality lemma
- where
- lemma : ∀ (a : ⟦ S ⟧) → ⟦⊢ t [ ext ρ ]ʳ ⟧ ⟨ γ , a ⟩ ≡ ⟦⊢ t ⟧ ⟨ δ , a ⟩
- lemma a =
-   rename-preserves-meaning {t = t} {ext ρ} (λ where
-                                              𝑍     → refl
-                                              (𝑆 x) → pf x)
+rename-preserves-meaning {Δ = Δ} {S ⇒ _} {γ} {δ} {ƛ t} {ρ} pf =
+  extensionality λ{a → rename-preserves-meaning {t = t} {ext ρ} (lemma {a})}
+  where
+    lemma : ∀ {a : ⟦ S ⟧} {T : Type} (x : Δ , S ∋ T)
+          → env-lookup (ext ρ x) ⟨ γ , a ⟩ ≡ env-lookup x ⟨ δ , a ⟩
+    lemma 𝑍     = refl
+    lemma (𝑆 x) = pf x
 rename-preserves-meaning {t = r · s} {ρ} pf
   rewrite rename-preserves-meaning {t = r} {ρ} pf
         | rename-preserves-meaning {t = s} {ρ} pf = refl
+```
 
+A substitution `Γ ⊢ σ : Δ` relates an environment `γ ∈ ⟦ Γ ⟧` to an environment
+`δ ∈ ⟦ Δ ⟧` if for every variable `x` in the context `Δ`, the evaluation of
+`σ x` under the environment `γ` is equivalent to the semantic object in `δ`
+corresponding to the variable `x`.
+
+```agda
 _⊩_~_ : ∀ {Γ Δ : Ctx} → ⟦ Γ ⟧ → Sub Γ Δ → ⟦ Δ ⟧ → Set
 _⊩_~_ {Δ = Δ} γ σ δ = ∀ {T : Type} (x : Δ ∋ T) → ⟦⊢ σ x ⟧ γ ≡ env-lookup x δ
+```
 
+This relation allows for proving that substitutions preserve meaning, using a
+lemma that the relation is closed under substitution extension.
+
+```agda
 subst-exts : ∀ {Γ Δ : Ctx} {S : Type} {γ : ⟦ Γ ⟧} {a : ⟦ S ⟧} {σ : Sub Γ Δ}
                {δ : ⟦ Δ ⟧}
            → γ ⊩ σ ~ δ
@@ -1459,7 +1483,11 @@ subst-preserves-meaning {T = S ⇒ T} {γ} {δ} {σ} {ƛ t} pf = extensionality 
 subst-preserves-meaning {σ = σ} {r · s} pf
   rewrite subst-preserves-meaning {σ = σ} {r} pf
         | subst-preserves-meaning {σ = σ} {s} pf = refl
+```
 
+A corollary of this is that β-reductions preserve meaning:
+
+```agda
 β-preserves-meaning : ∀ {Γ : Ctx} {S T : Type} {γ : ⟦ Γ ⟧} {s : Γ ⊢ S}
                         {t : Γ , S ⊢ T}
                     → ⟦⊢ t ⟧ ⟨ γ , ⟦⊢ s ⟧ γ ⟩ ≡ ⟦⊢ t [ s ]₀ ⟧ γ
@@ -1473,21 +1501,32 @@ subst-preserves-meaning {σ = σ} {r · s} pf
   lemma 𝑍     = refl
   lemma (𝑆 x) = refl
 ```
---->
 
+Another corollary is that the shifting substitution preserves meaning on an
+extended environment.
+
+```agda
+↥-preserves-meaning : ∀ {Γ : Ctx} {S T : Type} {t : Γ ⊢ T} {γ : ⟦ Γ ⟧}
+                        {a : ⟦ S ⟧}
+                    → ⟦⊢ t ⟧ γ ≡ ⟦⊢ t [ ↥ ] ⟧ ⟨ γ , a ⟩
+↥-preserves-meaning {t = t} {γ} {a} =
+  sym (subst-preserves-meaning {γ = ⟨ γ , a ⟩} {γ} {↥} {t} λ{_ → refl})
+```
+
+With these lemmas, it is possible to prove that definitional equality implies
+semantic equality.
+--->
 ```agda
 ==→⟦≡⟧ : ∀ {Γ : Ctx} {T : Type} {t t′ : Γ ⊢ T} {γ : ⟦ Γ ⟧}
        → t == t′
        → ⟦⊢ t ⟧ γ ≡ ⟦⊢ t′ ⟧ γ
 ```
-
 <!---
 ```
 ==→⟦≡⟧ {γ = γ} (β {t = t} {s = s}) = β-preserves-meaning {γ = γ} {s} {t}
 ==→⟦≡⟧ {T = S ⇒ _} {t = t} {γ = γ} η = extensionality lemma where
   lemma : ∀ (a : ⟦ S ⟧) → ⟦⊢ t ⟧ γ a ≡ ⟦⊢ t [ ↥ ] ⟧ ⟨ γ , a ⟩ a
-  lemma a rewrite sym (subst-preserves-meaning
-                        {γ = ⟨ γ , a ⟩} {γ} {↥} {t} λ{ _ → refl}) = refl
+  lemma a rewrite ↥-preserves-meaning {t = t} {γ} {a} = refl
 ==→⟦≡⟧ {γ = γ} (abs-compatible t==t′) =
   extensionality (λ a → ==→⟦≡⟧ {γ = ⟨ γ , a ⟩} t==t′)
 ==→⟦≡⟧ {γ = γ} (app-compatible r==r′ s==s′)
